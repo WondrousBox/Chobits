@@ -1,9 +1,9 @@
 import type { ResolvedPiRequest } from './contracts';
 import { AI_PROMPT_INSPECTOR_SETTINGS } from './prompt-inspector-settings';
 
-export type AiPromptInspectionSource = 'pi-session' | 'pi-task-chat' | 'pi-coding-session' | 'pi-forked-skill';
+export type AIPromptInspectionSource = 'pi-session' | 'pi-task-chat' | 'pi-coding-session' | 'pi-forked-skill';
 
-export interface AiPromptInspectionMessage {
+export interface AIPromptInspectionMessage {
   content: unknown;
   name?: string;
   role: string;
@@ -11,14 +11,14 @@ export interface AiPromptInspectionMessage {
   toolCallId?: string;
 }
 
-export interface AiPromptInspectionTool {
+export interface AIPromptInspectionTool {
   description?: string;
   name: string;
   parameters?: unknown;
 }
 
-export interface AiPromptInspectionRecord {
-  source: AiPromptInspectionSource;
+export interface AIPromptInspectionRecord {
+  source: AIPromptInspectionSource;
   transport: string;
   requestId?: string;
   conversationId?: string;
@@ -28,31 +28,31 @@ export interface AiPromptInspectionRecord {
   profileId?: string;
   agentId?: string;
   systemPrompt?: string;
-  messages?: AiPromptInspectionMessage[];
+  messages?: AIPromptInspectionMessage[];
   prompt?: string;
-  activeTools?: AiPromptInspectionTool[] | string[];
+  activeTools?: AIPromptInspectionTool[] | string[];
   metadata?: Record<string, unknown>;
   requestExtras?: Record<string, unknown>;
 }
 
-export interface StoredAiPromptInspectionRecord extends AiPromptInspectionRecord {
+export interface StoredAIPromptInspectionRecord extends AIPromptInspectionRecord {
   createdAt: number;
   id: string;
 }
 
-export interface AiPromptInspectionOptions {
+export interface AIPromptInspectionOptions {
   enabled?: boolean;
   logger?: (text: string) => void;
 }
 
 const MAX_RECENT_INSPECTIONS = 50;
-const recentInspections: StoredAiPromptInspectionRecord[] = [];
+const recentInspections: StoredAIPromptInspectionRecord[] = [];
 
 function createInspectionId(): string {
   return `prompt-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-export function isAiPromptInspectionEnabled(extras?: Record<string, unknown>, source?: AiPromptInspectionSource, agentId?: string): boolean {
+export function isAIPromptInspectionEnabled(extras?: Record<string, unknown>, source?: AIPromptInspectionSource, agentId?: string): boolean {
   // 单次请求级 explicit 覆盖最优先：debugPrompt / inspectPrompt / showPrompt。
   // 这条覆盖完全绕开 allowlist，保证本地排障一次就能开。
   const explicit = extras?.debugPrompt ?? extras?.inspectPrompt ?? extras?.showPrompt;
@@ -83,7 +83,7 @@ export function isAiPromptInspectionEnabled(extras?: Record<string, unknown>, so
 
 export function createResolvedPromptInspectionContext(
   resolved: ResolvedPiRequest
-): Pick<AiPromptInspectionRecord, 'agentId' | 'conversationId' | 'model' | 'profileId' | 'providerId' | 'providerPresetId' | 'requestExtras' | 'requestId'> {
+): Pick<AIPromptInspectionRecord, 'agentId' | 'conversationId' | 'model' | 'profileId' | 'providerId' | 'providerPresetId' | 'requestExtras' | 'requestId'> {
   return {
     agentId: resolved.request.agentId,
     conversationId: resolved.request.conversationId,
@@ -96,13 +96,13 @@ export function createResolvedPromptInspectionContext(
   };
 }
 
-export function inspectAiPrompt(record: AiPromptInspectionRecord, options: AiPromptInspectionOptions = {}): StoredAiPromptInspectionRecord | undefined {
-  const enabled = options.enabled ?? isAiPromptInspectionEnabled(record.requestExtras, record.source, record.agentId);
+export function inspectAIPrompt(record: AIPromptInspectionRecord, options: AIPromptInspectionOptions = {}): StoredAIPromptInspectionRecord | undefined {
+  const enabled = options.enabled ?? isAIPromptInspectionEnabled(record.requestExtras, record.source, record.agentId);
   if (!enabled) {
     return undefined;
   }
 
-  const stored: StoredAiPromptInspectionRecord = {
+  const stored: StoredAIPromptInspectionRecord = {
     ...record,
     createdAt: Date.now(),
     id: createInspectionId()
@@ -115,16 +115,16 @@ export function inspectAiPrompt(record: AiPromptInspectionRecord, options: AiPro
   }
 
   if (AI_PROMPT_INSPECTOR_SETTINGS.printToConsole || options.logger) {
-    (options.logger ?? console.log)(formatAiPromptInspection(stored));
+    (options.logger ?? console.log)(formatAIPromptInspection(stored));
   }
   return stored;
 }
 
-export function listRecentAiPromptInspections(): StoredAiPromptInspectionRecord[] {
+export function listRecentAIPromptInspections(): StoredAIPromptInspectionRecord[] {
   return recentInspections.map((record) => ({ ...record }));
 }
 
-export function clearRecentAiPromptInspections(): void {
+export function clearRecentAIPromptInspections(): void {
   recentInspections.length = 0;
 }
 
@@ -134,7 +134,7 @@ function pushOptionalLine(lines: string[], label: string, value: unknown): void 
   }
 }
 
-export function formatAiPromptInspection(record: AiPromptInspectionRecord): string {
+export function formatAIPromptInspection(record: AIPromptInspectionRecord): string {
   const lines: string[] = [];
   lines.push('==================== AI PROMPT INSPECTION ====================');
   pushOptionalLine(lines, 'source', record.source);

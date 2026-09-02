@@ -1,7 +1,7 @@
 /**
  * 持久化模块
  *
- * - PersonaStatePersistence: 人格状态持久化（自动保存 + debounce）
+ * - CharacterStatePersistence: 角色状态持久化（自动保存 + debounce）
  */
 
 import fs from 'node:fs';
@@ -10,17 +10,17 @@ import path from 'node:path';
 
 import type { SpriteBubbleMode } from '../types';
 import { DEFAULT_SPRITE_BUBBLE_MODE, normalizeSpriteBubbleMode } from '../types';
-import type { PersonaStatePersistenceRow } from './types';
+import type { CharacterStatePersistenceRow } from './types';
 
-type LegacyPersonaStatePersistenceRow = Partial<Omit<PersonaStatePersistenceRow, 'version' | 'achievements' | 'dimensions'>> & {
+type LegacyCharacterStatePersistenceRow = Partial<Omit<CharacterStatePersistenceRow, 'version' | 'achievements' | 'dimensions'>> & {
   version?: unknown;
   achievements?: unknown;
   dimensions?: unknown;
 };
 
-interface PersonaStatePersistenceStore {
+interface CharacterStatePersistenceStore {
   version: 1;
-  slots: Record<string, PersonaStatePersistenceRow>;
+  slots: Record<string, CharacterStatePersistenceRow>;
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -65,11 +65,11 @@ function normalizeDimensions(value: unknown): Record<string, number> {
   return dimensions;
 }
 
-/** 兼容旧版 persona-state.json：养成字段（xp/level/favor/loginStreak/claimedRewards 等）直接忽略。 */
-function normalizeLoadedState(raw: unknown): PersonaStatePersistenceRow | null {
+/** 兼容旧版 persona-state.json（落盘文件名保留不变）：养成字段（xp/level/favor/loginStreak/claimedRewards 等）直接忽略。 */
+function normalizeLoadedState(raw: unknown): CharacterStatePersistenceRow | null {
   if (!isPlainObject(raw)) return null;
 
-  const parsed = raw as LegacyPersonaStatePersistenceRow;
+  const parsed = raw as LegacyCharacterStatePersistenceRow;
   const now = Date.now();
 
   return {
@@ -77,7 +77,7 @@ function normalizeLoadedState(raw: unknown): PersonaStatePersistenceRow | null {
     version: 2,
     name: normalizeString(parsed.name, 'Chobits'),
     description: typeof parsed.description === 'string' ? parsed.description : undefined,
-    mood: normalizeString(parsed.mood, 'neutral') as PersonaStatePersistenceRow['mood'],
+    mood: normalizeString(parsed.mood, 'neutral') as CharacterStatePersistenceRow['mood'],
     moodIntensity: normalizeNumber(parsed.moodIntensity, 50),
     achievements: normalizeAchievements(parsed.achievements),
     dimensions: normalizeDimensions(parsed.dimensions),
@@ -86,11 +86,11 @@ function normalizeLoadedState(raw: unknown): PersonaStatePersistenceRow | null {
   };
 }
 
-function normalizeLoadedStore(raw: unknown): PersonaStatePersistenceStore | null {
+function normalizeLoadedStore(raw: unknown): CharacterStatePersistenceStore | null {
   if (!isPlainObject(raw)) return null;
 
   if (isPlainObject(raw.slots)) {
-    const slots: Record<string, PersonaStatePersistenceRow> = {};
+    const slots: Record<string, CharacterStatePersistenceRow> = {};
     for (const [slotId, slotValue] of Object.entries(raw.slots)) {
       const normalizedSlotId = normalizeString(slotId).trim();
       const normalizedRow = normalizeLoadedState(slotValue);
@@ -119,10 +119,10 @@ function normalizeLoadedStore(raw: unknown): PersonaStatePersistenceStore | null
 }
 
 // ============================================================================
-// 人格状态持久化
+// 角色状态持久化
 // ============================================================================
 
-export class PersonaStatePersistence {
+export class CharacterStatePersistence {
   private filePath: string;
   private dirty = false;
   private saveTimer: ReturnType<typeof setInterval> | null = null;
@@ -130,11 +130,12 @@ export class PersonaStatePersistence {
 
   constructor(dataDir: string) {
     const settingsDir = path.join(dataDir, 'data');
+    // 落盘文件名为历史契约，保持 persona-state.json 不变
     this.filePath = path.join(settingsDir, 'persona-state.json');
   }
 
   /** 加载指定 slot 的状态 */
-  async load(id = 'default'): Promise<PersonaStatePersistenceRow | null> {
+  async load(id = 'default'): Promise<CharacterStatePersistenceRow | null> {
     try {
       const raw = await fsp.readFile(this.filePath, 'utf-8');
       const store = normalizeLoadedStore(JSON.parse(raw));
@@ -151,7 +152,7 @@ export class PersonaStatePersistence {
   }
 
   /** 立即保存 */
-  async save(state: PersonaStatePersistenceRow): Promise<void> {
+  async save(state: CharacterStatePersistenceRow): Promise<void> {
     try {
       const dir = path.dirname(this.filePath);
       if (!fs.existsSync(dir)) {
@@ -165,12 +166,12 @@ export class PersonaStatePersistence {
       await fsp.writeFile(this.filePath, JSON.stringify(nextStore, null, 2), 'utf-8');
       this.dirty = false;
     } catch (err) {
-      console.error('[SpriteManager] Failed to save persona state:', err);
+      console.error('[SpriteManager] Failed to save character state:', err);
     }
   }
 
   /** 启动自动保存 (每 60 秒) */
-  startAutoSave(getState: () => PersonaStatePersistenceRow): void {
+  startAutoSave(getState: () => CharacterStatePersistenceRow): void {
     this.stopAutoSave();
     this.saveTimer = setInterval(async () => {
       if (this.dirty) {
@@ -203,7 +204,7 @@ export class PersonaStatePersistence {
     return this.dirty;
   }
 
-  private async readStore(): Promise<PersonaStatePersistenceStore> {
+  private async readStore(): Promise<CharacterStatePersistenceStore> {
     try {
       const raw = await fsp.readFile(this.filePath, 'utf-8');
       return normalizeLoadedStore(JSON.parse(raw)) ?? { version: 1, slots: {} };

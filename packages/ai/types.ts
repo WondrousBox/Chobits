@@ -459,7 +459,7 @@ export type SelectedTextExplainRequest = ProviderScopedRequest & {
     promptTemplate?: string;
   };
 };
-export type ActiveAiTaskSnapshot = {
+export type ActiveAITaskSnapshot = {
   requestId: string;
   providerId: string;
   model: string;
@@ -693,6 +693,6 @@ export type AIApi = {
   /** Subscribe to card push events from main process */
   onCardPushed(callback: (card: PushedCard) => void): () => void;
   /** Send user's choice response back to main process (for ask-user tool) */
-  sendUserChoiceResponse(response: UserChoiceResponse): Promise<{ success: boolean; error?: string }>;
+  sendUserChoiceResponse(response: UserChoiceResponse): Promise<{ ok: boolean; error?: string }>;
 
 };

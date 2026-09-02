@@ -2,13 +2,13 @@
  * Sprite-Core Shared Types
  *
  * 共享类型定义，供主进程和渲染进程共同使用。
- * 从 src/components/AIAssistant/types.ts 和 message/types.ts 迁移而来。
+ * 早期从旧 assistant 组件目录与 message/types.ts 迁移而来。
  */
 
 import type { BusyInput, MessageButton, MessageCategory, NoticeInput, SpriteMessageData, ToastInput } from '@packages/event/messages';
 
 import { normalizeSpriteAnimationCondition, type SpriteAnimationCondition } from './animation-condition';
-import type { PersonaState as PersonaSnapshot } from './persona-state';
+import type { CharacterState as CharacterSnapshot } from './character-state';
 
 // 消息系统基元已物理迁移到 @packages/event/messages，这里保持同名 re-export 以兼容既有消费方
 export type {
@@ -217,7 +217,7 @@ export type SpriteFeedbackResult =
   | { ok: true; played: false; reason: 'missing-animation' | 'blocked-by-lock' | 'no-renderer' }
   | { ok: false; played: false; reason: 'invalid-request'; error: string };
 
-export type { PersonaSnapshot };
+export type { CharacterSnapshot };
 export type {
   SpriteCapabilityBranch,
   SpriteCapabilityDefinition,
@@ -440,7 +440,7 @@ export interface SpriteAnimationMeta {
   triggerAliases?: SpriteAnimationTrigger[];
   /** 同 trigger 多动画命中时的排序权重 */
   priority?: number;
-  /** 持久化的 persona 条件规则，运行时会编译成 registry condition */
+  /** 持久化的角色状态条件规则，运行时会编译成 registry condition */
   condition?: SpriteAnimationCondition;
   deletable?: boolean;
 }
@@ -582,7 +582,7 @@ export interface MessageContextValue {
 export interface SpriteStateSnapshot {
   state: string;
   subState: string | null;
-  personaSnapshot?: PersonaSnapshot;
+  characterState?: CharacterSnapshot;
 }
 
 /** 精灵播放指令 */
@@ -616,16 +616,16 @@ export interface SpritePlayCommand {
 export interface SpriteInitialState {
   state: string;
   subState: string | null;
-  personaState: PersonaSnapshot | null;
+  characterState: CharacterSnapshot | null;
   animations: SpriteAnimation[];
   currentAnimation: SpritePlayCommand | null;
   config: SpriteConfig;
 }
 
-/** 获取人格状态响应 */
-export interface SpritePersonaStateResult {
+/** 获取角色状态响应 */
+export interface SpriteCharacterStateResult {
   ok: true;
-  state: PersonaSnapshot;
+  characterState: CharacterSnapshot;
 }
 
 /** 精灵行走状态 */

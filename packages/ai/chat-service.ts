@@ -63,11 +63,11 @@ export class ChatService {
 
   registerIpc(): void {
     ipcMain.handle('ai:chat', async (e, req: ChatRequest) => this.chat(BrowserWindow.fromWebContents(e.sender) || this.defaultWin, normalizeProviderPreset(req)));
-    ipcMain.handle('ai:chatStream', async (e, req: ChatRequest) => this.chatStream(e.sender, normalizeProviderPreset(req)));
+    ipcMain.handle('ai:chat-stream', async (e, req: ChatRequest) => this.chatStream(e.sender, normalizeProviderPreset(req)));
     ipcMain.handle('ai:cancel', async (_e, payload: { requestId: string }) => this.cancel(payload.requestId));
     ipcMain.handle('ai:embed', async (_e, payload: EmbeddingRequest) => this.embed(normalizeProviderPreset(payload)));
     // Stateless chat (no history persistence)
-    ipcMain.handle('ai:chatEphemeral', async (e, req: ChatRequest) => this.chatEphemeral(BrowserWindow.fromWebContents(e.sender) || this.defaultWin, normalizeProviderPreset(req)));
+    ipcMain.handle('ai:chat-ephemeral', async (e, req: ChatRequest) => this.chatEphemeral(BrowserWindow.fromWebContents(e.sender) || this.defaultWin, normalizeProviderPreset(req)));
   }
 
   private async chat(win: BrowserWindow | undefined, req: ChatRequest): Promise<ChatResponse> {
@@ -423,7 +423,7 @@ ${JSON.stringify(streamReq, null, 2)}
       });
     } else {
       const resourceContextIds = extractResourceContextIds(req, streamMessages, collectedToolCalls);
-      eventManager.emit(AppEvent.SPRITE_AI_COMPLETE, {
+      eventManager.emit(AppEvent.SPRITE_AI_COMPLETED, {
         conversationId: conv?.id,
         messageCount: streamMessages.length,
         toolCallCount: collectedToolCalls.length,

@@ -107,7 +107,7 @@ export function onShortcutsConfigChanged(cb: (cfg: ShortcutsConfig) => void): ()
 export function notifyShortcutsUpdatedTo(win?: BrowserWindow | null): void {
   try {
     const cfg = loadShortcutsConfig();
-    win?.webContents?.send('shortcuts-config-updated', cfg);
+    win?.webContents?.send('shortcuts:config-updated', cfg);
   } catch {
     // ignore
   }
@@ -233,7 +233,7 @@ export function isShortcutEnabled(actionId: string): boolean {
 export function notifyShortcutEnabledUpdatedTo(win?: BrowserWindow | null): void {
   try {
     const cfg = loadShortcutEnabledConfig();
-    win?.webContents?.send('shortcuts-enabled-updated', cfg);
+    win?.webContents?.send('shortcuts:enabled-updated', cfg);
   } catch {
     // ignore
   }

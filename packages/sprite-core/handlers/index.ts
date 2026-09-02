@@ -2,11 +2,11 @@
  * Sprite Handler barrel exports
  *
  * 主进程只需:
- *   import { initSpriteHandlers, initSpriteManagerIPC } from '@packages/sprite-core/handler'
+ *   import { initSpriteHandlers, initSpriteManagerHandlers } from '@packages/sprite-core/handlers'
  */
 
 export type { SpriteAssetsDeps } from './sprite-assets';
 export { getDefaultSpritesDir, initSpriteHandlers, listSprites } from './sprite-assets';
 export type { SpriteEventPayload } from './sprite-event-listener';
 export { initSpriteEventListener } from './sprite-event-listener';
-export { initSpriteManagerIPC } from './sprite-manager-ipc';
+export { initSpriteManagerHandlers } from './sprite-manager-ipc';

@@ -3,7 +3,7 @@ import path from 'path';
 import { getResourcePath } from '../common/utils';
 import { pluginResourceManager } from '../plugins';
 import ChildProcessManager from './child-process-manager';
-import { AllModels, CommonConfig, getModelConfig, punctuationModelConfig, StreamInstances, vadModelConfig } from './common';
+import { SherpaModel, CommonConfig, getModelConfig, punctuationModelConfig, StreamInstances, vadModelConfig } from './common';
 import { findSherpaOnnxNativeLibPath, findSherpaOnnxNodePath } from './utils';
 
 const Ins: StreamInstances = {};
@@ -12,7 +12,7 @@ export type ASRType = 'online' | 'offline' | 'vad';
 
 export interface CreateInstanceOptions {
   uuid: string;
-  model?: AllModels;
+  model?: SherpaModel;
   punctuationModel?: string;
   language?: string;
   commonConfig?: CommonConfig;

@@ -1,4 +1,4 @@
-import type { PersonaState } from './persona-state';
+import type { CharacterState } from './character-state';
 
 export type SpriteAnimationConditionScalar = string | number | boolean;
 export type SpriteAnimationConditionValue = SpriteAnimationConditionScalar | SpriteAnimationConditionScalar[];
@@ -85,11 +85,11 @@ export function normalizeSpriteAnimationCondition(condition: unknown): SpriteAni
   }
 }
 
-function getPersonaConditionFieldValue(personaState: PersonaState, field: string): unknown {
+function getCharacterConditionFieldValue(characterState: CharacterState, field: string): unknown {
   return field.split('.').reduce<unknown>((current, segment) => {
     if (current == null || typeof current !== 'object') return undefined;
     return (current as Record<string, unknown>)[segment];
-  }, personaState as unknown);
+  }, characterState as unknown);
 }
 
 function compareNumeric(left: unknown, right: unknown, operator: Extract<SpriteAnimationConditionOperator, 'gt' | 'gte' | 'lt' | 'lte'>): boolean {
@@ -107,8 +107,8 @@ function compareNumeric(left: unknown, right: unknown, operator: Extract<SpriteA
   }
 }
 
-function compareLeafCondition(condition: SpriteAnimationCompareCondition, personaState: PersonaState): boolean {
-  const actualValue = getPersonaConditionFieldValue(personaState, condition.field);
+function compareLeafCondition(condition: SpriteAnimationCompareCondition, characterState: CharacterState): boolean {
+  const actualValue = getCharacterConditionFieldValue(characterState, condition.field);
   const expectedValue = condition.value;
 
   switch (condition.operator) {
@@ -132,24 +132,24 @@ function compareLeafCondition(condition: SpriteAnimationCompareCondition, person
   }
 }
 
-export function matchesSpriteAnimationCondition(condition: SpriteAnimationCondition | null | undefined, personaState: PersonaState): boolean {
+export function matchesSpriteAnimationCondition(condition: SpriteAnimationCondition | null | undefined, characterState: CharacterState): boolean {
   if (!condition) return true;
 
   switch (condition.type) {
     case 'all':
-      return condition.conditions.every((entry) => matchesSpriteAnimationCondition(entry, personaState));
+      return condition.conditions.every((entry) => matchesSpriteAnimationCondition(entry, characterState));
     case 'any':
-      return condition.conditions.some((entry) => matchesSpriteAnimationCondition(entry, personaState));
+      return condition.conditions.some((entry) => matchesSpriteAnimationCondition(entry, characterState));
     case 'not':
-      return !matchesSpriteAnimationCondition(condition.condition, personaState);
+      return !matchesSpriteAnimationCondition(condition.condition, characterState);
     case 'compare':
-      return compareLeafCondition(condition, personaState);
+      return compareLeafCondition(condition, characterState);
   }
 }
 
-export function compileSpriteAnimationCondition(condition: SpriteAnimationCondition | null | undefined): ((personaState: PersonaState) => boolean) | undefined {
+export function compileSpriteAnimationCondition(condition: SpriteAnimationCondition | null | undefined): ((characterState: CharacterState) => boolean) | undefined {
   const normalizedCondition = normalizeSpriteAnimationCondition(condition);
   if (!normalizedCondition) return undefined;
 
-  return (personaState: PersonaState) => matchesSpriteAnimationCondition(normalizedCondition, personaState);
+  return (characterState: CharacterState) => matchesSpriteAnimationCondition(normalizedCondition, characterState);
 }

@@ -1,7 +1,7 @@
 /**
  * Sprite Preload Bridge
  *
- * window.YUA.sprite.* 接口
+ * window.chobits.sprite.* 接口
  * 包含原有动画管理 + 新增的交互上报/拖拽/状态订阅
  * + 语音合成 (speak) 功能
  */
@@ -116,14 +116,14 @@ export type SpriteBridgeType = {
   setBubbleMode(mode: SpriteBubbleMode): Promise<SpriteBubbleMode>;
 
   // 气泡跟随窗口控制
-  bubbleResize(width: number, height: number): Promise<{ success: boolean; error?: string }>;
-  bubbleSetVisible(visible: boolean): Promise<{ success: boolean; error?: string }>;
+  bubbleResize(width: number, height: number): Promise<{ ok: boolean; error?: string }>;
+  bubbleSetVisible(visible: boolean): Promise<{ ok: boolean; error?: string }>;
 
   // 特效跟随窗口与桥接事件
-  effectResize(width: number, height: number): Promise<{ success: boolean; error?: string }>;
-  effectSetVisible(visible: boolean): Promise<{ success: boolean; error?: string }>;
-  effectShow(payload: SpriteEffectPayload): Promise<{ success: boolean; error?: string }>;
-  effectClear(payload?: SpriteEffectClearPayload): Promise<{ success: boolean; error?: string }>;
+  effectResize(width: number, height: number): Promise<{ ok: boolean; error?: string }>;
+  effectSetVisible(visible: boolean): Promise<{ ok: boolean; error?: string }>;
+  effectShow(payload: SpriteEffectPayload): Promise<{ ok: boolean; error?: string }>;
+  effectClear(payload?: SpriteEffectClearPayload): Promise<{ ok: boolean; error?: string }>;
   getSpontaneousUtterancePreferences(): Promise<SpriteSpontaneousUtterancePreferences | null>;
   updateSpontaneousUtterancePreferences(patch: Partial<SpriteSpontaneousUtterancePreferences>): Promise<SpriteSpontaneousUtterancePreferences | null>;
   listSpontaneousUtteranceHistory(query?: SpriteSpontaneousUtteranceHistoryQuery): Promise<SpriteSpontaneousUtteranceHistoryItem[]>;
@@ -158,11 +158,11 @@ export type SpriteBridgeType = {
   confirmNotice(request: SpriteConfirmNoticeRequest): Promise<SpriteConfirmNoticeResult>;
 
   // 临时资源根目录（用于视频预览等场景）
-  addTempResourceRoot(root: string): Promise<{ success: boolean }>;
+  addTempResourceRoot(root: string): Promise<{ ok: boolean }>;
   setSpeakConfig(config: Partial<SpriteSpeakConfig>): Promise<SpriteSpeakConfig>;
   resetSpeakConfig(): Promise<SpriteSpeakConfig>;
   getSpeakCacheStats(): Promise<{ totalEntries: number; totalSizeBytes: number }>;
-  clearSpeakCache(): Promise<{ success: boolean }>;
+  clearSpeakCache(): Promise<{ ok: boolean }>;
 
   // 事件订阅
   onPlay(cb: (data: any) => void): () => void;
@@ -181,13 +181,13 @@ export type SpriteBridgeType = {
 export const spriteBridge: SpriteBridgeType = {
   // ── 动画管理 (原有) ──────────────────────────────────────
   list: () => ipcRenderer.invoke('sprite:list'),
-  listByTrigger: (trigger) => ipcRenderer.invoke('sprite:listByTrigger', { trigger }),
+  listByTrigger: (trigger) => ipcRenderer.invoke('sprite:list-by-trigger', { trigger }),
   get: (id) => ipcRenderer.invoke('sprite:get', { id }),
   register: (anim) => ipcRenderer.invoke('sprite:register', anim),
-  registerFromData: (payload) => ipcRenderer.invoke('sprite:registerFromData', payload),
+  registerFromData: (payload) => ipcRenderer.invoke('sprite:register-from-data', payload),
   remove: (id, deleteFile) => ipcRenderer.invoke('sprite:remove', { id, deleteFile }),
-  updateConfig: (id, patch) => ipcRenderer.invoke('sprite:updateConfig', { id, patch }),
-  updateMeta: (id, meta) => ipcRenderer.invoke('sprite:updateMeta', { id, meta }),
+  updateConfig: (id, patch) => ipcRenderer.invoke('sprite:update-config', { id, patch }),
+  updateMeta: (id, meta) => ipcRenderer.invoke('sprite:update-meta', { id, meta }),
 
   // ── 交互上报 ─────────────────────────────────────────────
   interact: (type, data) => ipcRenderer.invoke('sprite:interact', { type, data }),
@@ -214,33 +214,33 @@ export const spriteBridge: SpriteBridgeType = {
   ready: () => ipcRenderer.invoke('sprite:ready'),
 
   // ── 配置 ─────────────────────────────────────────────────
-  getDebugOverlay: () => ipcRenderer.invoke('sprite:config:getDebugOverlay'),
-  setDebugOverlay: (enabled) => ipcRenderer.invoke('sprite:config:setDebugOverlay', { enabled }),
-  getAnimationPlaylistMode: (trigger) => (trigger ? ipcRenderer.invoke('sprite:config:getAnimationPlaylistMode', { trigger }) : ipcRenderer.invoke('sprite:config:getAnimationPlaylistMode')),
-  setAnimationPlaylistMode: (mode, trigger) => ipcRenderer.invoke('sprite:config:setAnimationPlaylistMode', trigger ? { mode, trigger } : { mode }),
-  getBubbleMode: () => ipcRenderer.invoke('sprite:config:getBubbleMode'),
-  setBubbleMode: (mode) => ipcRenderer.invoke('sprite:config:setBubbleMode', { mode }),
+  getDebugOverlay: () => ipcRenderer.invoke('sprite:config:get-debug-overlay'),
+  setDebugOverlay: (enabled) => ipcRenderer.invoke('sprite:config:set-debug-overlay', { enabled }),
+  getAnimationPlaylistMode: (trigger) => (trigger ? ipcRenderer.invoke('sprite:config:get-animation-playlist-mode', { trigger }) : ipcRenderer.invoke('sprite:config:get-animation-playlist-mode')),
+  setAnimationPlaylistMode: (mode, trigger) => ipcRenderer.invoke('sprite:config:set-animation-playlist-mode', trigger ? { mode, trigger } : { mode }),
+  getBubbleMode: () => ipcRenderer.invoke('sprite:config:get-bubble-mode'),
+  setBubbleMode: (mode) => ipcRenderer.invoke('sprite:config:set-bubble-mode', { mode }),
 
   // 气泡跟随窗口控制
   bubbleResize: (width, height) => ipcRenderer.invoke('sprite:bubble:resize', { width, height }),
-  bubbleSetVisible: (visible) => ipcRenderer.invoke('sprite:bubble:setVisible', { visible }),
+  bubbleSetVisible: (visible) => ipcRenderer.invoke('sprite:bubble:set-visible', { visible }),
 
   // 特效跟随窗口与桥接事件
   effectResize: (width, height) => ipcRenderer.invoke('sprite:effect:resize', { width, height }),
-  effectSetVisible: (visible) => ipcRenderer.invoke('sprite:effect:setVisible', { visible }),
+  effectSetVisible: (visible) => ipcRenderer.invoke('sprite:effect:set-visible', { visible }),
   effectShow: (payload) => ipcRenderer.invoke(SPRITE_EFFECT_IPC_CHANNELS.SHOW, payload),
   effectClear: (payload) => ipcRenderer.invoke(SPRITE_EFFECT_IPC_CHANNELS.CLEAR, payload ?? { type: 'all' }),
-  getSpontaneousUtterancePreferences: () => ipcRenderer.invoke('sprite:spontaneous:getPreferences'),
-  updateSpontaneousUtterancePreferences: (patch) => ipcRenderer.invoke('sprite:spontaneous:updatePreferences', patch),
-  listSpontaneousUtteranceHistory: (query) => ipcRenderer.invoke('sprite:spontaneous:listHistory', query),
-  previewMovement: (config) => ipcRenderer.invoke('sprite:previewMovement', config),
-  stopMovementPreview: () => ipcRenderer.invoke('sprite:stopMovementPreview'),
-  setMovementAvoidRegions: (regions) => ipcRenderer.invoke('sprite:movement:setAvoidRegions', { regions }),
+  getSpontaneousUtterancePreferences: () => ipcRenderer.invoke('sprite:spontaneous:get-preferences'),
+  updateSpontaneousUtterancePreferences: (patch) => ipcRenderer.invoke('sprite:spontaneous:update-preferences', patch),
+  listSpontaneousUtteranceHistory: (query) => ipcRenderer.invoke('sprite:spontaneous:list-history', query),
+  previewMovement: (config) => ipcRenderer.invoke('sprite:preview-movement', config),
+  stopMovementPreview: () => ipcRenderer.invoke('sprite:stop-movement-preview'),
+  setMovementAvoidRegions: (regions) => ipcRenderer.invoke('sprite:movement:set-avoid-regions', { regions }),
 
   // ── 语音合成 (Speak) ──────────────────────────────────────
   speak: (text, options) => ipcRenderer.invoke('sprite:speak', { text, showBubble: options?.showBubble, bubbleDuration: options?.bubbleDuration }),
   synthesizeSpeech: (text) => ipcRenderer.invoke('sprite:speak:synthesize', { text }),
-  getSpeakConfig: () => ipcRenderer.invoke('sprite:speak:getConfig'),
+  getSpeakConfig: () => ipcRenderer.invoke('sprite:speak:get-config'),
   startRealtimeSpeechSession: async (request) => {
     const res = (await ipcRenderer.invoke('sprite:speak:realtime:start', request)) as SpriteRealtimeSpeechSessionStartResult;
     const listeners = new Set<(event: SpriteRealtimeSpeechEvent) => void>();
@@ -273,7 +273,7 @@ export const spriteBridge: SpriteBridgeType = {
       sessionId: res.sessionId,
       appendText: async (text) => {
         if (!active) return;
-        await ipcRenderer.invoke('sprite:speak:realtime:appendText', { sessionId: res.sessionId, text });
+        await ipcRenderer.invoke('sprite:speak:realtime:append-text', { sessionId: res.sessionId, text });
       },
       flush: async () => {
         if (!active) return;
@@ -301,30 +301,30 @@ export const spriteBridge: SpriteBridgeType = {
 
     return api;
   },
-  setSpeakConfig: (config) => ipcRenderer.invoke('sprite:speak:setConfig', config),
-  resetSpeakConfig: () => ipcRenderer.invoke('sprite:speak:resetConfig'),
-  getSpeakCacheStats: () => ipcRenderer.invoke('sprite:speak:getCacheStats'),
-  clearSpeakCache: () => ipcRenderer.invoke('sprite:speak:clearCache'),
+  setSpeakConfig: (config) => ipcRenderer.invoke('sprite:speak:set-config', config),
+  resetSpeakConfig: () => ipcRenderer.invoke('sprite:speak:reset-config'),
+  getSpeakCacheStats: () => ipcRenderer.invoke('sprite:speak:get-cache-stats'),
+  clearSpeakCache: () => ipcRenderer.invoke('sprite:speak:clear-cache'),
 
   // ── 统一事件触发 ───────────────────────────────────────
   trigger: (trigger, options) => ipcRenderer.invoke('sprite:trigger', { trigger, ...options }),
   playFeedback: (request) => ipcRenderer.invoke('sprite:feedback:play', request),
-  testAnimation: (animationId, options) => ipcRenderer.invoke('sprite:triggerById', { animationId, ...options }),
+  testAnimation: (animationId, options) => ipcRenderer.invoke('sprite:trigger-by-id', { animationId, ...options }),
 
   // ── Purpose / Routine 编排 ──────────────────────────────
   startPurpose: (request) => ipcRenderer.invoke('sprite:purpose:start', request),
   cancelPurpose: (purposeId, reason) => ipcRenderer.invoke('sprite:purpose:cancel', { purposeId, reason }),
-  getPurposeSnapshot: () => ipcRenderer.invoke('sprite:purpose:getSnapshot'),
+  getPurposeSnapshot: () => ipcRenderer.invoke('sprite:purpose:get-snapshot'),
   emitPurposeEvent: (event) => ipcRenderer.invoke('sprite:purpose:event', event),
-  listPurposeHistory: (query) => ipcRenderer.invoke('sprite:purpose:listHistory', query),
-  getPurposeDailyRetrospective: (query) => ipcRenderer.invoke('sprite:purpose:getDailyRetrospective', query),
-  getPurposePlannerPreferences: () => ipcRenderer.invoke('sprite:purposePlanner:getPreferences'),
-  updatePurposePlannerPreferences: (patch) => ipcRenderer.invoke('sprite:purposePlanner:updatePreferences', patch),
-  getPurposePlannerStatus: () => ipcRenderer.invoke('sprite:purposePlanner:getStatus'),
+  listPurposeHistory: (query) => ipcRenderer.invoke('sprite:purpose:list-history', query),
+  getPurposeDailyRetrospective: (query) => ipcRenderer.invoke('sprite:purpose:get-daily-retrospective', query),
+  getPurposePlannerPreferences: () => ipcRenderer.invoke('sprite:purpose-planner:get-preferences'),
+  updatePurposePlannerPreferences: (patch) => ipcRenderer.invoke('sprite:purpose-planner:update-preferences', patch),
+  getPurposePlannerStatus: () => ipcRenderer.invoke('sprite:purpose-planner:get-status'),
   confirmNotice: (request) => ipcRenderer.invoke('sprite:message:confirm', request),
 
   // ── 临时资源根目录 ──────────────────────────────────────
-  addTempResourceRoot: (root) => ipcRenderer.invoke('sprite:addTempResourceRoot', root),
+  addTempResourceRoot: (root) => ipcRenderer.invoke('sprite:add-temp-resource-root', root),
 
   // ── 事件订阅 ─────────────────────────────────────────────
   onPlay: (cb) => {

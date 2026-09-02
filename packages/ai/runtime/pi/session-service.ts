@@ -6,7 +6,7 @@ import type { ChatRequest, ChatResponse, StreamEvent, TokenUsage } from '../../t
 import { cancelPendingChoice, waitForUserChoice } from '../../user-choice-registry';
 import type { PiRuntimeAvailability, PiRuntimePreview, ResolvedPiRequest } from './contracts';
 import { resolvePiRequest } from './model-resolver';
-import { type AiPromptInspectionTool, createResolvedPromptInspectionContext, inspectAiPrompt } from './prompt-inspector';
+import { type AIPromptInspectionTool, createResolvedPromptInspectionContext, inspectAIPrompt } from './prompt-inspector';
 import { buildPiModel, buildPiModelHeaders } from './provider-model';
 import { extractPiProviderRequestId } from './provider-request-id';
 import { isPiRuntimeRequested } from './runtime-switch';
@@ -708,7 +708,7 @@ function toInspectionMessages(messages: PiMessage[]): Array<{ content: unknown; 
 }
 
 function inspectPiAiPrompt(params: { context: PiContext; metadata?: Record<string, unknown>; resolved: ResolvedPiRequest; source: 'pi-session'; transport: string }): void {
-  inspectAiPrompt({
+  inspectAIPrompt({
     ...createResolvedPromptInspectionContext(params.resolved),
     activeTools: params.resolved.enabledToolIds,
     messages: toInspectionMessages(params.context.messages as PiMessage[]),
@@ -719,7 +719,7 @@ function inspectPiAiPrompt(params: { context: PiContext; metadata?: Record<strin
   });
 }
 
-function getActiveSessionTools(session: { getActiveToolNames?: () => string[]; getAllTools?: () => Array<{ description?: string; name: string; parameters?: unknown }> }): AiPromptInspectionTool[] {
+function getActiveSessionTools(session: { getActiveToolNames?: () => string[]; getAllTools?: () => Array<{ description?: string; name: string; parameters?: unknown }> }): AIPromptInspectionTool[] {
   if (typeof session.getActiveToolNames !== 'function' || typeof session.getAllTools !== 'function') {
     return [];
   }
@@ -736,7 +736,7 @@ function getActiveSessionTools(session: { getActiveToolNames?: () => string[]; g
 }
 
 function inspectCodingSessionPrompt(params: {
-  activeTools: AiPromptInspectionTool[];
+  activeTools: AIPromptInspectionTool[];
   metadata?: Record<string, unknown>;
   promptState: { history: PiMessage[]; prompt: string };
   resolved: ResolvedPiRequest;
@@ -744,7 +744,7 @@ function inspectCodingSessionPrompt(params: {
   systemPrompt?: string;
   transport: string;
 }): void {
-  inspectAiPrompt({
+  inspectAIPrompt({
     ...createResolvedPromptInspectionContext(params.resolved),
     activeTools: params.activeTools,
     messages: toInspectionMessages(params.promptState.history),

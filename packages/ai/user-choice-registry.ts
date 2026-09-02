@@ -59,14 +59,14 @@ export function cancelPendingChoice(choiceId: string): void {
  * 注册 IPC handler：renderer -> main，用户提交选择结果
  */
 export function registerUserChoiceIpc(): void {
-  ipcMain.handle('ai:userChoiceResponse', async (_e, payload: UserChoiceResponse) => {
+  ipcMain.handle('ai:user-choice-response', async (_e, payload: UserChoiceResponse) => {
     const { choiceId } = payload;
     const pending = pendingChoices.get(choiceId);
     if (!pending) {
-      return { success: false, error: '选择请求已过期或不存在' };
+      return { ok: false, error: '选择请求已过期或不存在' };
     }
     pendingChoices.delete(choiceId);
     pending.resolve(payload);
-    return { success: true };
+    return { ok: true };
   });
 }

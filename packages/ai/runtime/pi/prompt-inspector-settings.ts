@@ -1,4 +1,4 @@
-import type { AiPromptInspectionSource } from './prompt-inspector';
+import type { AIPromptInspectionSource } from './prompt-inspector';
 
 /**
  * 全局 AI 提示词观察（inspection）配置。
@@ -29,7 +29,7 @@ export const AI_PROMPT_INSPECTOR_SETTINGS = {
 
   /**
    * 是否在内存中保留最近 MAX_RECENT_INSPECTIONS 条 inspection 记录，
-   * 供 listRecentAiPromptInspections() 读取（用于调试面板 / 自动化
+   * 供 listRecentAIPromptInspections() 读取（用于调试面板 / 自动化
    * 测试等场景）。关闭后 inspect 行为只剩 console 打印一条路径。
    */
   keepRecent: true,
@@ -37,7 +37,7 @@ export const AI_PROMPT_INSPECTOR_SETTINGS = {
   /**
    * 是否把格式化后的 prompt 内容直接打印到 console。
    * 仅控制 console 输出，不影响 keepRecent 与单次 extras 覆盖。
-   * 调用方也可以通过 inspectAiPrompt(record, { logger }) 自定义
+   * 调用方也可以通过 inspectAIPrompt(record, { logger }) 自定义
    * 输出目标，那条路径不受本字段影响。
    */
   printToConsole: true,
@@ -46,7 +46,7 @@ export const AI_PROMPT_INSPECTOR_SETTINGS = {
    * Source 白名单：仅当 inspection record 的 source 在该列表中时才
    * 允许打印 / 落盘。留空（默认）表示不按 source 过滤。
    *
-   * 合法取值见 AiPromptInspectionSource：
+   * 合法取值见 AIPromptInspectionSource：
    *   - 'pi-session'             // 普通聊天会话
    *   - 'pi-task-chat'           // 后台任务型 chat（如 conversation-route）
    *   - 'pi-coding-session'      // coding agent 会话
@@ -56,7 +56,7 @@ export const AI_PROMPT_INSPECTOR_SETTINGS = {
    *   sourceAllowlist: ['pi-task-chat']
    * 并配合 agentIdAllowlist 进一步收敛。
    */
-  sourceAllowlist: ['pi-task-chat'] as AiPromptInspectionSource[],
+  sourceAllowlist: ['pi-task-chat'] as AIPromptInspectionSource[],
 
   /**
    * AgentId 白名单：仅当 inspection record 的 agentId 在该列表中时

@@ -50,7 +50,7 @@ const FORMAT_CONTENT_TYPE = new Map([
   ["ogg-48khz-16bit-mono-opus", "audio/ogg; codecs=opus; rate=48000"],
 ]);
 
-class Service {
+class EdgeTtsService {
   ws: WebSocket | null = null;
   connectionPromise: Promise<WebSocket> | null = null;
 
@@ -242,7 +242,7 @@ class Service {
   }
 }
 
-const service = new Service();
+const service = new EdgeTtsService();
 const retry = async function (
   fn: () => void,
   times: number,
@@ -266,7 +266,7 @@ const retry = async function (
   throw reason;
 };
 
-export const ra = async (text: string, proxy?: any): Promise<{ success: true, data: Buffer } | { success: false, message: string, data: null }> => {
+export const readAloud = async (text: string, proxy?: any): Promise<{ success: true, data: Buffer } | { success: false, message: string, data: null }> => {
   let result = null;
   try {
     const format = "audio-24khz-48kbitrate-mono-mp3";

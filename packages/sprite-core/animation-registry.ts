@@ -12,7 +12,7 @@
  * - SpritePlayerContext 负责"如何播放" (渲染层)
  */
 
-import type { PersonaState } from './persona-state';
+import type { CharacterState } from './character-state';
 import type { SpriteAnimationTrigger, SpriteMovementConfig } from './types';
 
 // ============ 类型定义 ============
@@ -30,7 +30,7 @@ export interface AnimationEntry {
   priority?: number;
 
   /** 条件：只有满足条件时才选用此动画 */
-  condition?: (personaState: PersonaState) => boolean;
+  condition?: (characterState: CharacterState) => boolean;
 
   /** 动画源信息（供渲染器使用） */
   source: {
@@ -64,8 +64,8 @@ export interface AnimationEntry {
 export interface AnimationQuery {
   /** 推荐字段：trigger */
   trigger?: SpriteAnimationTrigger;
-  /** 人格状态（用于条件匹配） */
-  personaState?: PersonaState;
+  /** 角色状态（用于条件匹配） */
+  characterState?: CharacterState;
   /** 是否允许 fallback 到默认 idle（仅状态机驱动的稳定态解析应启用） */
   allowFallback?: boolean;
 }
@@ -144,7 +144,7 @@ export class AnimationRegistry {
     const trigger = query.trigger;
     if (!trigger) return [];
 
-    const { personaState, allowFallback = false } = query;
+    const { characterState, allowFallback = false } = query;
 
     // 获取所有匹配此 trigger 的动画
     const ids = this.triggerIndex.get(trigger);
@@ -165,8 +165,8 @@ export class AnimationRegistry {
       if (!entry) continue;
 
       // 条件检查
-      if (entry.condition && personaState) {
-        if (!entry.condition(personaState)) continue;
+      if (entry.condition && characterState) {
+        if (!entry.condition(characterState)) continue;
       }
 
       candidates.push({ entry, index });

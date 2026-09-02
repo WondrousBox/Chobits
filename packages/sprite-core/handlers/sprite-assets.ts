@@ -3,12 +3,12 @@
  *
  * 管理精灵动画资源的 CRUD：
  *   sprite:list        — 列出全部动画
- *   sprite:listByTrigger — 按 trigger 筛选
+ *   sprite:list-by-trigger — 按 trigger 筛选
  *   sprite:get         — 获取单个动画
  *   sprite:register    — 注册新动画
  *   sprite:remove      — 删除动画
- *   sprite:updateConfig — 更新动画播放/触发配置
- *   sprite:updateMeta  — 更新元数据
+ *   sprite:update-config — 更新动画播放/触发配置
+ *   sprite:update-meta  — 更新元数据
  */
 
 import { randomUUID } from 'node:crypto';
@@ -545,7 +545,7 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
     return trigger ? all.filter((a) => hasSpriteAnimationTrigger(a.meta, trigger)) : all;
   };
 
-  ipcMain.handle('sprite:listByTrigger', handleListByTrigger);
+  ipcMain.handle('sprite:list-by-trigger', handleListByTrigger);
 
   ipcMain.handle('sprite:get', async (_e, payload: { id: string }) => {
     return (await listSprites()).find((item) => item.meta.id === payload.id);
@@ -640,7 +640,7 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
 
   // 从 ArrayBuffer 数据注册精灵（用于 Canvas 录制导出）
   ipcMain.handle(
-    'sprite:registerFromData',
+    'sprite:register-from-data',
     async (
       _e,
       payload: {
@@ -662,7 +662,7 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
 
       const { data, meta, loopStartMs, loopEndMs, durationMs, loop, loopCount, autoIdle, width, height, padding, movement } = payload || ({} as any);
       if (!data || !(data instanceof ArrayBuffer || Buffer.isBuffer(data))) {
-        throw new Error('[sprite:registerFromData] data is required (ArrayBuffer or Buffer)');
+        throw new Error('[sprite:register-from-data] data is required (ArrayBuffer or Buffer)');
       }
 
       const id = meta?.id || randomUUID();
@@ -736,7 +736,7 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
     return { ok: true };
   });
 
-  ipcMain.handle('sprite:updateMeta', async (_e, payload: { id: string; meta: Partial<SpriteAnimation['meta']> }) => {
+  ipcMain.handle('sprite:update-meta', async (_e, payload: { id: string; meta: Partial<SpriteAnimation['meta']> }) => {
     ensureAssetAuthoringCapability();
 
     const { id, meta } = payload || ({} as any);
@@ -811,7 +811,7 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
     return { ok: false };
   });
 
-  ipcMain.handle('sprite:updateConfig', async (_e, payload: { id: string; patch: SpriteAnimationConfigPatch }) => {
+  ipcMain.handle('sprite:update-config', async (_e, payload: { id: string; patch: SpriteAnimationConfigPatch }) => {
     ensureAssetAuthoringCapability();
 
     const { id, patch } = payload || ({} as any);

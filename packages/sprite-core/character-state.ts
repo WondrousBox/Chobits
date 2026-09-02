@@ -1,8 +1,8 @@
 /**
- * PersonaStateManager — 人格状态（静态）
+ * CharacterStateManager — 角色状态（静态）
  *
  * mini 分支已剥离 RPG 养成数值系统（XP / 等级 / 好感度累积 / 心情衰减 /
- * 每日登录奖励 / 成就解锁事件）。保留的只是一个静态人格快照：
+ * 每日登录奖励 / 成就解锁事件）。保留的只是一个静态角色状态快照：
  * - name / description：角色身份（随角色包 slot 切换）
  * - mood / favor / favorLevel / level：固定展示值，供人格 prompt 注入、
  *   动画条件匹配与自发行为上下文使用
@@ -35,8 +35,8 @@ export type FavorLevel =
   | 'bestie' // 80-94 挚友
   | 'soulmate'; // 95-100 灵魂伴侣
 
-/** 人格状态快照 */
-export interface PersonaState {
+/** 角色状态快照 */
+export interface CharacterState {
   // 基础信息
   name: string;
   description?: string;
@@ -64,11 +64,11 @@ export interface PersonaState {
 // ============ 默认值 ============
 
 /** 养成系统移除后的固定展示值 */
-export const STATIC_PERSONA_LEVEL = 1;
-export const STATIC_PERSONA_FAVOR = 50;
-export const STATIC_PERSONA_FAVOR_LEVEL: FavorLevel = 'friend';
-export const STATIC_PERSONA_MOOD: MoodType = 'neutral';
-export const STATIC_PERSONA_MOOD_INTENSITY = 50;
+export const STATIC_CHARACTER_LEVEL = 1;
+export const STATIC_CHARACTER_FAVOR = 50;
+export const STATIC_CHARACTER_FAVOR_LEVEL: FavorLevel = 'friend';
+export const STATIC_CHARACTER_MOOD: MoodType = 'neutral';
+export const STATIC_CHARACTER_MOOD_INTENSITY = 50;
 
 const FAVOR_LEVEL_THRESHOLDS: { level: FavorLevel; min: number }[] = [
   { level: 'soulmate', min: 95 },
@@ -86,23 +86,23 @@ function computeFavorLevel(favor: number): FavorLevel {
   return 'stranger';
 }
 
-// ============ PersonaStateManager 实现 ============
+// ============ CharacterStateManager 实现 ============
 
-export class PersonaStateManager {
-  private state: PersonaState;
+export class CharacterStateManager {
+  private state: CharacterState;
 
   // 回调
-  private onStateChange?: (state: PersonaState) => void;
+  private onStateChange?: (state: CharacterState) => void;
 
-  constructor(options?: { initialState?: Partial<PersonaState>; onStateChange?: (state: PersonaState) => void }) {
+  constructor(options?: { initialState?: Partial<CharacterState>; onStateChange?: (state: CharacterState) => void }) {
     const now = Date.now();
     this.state = {
       name: 'Chobits',
-      level: STATIC_PERSONA_LEVEL,
-      favor: STATIC_PERSONA_FAVOR,
-      favorLevel: STATIC_PERSONA_FAVOR_LEVEL,
-      mood: STATIC_PERSONA_MOOD,
-      moodIntensity: STATIC_PERSONA_MOOD_INTENSITY,
+      level: STATIC_CHARACTER_LEVEL,
+      favor: STATIC_CHARACTER_FAVOR,
+      favorLevel: STATIC_CHARACTER_FAVOR_LEVEL,
+      mood: STATIC_CHARACTER_MOOD,
+      moodIntensity: STATIC_CHARACTER_MOOD_INTENSITY,
       achievements: [],
       dimensions: {},
       createdAt: now,
@@ -115,13 +115,13 @@ export class PersonaStateManager {
 
   // ============ 公共 API ============
 
-  /** 获取人格状态快照 */
-  getState(): Readonly<PersonaState> {
+  /** 获取角色状态快照 */
+  getState(): Readonly<CharacterState> {
     return { ...this.state };
   }
 
   /** 从外部恢复状态（如从持久化文件加载；旧文件中的养成死字段由持久化层忽略） */
-  loadState(saved: Partial<PersonaState>): void {
+  loadState(saved: Partial<CharacterState>): void {
     Object.assign(this.state, saved);
     this.state.favorLevel = computeFavorLevel(this.state.favor);
     this.notifyChange();
@@ -130,7 +130,7 @@ export class PersonaStateManager {
   /** 设置心情（纯展示状态，无衰减/规则引擎） */
   setMood(mood: MoodType, intensity?: number): void {
     this.state.mood = mood;
-    this.state.moodIntensity = Math.max(0, Math.min(100, intensity ?? STATIC_PERSONA_MOOD_INTENSITY));
+    this.state.moodIntensity = Math.max(0, Math.min(100, intensity ?? STATIC_CHARACTER_MOOD_INTENSITY));
     this.state.updatedAt = Date.now();
     this.notifyChange();
   }

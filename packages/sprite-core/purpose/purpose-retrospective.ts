@@ -12,7 +12,7 @@ function clamp01(value: number): number {
   return Math.max(0, Math.min(1, Number(value.toFixed(2))));
 }
 
-function localDateStamp(timestamp: number): string {
+function formatLocalDateStamp(timestamp: number): string {
   const date = new Date(timestamp);
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -108,7 +108,7 @@ function buildItem(group: PurposeHistoryGroup): SpritePurposeRetrospectiveItem |
   const routineTerminal = [...group.entries].reverse().find((entry) => entry.eventType === 'routine:completed' || entry.eventType === 'routine:failed' || entry.eventType === 'routine:cancelled');
   const plannerFallback = [...group.entries].reverse().find((entry) => entry.eventType === 'planner:fallback');
   const completedStepIds = group.entries.filter((entry) => entry.eventType === 'step:completed' && entry.stepId).map((entry) => entry.stepId!);
-  const failedStepIds = group.entries.filter((entry) => (entry.eventType === 'step:failed' || entry.eventType === 'step:timeout') && entry.stepId).map((entry) => entry.stepId!);
+  const failedStepIds = group.entries.filter((entry) => (entry.eventType === 'step:failed' || entry.eventType === 'step:timed-out') && entry.stepId).map((entry) => entry.stepId!);
   const summary = terminal.summary ?? started?.summary;
   const status = terminal.status ?? 'completed';
   const durationMs = started ? terminal.timestamp - started.timestamp : undefined;
@@ -155,7 +155,7 @@ export function buildSpritePurposeDailyRetrospective(
   query: SpritePurposeRetrospectiveQuery & { generatedAt?: number } = {}
 ): SpritePurposeDailyRetrospective {
   const generatedAt = query.generatedAt ?? Date.now();
-  const date = query.date ?? (entries.length ? localDateStamp(entries[entries.length - 1].timestamp) : localDateStamp(generatedAt));
+  const date = query.date ?? (entries.length ? formatLocalDateStamp(entries[entries.length - 1].timestamp) : formatLocalDateStamp(generatedAt));
   const allItems = groupByPurpose(entries)
     .map(buildItem)
     .filter((item): item is SpritePurposeRetrospectiveItem => !!item)

@@ -16,7 +16,7 @@
 
 import { SpriteEventBus } from './event-bus';
 import type { InteractionStats } from './interaction-tracker';
-import type { PersonaState } from './persona-state';
+import type { CharacterState } from './character-state';
 import type { SpriteState, SpriteStateMachine } from './state-machine';
 
 // ============ 类型定义 ============
@@ -35,8 +35,8 @@ const PRIORITY_VALUES: Record<BehaviorPriority, number> = {
 export interface BehaviorContext {
   /** 当前精灵状态 */
   spriteState: SpriteState;
-  /** 人格状态快照 */
-  personaState: PersonaState;
+  /** 角色状态快照 */
+  characterState: CharacterState;
   /** 交互统计 */
   interactionStats: InteractionStats;
   /** 当前时间 */

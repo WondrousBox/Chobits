@@ -11,7 +11,7 @@
  * 替代原有 useSpriteConductor 中的手动 switch/case。
  */
 
-import { SpriteEventBus, type SpritePersonaEventType } from './event-bus';
+import { SpriteEventBus, type SpriteBusEventType } from './event-bus';
 
 // ============ 类型定义 ============
 
@@ -38,7 +38,7 @@ export interface StateTransition {
   /** 可选守卫条件 */
   guard?: (context: StateContext) => boolean;
   /** 转换时触发的事件 */
-  event?: SpritePersonaEventType;
+  event?: SpriteBusEventType;
 }
 
 /** 状态配置 */

@@ -4,7 +4,7 @@
  * 职责：
  * 1. 记录所有用户与精灵的交互（点击、拖拽、文件放置、对话等）
  * 2. 计算交互频率、模式、偏好
- * 3. 提供交互统计给 PersonaStateManager 和 BehaviorEngine
+ * 3. 提供交互统计给 CharacterStateManager 和 BehaviorEngine
  * 4. 支持滑动窗口统计（最近5分钟的交互密度等）
  *
  * 设计：
@@ -13,7 +13,7 @@
  * - 内存中维护滑动窗口，定期清理
  */
 
-import { SpriteEventBus, type SpritePersonaEvent } from './event-bus';
+import { SpriteEventBus, type SpriteBusEvent } from './event-bus';
 import { isSpriteInteractionEvent, type SpriteInteractionEvent, type SpriteInteractionPayload } from './interaction-contract';
 
 // ============ 类型定义 ============
@@ -97,7 +97,7 @@ export class InteractionTracker {
 
     // 自动订阅事件
     if (options?.eventBus) {
-      this.unsubscribe = options.eventBus.on('*', (event: SpritePersonaEvent) => {
+      this.unsubscribe = options.eventBus.on('*', (event: SpriteBusEvent) => {
         if (!isSpriteInteractionEvent(event.type)) {
           return;
         }

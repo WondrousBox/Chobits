@@ -23,7 +23,7 @@ export interface CodingShellExecutionResult {
   ok: boolean;
   stderr: string;
   stdout: string;
-  timedOut: boolean;
+  hasTimedOut: boolean;
   truncated: boolean;
 }
 
@@ -276,7 +276,7 @@ export class PiWorkspaceShellService {
       let stdout = '';
       let stderr = '';
       let outputBytes = 0;
-      let timedOut = false;
+      let hasTimedOut = false;
       let truncated = false;
       let settled = false;
 
@@ -312,7 +312,7 @@ export class PiWorkspaceShellService {
       };
 
       const timeoutHandle = setTimeout(() => {
-        timedOut = true;
+        hasTimedOut = true;
         truncated = true;
         child.kill();
       }, timeoutMs);
@@ -344,10 +344,10 @@ export class PiWorkspaceShellService {
           durationMs: Date.now() - startTime,
           exitCode,
           maxOutputBytes,
-          ok: exitCode === 0 && !timedOut && !truncated,
+          ok: exitCode === 0 && !hasTimedOut && !truncated,
           stderr,
           stdout,
-          timedOut,
+          hasTimedOut,
           truncated
         });
       });

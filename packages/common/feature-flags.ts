@@ -19,7 +19,7 @@ export const FEATURE_DEFINITIONS: FeatureDefinition[] = [
     key: 'localAi',
     label: '本地 AI 推理',
     description: '本地语音识别(sherpa),无需联网但占用更多磁盘与内存',
-    defaultEnabled: false
+    defaultEnabled: true
   }
 ];
 

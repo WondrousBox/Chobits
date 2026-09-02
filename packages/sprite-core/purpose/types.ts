@@ -472,7 +472,7 @@ export type SpritePurposeEventType =
   | 'routine:failed'
   | 'step:started'
   | 'step:completed'
-  | 'step:timeout'
+  | 'step:timed-out'
   | 'step:cancelled'
   | 'step:skipped'
   | 'step:failed';

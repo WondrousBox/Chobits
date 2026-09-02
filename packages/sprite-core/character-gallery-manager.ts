@@ -293,7 +293,7 @@ function getFileStem(filePath: string): string {
   return path.basename(filePath, path.extname(filePath));
 }
 
-function uniqueStrings(values: Array<string | undefined>, maxItems = 100): string[] {
+function deduplicateStrings(values: Array<string | undefined>, maxItems = 100): string[] {
   const seen = new Set<string>();
   const result: string[] = [];
   for (const value of values) {
@@ -307,7 +307,7 @@ function uniqueStrings(values: Array<string | undefined>, maxItems = 100): strin
 }
 
 function normalizeAIEditItemIds(value: unknown): string[] {
-  return uniqueStrings(Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : [], MAX_CHARACTER_GALLERY_AI_EDIT_REFERENCES);
+  return deduplicateStrings(Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : [], MAX_CHARACTER_GALLERY_AI_EDIT_REFERENCES);
 }
 
 function formatReferenceImageLine(item: CharacterGalleryAIEditContext['images'][number], index: number): string {
@@ -669,32 +669,32 @@ export async function buildCharacterGalleryAIEditContext(draft: CharacterGallery
     throw new Error(`Gallery reference images not found: ${missingIds.join(', ')}`);
   }
 
-  const promptHints = uniqueStrings(
+  const promptHints = deduplicateStrings(
     images.map((image) => image.promptHint),
     MAX_CHARACTER_GALLERY_AI_EDIT_REFERENCES
   );
   const ownNegativePrompt = typeof draft.negativePrompt === 'string' && draft.negativePrompt.trim() ? draft.negativePrompt.trim() : undefined;
-  const negativePrompts = uniqueStrings(
+  const negativePrompts = deduplicateStrings(
     images.map((image) => image.negativePrompt),
     MAX_CHARACTER_GALLERY_AI_EDIT_REFERENCES
   );
   const referencesSummaryLines = images.map(formatReferenceImageLine);
   const referencesSummary = referencesSummaryLines.join('\n');
   const combinedPrompt = [prompt, referencesSummary ? `参考图集：\n${referencesSummary}` : '', promptHints.length ? `参考提示：${promptHints.join('；')}` : ''].filter(Boolean).join('\n\n');
-  const combinedNegativePrompt = uniqueStrings([ownNegativePrompt, ...negativePrompts]).join('\n') || undefined;
-  const actions = uniqueStrings(
+  const combinedNegativePrompt = deduplicateStrings([ownNegativePrompt, ...negativePrompts]).join('\n') || undefined;
+  const actions = deduplicateStrings(
     images.map((image) => image.semantic?.action),
     MAX_CHARACTER_GALLERY_AI_EDIT_REFERENCES
   );
-  const views = uniqueStrings(
+  const views = deduplicateStrings(
     images.map((image) => image.semantic?.view),
     MAX_CHARACTER_GALLERY_AI_EDIT_REFERENCES
   ) as CharacterGalleryAIEditContext['referenceSet']['views'];
-  const roles = uniqueStrings(
+  const roles = deduplicateStrings(
     images.map((image) => image.referenceRole),
     MAX_CHARACTER_GALLERY_AI_EDIT_REFERENCES
   ) as CharacterGalleryAIEditContext['referenceSet']['roles'];
-  const tags = uniqueStrings(
+  const tags = deduplicateStrings(
     images.flatMap((image) => image.tags),
     32
   );

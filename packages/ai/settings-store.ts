@@ -3,10 +3,10 @@ import keytar from 'keytar';
 import { SERVICE } from '../common/config';
 import { clearAllStoredPresetSecrets } from './preset-secrets-store';
 import { getProviderAliases, toCanonicalProviderId } from './providers/service';
-import { ENABLE_KEYTAR, readSettingsStorage as readStorage, writeSettingsStorage as writeStorage } from './settings-storage';
+import { ENABLE_KEYTAR, readSettingsStorage as readStorage, writeSettingsStorage as writeStorage } from './settings-file';
 
 // API key can be either a string (legacy format) or an array of named keys (new format)
-export type ApiKeyKeyValue = string | ApiKeyItem[];
+export type ApiKeyStoredValue = string | ApiKeyItem[];
 export type ApiKeyItem = { name: string; value: string; isDefault?: boolean };
 
 // Helper to check if a value is an array of API key items
@@ -184,7 +184,7 @@ export async function clearAllSecrets(): Promise<void> {
  * Get all API keys for a provider's key field
  * Returns the value as-is (could be string or ApiKeyItem[])
  */
-export async function getApiKeyRaw(providerId: string, key: string): Promise<ApiKeyKeyValue | undefined> {
+export async function getApiKeyRaw(providerId: string, key: string): Promise<ApiKeyStoredValue | undefined> {
   const storage = readStorage();
   return readProviderRecord(storage, providerId)?.[key];
 }

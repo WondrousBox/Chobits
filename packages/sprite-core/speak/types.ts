@@ -291,7 +291,7 @@ export interface SpeakRequest {
 }
 
 export interface SpeakResult {
-  success: boolean;
+  ok: boolean;
   cacheId?: string;
   audioPath?: string;
   fromCache?: boolean;

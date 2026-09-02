@@ -117,7 +117,7 @@ export const openaiChatModels: ChatProviderModelCard[] = [
     },
     releasedAt: '2025-11-13',
     settings: {
-      extendParams: ['gpt5_1ReasoningEffort', 'textVerbosity'],
+      extendParams: ['gpt51ReasoningEffort', 'textVerbosity'],
       searchImpl: 'params',
     },
     type: 'chat',
@@ -164,7 +164,7 @@ export const openaiChatModels: ChatProviderModelCard[] = [
     },
     releasedAt: '2025-11-13',
     settings: {
-      extendParams: ['gpt5_1ReasoningEffort'],
+      extendParams: ['gpt51ReasoningEffort'],
       searchImpl: 'params',
     },
     type: 'chat',
@@ -191,7 +191,7 @@ export const openaiChatModels: ChatProviderModelCard[] = [
     },
     releasedAt: '2025-11-13',
     settings: {
-      extendParams: ['gpt5_1ReasoningEffort'],
+      extendParams: ['gpt51ReasoningEffort'],
       searchImpl: 'params',
     },
     type: 'chat',

@@ -119,7 +119,7 @@ export function registerDefaultBehaviors(mgr: SpriteManager): void {
     const emotionCapability = getSpriteCapabilityRuntimeState('emotionExpression');
     if (emotionCapability?.status === 'locked') return;
 
-    const favor = ctx.personaState.favor;
+    const favor = ctx.characterState.favor;
     const highFavorEmotions = ['happy', 'joy', 'excited', 'proud', 'curious'];
     const midFavorEmotions = ['curious', 'surprised', 'shy', 'thinking'];
     const lowFavorEmotions = ['bored', 'annoyed', 'confused', 'tired'];
@@ -140,7 +140,7 @@ export function registerDefaultBehaviors(mgr: SpriteManager): void {
   // ===== 动作自发行为 =====
   const actionDef = createActionBehavior();
   actionDef.action = async (ctx: BehaviorContext) => {
-    const favor = ctx.personaState.favor;
+    const favor = ctx.characterState.favor;
     const baseActions = ['sit', 'stand', 'wave', 'talk', 'nod', 'point', 'lookLeft', 'lookRight'];
     const highFavorActions = ['dance', 'spin', 'jump'];
 
@@ -165,10 +165,10 @@ export function registerDefaultBehaviors(mgr: SpriteManager): void {
         fallbackAction,
         sprite: {
           state: ctx.spriteState,
-          mood: ctx.personaState.mood,
-          moodIntensity: ctx.personaState.moodIntensity,
-          favor: ctx.personaState.favor,
-          level: ctx.personaState.level,
+          mood: ctx.characterState.mood,
+          moodIntensity: ctx.characterState.moodIntensity,
+          favor: ctx.characterState.favor,
+          level: ctx.characterState.level,
           idleDurationMs: ctx.interactionStats.idleDuration
         }
       });
@@ -194,8 +194,8 @@ export function registerDefaultBehaviors(mgr: SpriteManager): void {
         triggeredAt,
         executedAction: picked,
         actionSource,
-        spoken: !!speakResult?.success,
-        fallbackUsed: actionSource === 'random-fallback' || !speakResult?.success,
+        spoken: !!speakResult?.ok,
+        fallbackUsed: actionSource === 'random-fallback' || !speakResult?.ok,
         ...(speakResult?.error ? { error: speakResult.error } : {})
       });
     } catch (error) {

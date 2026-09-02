@@ -122,7 +122,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
   });
 
   handlers.push({
-    event: AppEvent.SPRITE_AI_COMPLETE,
+    event: AppEvent.SPRITE_AI_COMPLETED,
     handler: (data) => {
       const suppressSpeech = shouldSuppressAiEventSpeech(data);
       mgr.showToast(data?.message || eventText('aiComplete', data), { category: 'success', duration: 1500, ...(suppressSpeech ? { speak: false } : {}) });
@@ -210,7 +210,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
   });
 
   handlers.push({
-    event: AppEvent.SPRITE_DOWNLOAD_FAIL,
+    event: AppEvent.SPRITE_DOWNLOAD_FAILED,
     handler: (data) => {
       progressSpeech.reset(getDownloadProgressSpeechId(data));
       mgr.clearBusy();
@@ -221,14 +221,14 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
   // ===== 插件事件 =====
 
   handlers.push({
-    event: AppEvent.SPRITE_PLUGIN_INSTALL,
+    event: AppEvent.SPRITE_PLUGIN_INSTALLED,
     handler: (data) => {
       mgr.trigger('install', { message: data?.message || eventText('pluginInstall', data, '插件安装完成！'), silent: true });
     }
   });
 
   handlers.push({
-    event: AppEvent.SPRITE_PLUGIN_REMOVE,
+    event: AppEvent.SPRITE_PLUGIN_REMOVED,
     handler: (data) => {
       mgr.trigger('remove', { message: data?.message || eventText('pluginRemove', data, '插件已移除') });
     }

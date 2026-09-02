@@ -10,10 +10,10 @@
  *   sprite:file-drop        — 文件拖放
  *   sprite:ready            — 渲染进程就绪
  *   sprite:get-initial-state — 获取初始状态
- *   sprite:persona:getState  — 获取人格状态
- *   sprite:spontaneous:getPreferences — 获取主动发言偏好
- *   sprite:spontaneous:updatePreferences — 更新主动发言偏好
- *   sprite:spontaneous:listHistory — 查询主动发言历史
+ *   sprite:character:get-state  — 获取角色状态
+ *   sprite:spontaneous:get-preferences — 获取主动发言偏好
+ *   sprite:spontaneous:update-preferences — 更新主动发言偏好
+ *   sprite:spontaneous:list-history — 查询主动发言历史
  *
  * 下行(主进程→渲染)：
  *   sprite:play             — 播放动画命令
@@ -94,7 +94,7 @@ import type {
 import { MESSAGE_IPC_CHANNELS } from '../types';
 import { WindowController } from '../window-controller';
 import type { WindowControllerAvoidRegion } from '../window-controller-model';
-import { notifySpriteCapabilityChanged } from './capability-events';
+import { notifySpriteCapabilityChanged } from './capability-broadcast';
 import { getDefaultSpritesDir, listSprites, setSpriteAssetsChangeHandler } from './sprite-assets';
 import { initSpriteEventListener } from './sprite-event-listener';
 
@@ -164,7 +164,7 @@ async function resolveSpriteBubbleWindowManager(): Promise<SpriteBubbleWindowMan
   return windowManager as unknown as SpriteBubbleWindowManager;
 }
 
-export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManagerDeps): Promise<void> {
+export async function initSpriteManagerHandlers(win: BrowserWindow, deps: SpriteManagerDeps): Promise<void> {
   const spriteBubbleWindowManager = await resolveSpriteBubbleWindowManager();
   let spriteManagerRef: SpriteManager | null = null;
   const spriteBubbleReadyWebContentsIds = new Set<number>();
@@ -289,7 +289,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
       targetWindow.webContents.send('sprite:state', {
         state: initial.state,
         subState: initial.subState,
-        personaSnapshot: initial.personaState
+        characterState: initial.characterState
       });
       if (initial.currentAnimation) {
         targetWindow.webContents.send('sprite:play', initial.currentAnimation);
@@ -402,7 +402,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     return result;
   }
 
-  function resolveActivePersonaSlot(): { id: string; identity: { name?: string; description?: string } } {
+  function resolveActiveCharacterSlot(): { id: string; identity: { name?: string; description?: string } } {
     const character = getCharacterDefinition();
     const characterId = character?.id?.trim();
 
@@ -415,12 +415,12 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     };
   }
 
-  async function syncActivePersonaStateSlot(options?: { forceReload?: boolean }): Promise<{ slotId: string; restored: boolean; switched: boolean }> {
-    const slot = resolveActivePersonaSlot();
-    const currentSlotId = mgr.getActivePersonaStateId();
+  async function syncActiveCharacterStateSlot(options?: { forceReload?: boolean }): Promise<{ slotId: string; restored: boolean; switched: boolean }> {
+    const slot = resolveActiveCharacterSlot();
+    const currentSlotId = mgr.getActiveCharacterStateId();
 
     if (!options?.forceReload && currentSlotId === slot.id) {
-      mgr.configurePersonaStateSlot(slot.id, slot.identity);
+      mgr.configureCharacterStateSlot(slot.id, slot.identity);
       return {
         slotId: slot.id,
         restored: true,
@@ -428,7 +428,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
       };
     }
 
-    const result = await mgr.switchPersonaStateSlot(slot.id, slot.identity);
+    const result = await mgr.switchCharacterStateSlot(slot.id, slot.identity);
     return {
       slotId: slot.id,
       restored: result.restored,
@@ -452,11 +452,11 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
 
   async function reloadCharacterRuntimeChain(options?: { notifyCapabilitySource?: string }): Promise<{
     runtime: CharacterPersonaRuntimeSyncResult;
-    personaSlot: { slotId: string; restored: boolean; switched: boolean };
+    characterSlot: { slotId: string; restored: boolean; switched: boolean };
     animationsLoaded: number;
   }> {
     const runtime = await syncCharacterRuntime({ reload: true });
-    const personaSlot = await syncActivePersonaStateSlot({ forceReload: false });
+    const characterSlot = await syncActiveCharacterStateSlot({ forceReload: false });
     initCharacterDimensions();
     const animationsLoaded = await loadAndApplyRuntimeAnimations({ refreshCurrentState: true });
     enforceCapabilityBoundRuntime();
@@ -467,7 +467,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
 
     return {
       runtime,
-      personaSlot,
+      characterSlot,
       animationsLoaded
     };
   }
@@ -478,7 +478,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
       nextPack: CharacterPackSummary;
       previousCharacter: ReturnType<typeof getCharacterInfo>;
       nextCharacter: ReturnType<typeof getCharacterInfo>;
-      personaSlotId: string;
+      characterSlotId: string;
     },
     options?: { force?: boolean }
   ): void {
@@ -488,7 +488,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
       return;
     }
 
-    mgr.emit('persona:character-switched', payload);
+    mgr.emit('sprite:character:switched', payload);
   }
 
   function resolveFallbackPack(packs: CharacterPackSummary[], removingPack: CharacterPackSummary): CharacterPackSummary | null {
@@ -560,7 +560,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
       if (!candidate || candidate.isDestroyed()) continue;
 
       try {
-        candidate.webContents.send('shortcuts-enabled-updated', shortcutEnabledConfig);
+        candidate.webContents.send('shortcuts:enabled-updated', shortcutEnabledConfig);
       } catch {
         /* ignore */
       }
@@ -616,43 +616,43 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     return mgr.getInitialState();
   });
 
-  // ===== 人格化 API =====
+  // ===== 角色状态 API =====
 
-  ipcMain.handle('sprite:persona:getState', () => {
-    return { ok: true, state: mgr.getPersonaState() };
+  ipcMain.handle('sprite:character:get-state', () => {
+    return { ok: true, characterState: mgr.getCharacterState() };
   });
 
-  ipcMain.handle('sprite:capabilities:getSnapshot', () => {
+  ipcMain.handle('sprite:capabilities:get-snapshot', () => {
     return getSpriteCapabilitySnapshot();
   });
 
   // ===== 角色人格 API =====
 
-  ipcMain.handle('sprite:character:getInfo', () => {
+  ipcMain.handle('sprite:character:get-info', () => {
     return getCharacterInfo();
   });
 
-  ipcMain.handle('sprite:character:getPersonaPrompt', (_e, options?: import('../character-service').PersonaPromptBuildOptions) => {
-    const persona = mgr.getPersonaState();
+  ipcMain.handle('sprite:character:get-persona-prompt', (_e, options?: import('../character-service').PersonaPromptBuildOptions) => {
+    const characterState = mgr.getCharacterState();
     return buildCharacterPersonaPrompt(
       {
-        favorLevel: persona.favorLevel,
-        mood: persona.mood,
-        level: persona.level
+        favorLevel: characterState.favorLevel,
+        mood: characterState.mood,
+        level: characterState.level
       },
       options
     );
   });
 
-  ipcMain.handle('sprite:character:listPacks', async () => {
+  ipcMain.handle('sprite:character:list-packs', async () => {
     return listCharacterPacks();
   });
 
-  ipcMain.handle('sprite:character:getActivePack', async () => {
+  ipcMain.handle('sprite:character:get-active-pack', async () => {
     return getActiveCharacterPack();
   });
 
-  ipcMain.handle('sprite:character:activatePack', async (_e, payload: { packId: string; source?: CharacterPackSource }) => {
+  ipcMain.handle('sprite:character:activate-pack', async (_e, payload: { packId: string; source?: CharacterPackSource }) => {
     const previousPack = await getActiveCharacterPack();
     const previousCharacter = getCharacterInfo();
     const activation = await activateCharacterPack(payload.packId, {
@@ -660,7 +660,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     });
 
     if (!activation) {
-      throw new Error(`[sprite:character:activatePack] Pack not found: ${payload.packId}`);
+      throw new Error(`[sprite:character:activate-pack] Pack not found: ${payload.packId}`);
     }
 
     initCharacterService(activation.pack.rootDir, { source: activation.pack.source });
@@ -674,7 +674,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
       nextPack: activation.pack,
       previousCharacter,
       nextCharacter,
-      personaSlotId: reload.personaSlot.slotId
+      characterSlotId: reload.characterSlot.slotId
     });
 
     return {
@@ -683,11 +683,11 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
       pack: activation.pack,
       character: nextCharacter,
       runtime: reload.runtime,
-      personaSlot: reload.personaSlot
+      characterSlot: reload.characterSlot
     };
   });
 
-  ipcMain.handle('sprite:character:inspectPackFromArchive', async (_e, payload: { archivePath: string }) => {
+  ipcMain.handle('sprite:character:inspect-pack-from-archive', async (_e, payload: { archivePath: string }) => {
     return inspectCharacterPackFromArchive(payload.archivePath);
   });
 
@@ -696,7 +696,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
   } & Awaited<ReturnType<typeof installCharacterPackFromArchive>> & {
       character?: ReturnType<typeof getCharacterInfo>;
       runtime?: CharacterPersonaRuntimeSyncResult;
-      personaSlot?: { slotId: string; restored: boolean; switched: boolean };
+      characterSlot?: { slotId: string; restored: boolean; switched: boolean };
     };
 
   async function finalizeInstalledPackChange(
@@ -726,7 +726,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
       nextPack: result.pack,
       previousCharacter: options?.previousCharacter ?? null,
       nextCharacter,
-      personaSlotId: reload.personaSlot.slotId
+      characterSlotId: reload.characterSlot.slotId
     });
 
     return {
@@ -734,11 +734,11 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
       ...result,
       character: nextCharacter,
       runtime: reload.runtime,
-      personaSlot: reload.personaSlot
+      characterSlot: reload.characterSlot
     };
   }
 
-  ipcMain.handle('sprite:character:installPackFromArchive', async (_e, payload: { archivePath: string; replaceExisting?: boolean; activate?: boolean }) => {
+  ipcMain.handle('sprite:character:install-pack-from-archive', async (_e, payload: { archivePath: string; replaceExisting?: boolean; activate?: boolean }) => {
     const previousPack = payload.activate || payload.replaceExisting ? await getActiveCharacterPack() : null;
     const previousCharacter = previousPack ? getCharacterInfo() : null;
     const result = await installCharacterPackFromArchive(payload.archivePath, {
@@ -753,13 +753,13 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     });
   });
 
-  ipcMain.handle('sprite:character:exportPack', async (_e, payload: { packId: string; outputPath: string; source?: CharacterPackSource }) => {
+  ipcMain.handle('sprite:character:export-pack', async (_e, payload: { packId: string; outputPath: string; source?: CharacterPackSource }) => {
     const result = await exportCharacterPack(payload.packId, payload.outputPath, {
       source: payload.source
     });
 
     if (!result) {
-      throw new Error(`[sprite:character:exportPack] Pack not found: ${payload.packId}`);
+      throw new Error(`[sprite:character:export-pack] Pack not found: ${payload.packId}`);
     }
 
     return {
@@ -768,7 +768,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     };
   });
 
-  ipcMain.handle('sprite:character:removePack', async (_e, payload: { packId: string; source?: CharacterPackSource }) => {
+  ipcMain.handle('sprite:character:remove-pack', async (_e, payload: { packId: string; source?: CharacterPackSource }) => {
     const packs = await listCharacterPacks();
     const targetPack =
       packs.find((pack) => pack.id === payload.packId && (!payload.source || pack.source === payload.source)) ??
@@ -776,13 +776,13 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
       (!payload.source ? packs.find((pack) => pack.id === payload.packId) : undefined);
 
     if (!targetPack) {
-      throw new Error(`[sprite:character:removePack] Pack not found: ${payload.packId}`);
+      throw new Error(`[sprite:character:remove-pack] Pack not found: ${payload.packId}`);
     }
 
     if (targetPack.isActive) {
       const fallbackPack = resolveFallbackPack(packs, targetPack);
       if (!fallbackPack) {
-        throw new Error(`[sprite:character:removePack] No fallback pack available for active pack: ${payload.packId}`);
+        throw new Error(`[sprite:character:remove-pack] No fallback pack available for active pack: ${payload.packId}`);
       }
 
       const previousPack = await getActiveCharacterPack();
@@ -791,7 +791,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
         source: fallbackPack.source
       });
       if (!fallbackActivation) {
-        throw new Error(`[sprite:character:removePack] Failed to activate fallback pack: ${fallbackPack.id}`);
+        throw new Error(`[sprite:character:remove-pack] Failed to activate fallback pack: ${fallbackPack.id}`);
       }
 
       initCharacterService(fallbackActivation.pack.rootDir, { source: fallbackActivation.pack.source });
@@ -808,7 +808,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
         nextPack: fallbackActivation.pack,
         previousCharacter,
         nextCharacter,
-        personaSlotId: reload.personaSlot.slotId
+        characterSlotId: reload.characterSlot.slotId
       });
 
       return {
@@ -818,7 +818,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
         switchedActivePack: true,
         character: nextCharacter,
         runtime: reload.runtime,
-        personaSlot: reload.personaSlot
+        characterSlot: reload.characterSlot
       };
     }
 
@@ -832,13 +832,13 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     };
   });
 
-  ipcMain.handle('sprite:character:getEditorDraft', async (_e, payload: { packId: string; source?: CharacterPackSource }) => {
+  ipcMain.handle('sprite:character:get-editor-draft', async (_e, payload: { packId: string; source?: CharacterPackSource }) => {
     return getCharacterPackEditorDraft(payload.packId, {
       source: payload.source
     });
   });
 
-  ipcMain.handle('sprite:character:saveEditorDraft', async (_e, payload: { draft: CharacterPackEditorDraft; options?: CharacterPackEditorSaveOptions }) => {
+  ipcMain.handle('sprite:character:save-editor-draft', async (_e, payload: { draft: CharacterPackEditorDraft; options?: CharacterPackEditorSaveOptions }) => {
     const previousPack = await getActiveCharacterPack();
     const previousCharacter = getCharacterInfo();
     const result = await saveCharacterPackEditorDraft(payload.draft, payload.options);
@@ -864,7 +864,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
         nextPack: result.pack,
         previousCharacter,
         nextCharacter,
-        personaSlotId: reload.personaSlot.slotId
+        characterSlotId: reload.characterSlot.slotId
       },
       { force: true }
     );
@@ -874,7 +874,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
       ...result,
       character: nextCharacter,
       runtime: reload.runtime,
-      personaSlot: reload.personaSlot
+      characterSlot: reload.characterSlot
     };
   });
 
@@ -940,7 +940,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
   );
 
   ipcMain.handle(
-    'sprite:character:gallery:replaceImage',
+    'sprite:character:gallery:replace-image',
     async (
       _e,
       payload: {
@@ -975,7 +975,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     });
   });
 
-  ipcMain.handle('sprite:character:gallery:buildAIEditContext', async (_e, payload: { packId?: string; source?: CharacterPackSource; draft: CharacterGalleryAIEditDraft }) => {
+  ipcMain.handle('sprite:character:gallery:build-ai-edit-context', async (_e, payload: { packId?: string; source?: CharacterPackSource; draft: CharacterGalleryAIEditDraft }) => {
     return buildCharacterGalleryAIEditContext(payload.draft, {
       packId: payload.packId,
       source: payload.source
@@ -990,34 +990,34 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
       ok: true,
       character: getCharacterInfo(),
       runtime: reload.runtime,
-      personaSlot: reload.personaSlot
+      characterSlot: reload.characterSlot
     };
   });
 
   // ===== 配置 =====
 
-  ipcMain.handle('sprite:config:getDebugOverlay', () => {
+  ipcMain.handle('sprite:config:get-debug-overlay', () => {
     return mgr.isDebugOverlayEnabled();
   });
 
-  ipcMain.handle('sprite:config:setDebugOverlay', (_e, p: { enabled: boolean }) => {
+  ipcMain.handle('sprite:config:set-debug-overlay', (_e, p: { enabled: boolean }) => {
     mgr.setDebugOverlayEnabled(p.enabled);
     return p.enabled;
   });
 
-  ipcMain.handle('sprite:config:getAnimationPlaylistMode', (_e, p?: { trigger?: SpriteAnimationTrigger }) => {
+  ipcMain.handle('sprite:config:get-animation-playlist-mode', (_e, p?: { trigger?: SpriteAnimationTrigger }) => {
     return mgr.getAnimationPlaylistMode(p?.trigger);
   });
 
-  ipcMain.handle('sprite:config:setAnimationPlaylistMode', (_e, p: { mode: SpriteAnimationPlaylistMode; trigger?: SpriteAnimationTrigger }) => {
+  ipcMain.handle('sprite:config:set-animation-playlist-mode', (_e, p: { mode: SpriteAnimationPlaylistMode; trigger?: SpriteAnimationTrigger }) => {
     return mgr.setAnimationPlaylistMode(p.mode, p.trigger);
   });
 
-  ipcMain.handle('sprite:config:getBubbleMode', () => {
+  ipcMain.handle('sprite:config:get-bubble-mode', () => {
     return mgr.getBubbleMode();
   });
 
-  ipcMain.handle('sprite:config:setBubbleMode', (_e, p: { mode: SpriteBubbleMode }) => {
+  ipcMain.handle('sprite:config:set-bubble-mode', (_e, p: { mode: SpriteBubbleMode }) => {
     const prev = mgr.getBubbleMode();
     const next = mgr.setBubbleMode(p?.mode ?? 'inline');
     // 切换模式时清空并隐藏气泡窗口，避免旧承载窗口残留或之后恢复出过期消息。
@@ -1025,30 +1025,30 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     return next;
   });
 
-  ipcMain.handle('sprite:movement:setAvoidRegions', (_e, p: { regions?: WindowControllerAvoidRegion[] } | undefined) => {
+  ipcMain.handle('sprite:movement:set-avoid-regions', (_e, p: { regions?: WindowControllerAvoidRegion[] } | undefined) => {
     mgr.setMovementAvoidRegions(Array.isArray(p?.regions) ? p.regions : []);
     return { ok: true };
   });
 
-  ipcMain.handle('sprite:spontaneous:getPreferences', async () => {
+  ipcMain.handle('sprite:spontaneous:get-preferences', async () => {
     return (await deps.spontaneousUtteranceExecutor?.getSpontaneousUtterancePreferences?.()) ?? null;
   });
 
-  ipcMain.handle('sprite:spontaneous:updatePreferences', async (_e, p: Record<string, unknown>) => {
+  ipcMain.handle('sprite:spontaneous:update-preferences', async (_e, p: Record<string, unknown>) => {
     return (await deps.spontaneousUtteranceExecutor?.updateSpontaneousUtterancePreferences?.(p as any)) ?? null;
   });
 
-  ipcMain.handle('sprite:spontaneous:listHistory', async (_e, p: Record<string, unknown> | undefined) => {
+  ipcMain.handle('sprite:spontaneous:list-history', async (_e, p: Record<string, unknown> | undefined) => {
     return (await deps.spontaneousUtteranceExecutor?.listSpontaneousUtterances?.(p as any)) ?? [];
   });
 
   // 预览窗口移动效果
-  ipcMain.handle('sprite:previewMovement', (_e, p: SpriteMovementPreviewConfig) => {
+  ipcMain.handle('sprite:preview-movement', (_e, p: SpriteMovementPreviewConfig) => {
     mgr.previewMovement(p);
   });
 
   // 停止移动预览
-  ipcMain.handle('sprite:stopMovementPreview', () => {
+  ipcMain.handle('sprite:stop-movement-preview', () => {
     mgr.stopMovementPreview();
   });
 
@@ -1065,29 +1065,29 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
   });
 
   /** 获取语音合成配置 */
-  ipcMain.handle('sprite:speak:getConfig', () => {
+  ipcMain.handle('sprite:speak:get-config', () => {
     return mgr.getSpeakConfig();
   });
 
   /** 更新语音合成配置 */
-  ipcMain.handle('sprite:speak:setConfig', (_e, p: Partial<SpriteSpeakConfig>) => {
+  ipcMain.handle('sprite:speak:set-config', (_e, p: Partial<SpriteSpeakConfig>) => {
     return mgr.setSpeakConfig(p);
   });
 
   /** 重置语音合成配置 */
-  ipcMain.handle('sprite:speak:resetConfig', () => {
+  ipcMain.handle('sprite:speak:reset-config', () => {
     return mgr.resetSpeakConfig();
   });
 
   /** 获取语音缓存统计 */
-  ipcMain.handle('sprite:speak:getCacheStats', () => {
+  ipcMain.handle('sprite:speak:get-cache-stats', () => {
     return mgr.getSpeakCacheStats();
   });
 
   /** 清空语音缓存 */
-  ipcMain.handle('sprite:speak:clearCache', async () => {
+  ipcMain.handle('sprite:speak:clear-cache', async () => {
     await mgr.clearSpeakCache();
-    return { success: true };
+    return { ok: true };
   });
 
   ipcMain.handle('sprite:speak:realtime:start', async (event, p: SpriteRealtimeSpeechSessionRequest) => {
@@ -1122,7 +1122,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     };
   });
 
-  ipcMain.handle('sprite:speak:realtime:appendText', async (_event, p: { sessionId: string; text: string }) => {
+  ipcMain.handle('sprite:speak:realtime:append-text', async (_event, p: { sessionId: string; text: string }) => {
     await mgr.appendRealtimeSpeechText(String(p.sessionId || ''), String(p.text || ''));
     return { ok: true };
   });
@@ -1172,7 +1172,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
   });
 
   // ===== 按动画 ID 测试播放 =====
-  ipcMain.handle('sprite:triggerById', (_e, p: { animationId: string; message?: string; duration?: number; durationMs?: number; silent?: boolean; allowMovementDuringPlayback?: boolean }) => {
+  ipcMain.handle('sprite:trigger-by-id', (_e, p: { animationId: string; message?: string; duration?: number; durationMs?: number; silent?: boolean; allowMovementDuringPlayback?: boolean }) => {
     return mgr.triggerById(p.animationId, {
       message: p.message,
       duration: p.duration,
@@ -1191,7 +1191,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     return mgr.cancelPurpose(p?.purposeId, p?.reason);
   });
 
-  ipcMain.handle('sprite:purpose:getSnapshot', () => {
+  ipcMain.handle('sprite:purpose:get-snapshot', () => {
     return mgr.getPurposeSnapshot();
   });
 
@@ -1237,7 +1237,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
         id: messageId,
         level: request?.level ?? 'warning',
         persistent: true,
-        speak: request?.speak ?? false,
+        speak: request?.shouldSpeak ?? false,
         buttons: [
           {
             id: 'confirm',
@@ -1282,11 +1282,11 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     }
   });
 
-  ipcMain.handle('sprite:purpose:listHistory', (_e, p: SpritePurposeHistoryQuery | undefined) => {
+  ipcMain.handle('sprite:purpose:list-history', (_e, p: SpritePurposeHistoryQuery | undefined) => {
     return mgr.listPurposeHistory(p);
   });
 
-  ipcMain.handle('sprite:purpose:getDailyRetrospective', (_e, p: SpritePurposeRetrospectiveQuery | undefined) => {
+  ipcMain.handle('sprite:purpose:get-daily-retrospective', (_e, p: SpritePurposeRetrospectiveQuery | undefined) => {
     return mgr.getPurposeDailyRetrospective(p);
   });
 
@@ -1303,8 +1303,8 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
   const activePack = await getActiveCharacterPack();
   initCharacterService(activePack?.rootDir ?? spritesDir, { source: activePack?.source ?? 'builtin' });
   await syncCharacterRuntime();
-  const initialPersonaSlot = resolveActivePersonaSlot();
-  mgr.configurePersonaStateSlot(initialPersonaSlot.id, initialPersonaSlot.identity);
+  const initialCharacterSlot = resolveActiveCharacterSlot();
+  mgr.configureCharacterStateSlot(initialCharacterSlot.id, initialCharacterSlot.identity);
 
   // ===== 加载动画（需先于 mgr.start()，否则默认行为无法读取 walk movement schedule） =====
   let initialAnimationsLoaded = false;
@@ -1322,11 +1322,11 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
   try {
     await deps.registerCharacterPersonaPromptProvider?.(() => {
       if (!getCharacterDefinition()) return null;
-      const persona = mgr.getPersonaState();
+      const characterState = mgr.getCharacterState();
       return buildCharacterPersonaPrompt({
-        favorLevel: persona.favorLevel,
-        mood: persona.mood,
-        level: persona.level
+        favorLevel: characterState.favorLevel,
+        mood: characterState.mood,
+        level: characterState.level
       });
     });
   } catch {
@@ -1341,9 +1341,9 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
   // ===== 初始化事件监听器（订阅业务事件触发动画） =====
   initSpriteEventListener(mgr);
 
-  // ===== 事件转发：persona:character-switched → 主窗口 =====
+  // ===== 事件转发：sprite:character:switched → 主窗口 =====
   // 渲染进程负责打开窗口和处理数据
-  const forwardPersonaEvent = (eventName: string, channel: string): void => {
+  const forwardCharacterEvent = (eventName: string, channel: string): void => {
     mgr.on(eventName, (event) => {
       try {
         if (!win.isDestroyed()) {
@@ -1355,17 +1355,17 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     });
   };
 
-  forwardPersonaEvent('persona:character-switched', 'persona:character-switched');
+  forwardCharacterEvent('sprite:character:switched', 'sprite:character:switched');
 
   // ===== 临时资源根目录（用于视频预览等场景） =====
-  ipcMain.handle('sprite:addTempResourceRoot', (_e, root: string) => {
+  ipcMain.handle('sprite:add-temp-resource-root', (_e, root: string) => {
     // 只允许注册已可信根（userData / 工作区 / 资源目录）之内的路径,防止渲染进程把 res:// 扩大成任意文件读
     if (typeof root !== 'string' || !deps.isPathWithinAllowedRoots?.(root)) {
-      console.warn('[sprite:addTempResourceRoot] rejected root outside allowed roots:', root);
-      return { success: false };
+      console.warn('[sprite:add-temp-resource-root] rejected root outside allowed roots:', root);
+      return { ok: false };
     }
     deps.addAllowedResourceRoot(root);
-    return { success: true };
+    return { ok: true };
   });
 
   // ===== 基于已加载动画触发初始播放 =====

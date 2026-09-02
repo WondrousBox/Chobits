@@ -1,4 +1,4 @@
-export type RoleProfile = {
+export type CharacterProfile = {
   name: string;
   mood?: string;
   level?: number;

@@ -15,7 +15,7 @@ import * as path from 'node:path';
 
 import type { SpriteAnimationCondition } from './animation-condition';
 import { resolvePackRelativeAssetPath } from './character-pack-paths';
-import type { MoodType } from './persona-state';
+import type { MoodType } from './character-state';
 import type { MessageCategory } from './types';
 
 // ━━ Type Definitions ━━

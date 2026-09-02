@@ -1,7 +1,7 @@
 import keytar from 'keytar';
 
 import { SERVICE_INST } from '../common/config';
-import { ENABLE_KEYTAR, readSettingsStorage as readStorage, writeSettingsStorage as writeStorage } from './settings-storage';
+import { ENABLE_KEYTAR, readSettingsStorage as readStorage, writeSettingsStorage as writeStorage } from './settings-file';
 
 async function setStoredPresetSecret(presetId: string, key: string, value: string): Promise<void> {
   const storage = readStorage();

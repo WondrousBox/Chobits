@@ -150,7 +150,7 @@ export function generateSpeech(options: GenerateSpeechOptions): void {
   });
 }
 
-export function freeTTSInstance(uuid: string): void {
+export function destroyTTSInstance(uuid: string): void {
   Ins[uuid]?.process?.send({
     event: 'stop',
     data: {}

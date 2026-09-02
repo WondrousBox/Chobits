@@ -121,6 +121,3 @@ export function listToolInfos(): ToolInfo[] {
     }
   ];
 }
-
-// 向后兼容（保留原有的导出名称）
-export const getTools = getAllTools;

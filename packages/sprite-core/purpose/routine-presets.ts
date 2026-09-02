@@ -602,7 +602,7 @@ function createFirstChatRoutineSteps(): SpriteRoutineStepInput[] {
       type: 'loopUntil',
       source: 'app-event',
       untilEvent: ['APP_WINDOW_OPENED'],
-      match: { windowKey: ['assistant', 'assistantMini', 'chat', 'chatOverlay'] },
+      match: { windowKey: ['assistant', 'assistantMini', 'chat'] },
       maxDurationMs: 10_000,
       assignTo: 'firstChatWindowOpened',
       ignoreHistory: false,

@@ -1,4 +1,4 @@
-import type { PersonaState } from '../persona-state';
+import type { CharacterState } from '../character-state';
 import type { SpritePurposeRoutinePlanner } from '../purpose';
 import type { SpriteSpeechSynthesisExecutor, SpriteSpeechTextTranslator } from '../speak/types';
 import type { SpriteWindowAnimationPlayPosition } from '../types';
@@ -146,7 +146,7 @@ export interface SpriteSpontaneousUtteranceRequest {
   fallbackAction: string;
   sprite: {
     state: string;
-    mood: PersonaState['mood'];
+    mood: CharacterState['mood'];
     moodIntensity: number;
     favor: number;
     level: number;
@@ -237,16 +237,16 @@ export interface SpriteSpontaneousUtteranceExecutor {
   listSpontaneousUtterances?(query?: SpriteSpontaneousUtteranceHistoryQuery): Promise<SpriteSpontaneousUtteranceHistoryItem[]>;
 }
 
-/** 人格状态持久化快照（JSON 文件）。养成字段（xp/level/favor/loginStreak/claimedRewards 等）已移除，读取旧文件时忽略。 */
-export interface PersonaStatePersistenceRow {
+/** 角色状态持久化快照（JSON 文件）。养成字段（xp/level/favor/loginStreak/claimedRewards 等）已移除，读取旧文件时忽略。 */
+export interface CharacterStatePersistenceRow {
   id: string;
   version: 2;
-  name: PersonaState['name'];
-  description?: PersonaState['description'];
-  mood: PersonaState['mood'];
-  moodIntensity: PersonaState['moodIntensity'];
-  achievements: PersonaState['achievements'];
-  dimensions: PersonaState['dimensions'];
-  createdAt: PersonaState['createdAt'];
-  updatedAt: PersonaState['updatedAt'];
+  name: CharacterState['name'];
+  description?: CharacterState['description'];
+  mood: CharacterState['mood'];
+  moodIntensity: CharacterState['moodIntensity'];
+  achievements: CharacterState['achievements'];
+  dimensions: CharacterState['dimensions'];
+  createdAt: CharacterState['createdAt'];
+  updatedAt: CharacterState['updatedAt'];
 }

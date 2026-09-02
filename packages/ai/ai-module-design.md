@@ -31,7 +31,7 @@ AI 模块目前作为独立包位于 `packages/ai` 下，由主进程在启动�
 - `packages/ai/chat-service.ts`：对话服务，负责流式处理、取消、与 IPC 集成，并与 `ChatRepo` 做会话/消息持久化
 - `packages/ai/settings-store.ts`：Provider 秘钥与 API key 存储，带 JSON 文件回退（`userData/data/ai-settings.json`）
 - `packages/ai/preset-secrets-store.ts`：Preset secret 底层存储，负责 preset 维度的 keytar / JSON 读写
-- `packages/ai/settings-storage.ts`：`settings-store.ts` 与 `preset-secrets-store.ts` 共享的底层文件存储 helper
+- `packages/ai/settings-file.ts`：`settings-store.ts` 与 `preset-secrets-store.ts` 共享的底层文件存储 helper
 - `packages/ai/presets-store.ts`：Provider 预设（Preset）底层存储 helper，负责基础持久化、历史数据兼容读取与 canonical provider id 归一化
 - `packages/ai/prompts-store.ts`：提示词模板（Prompt Template）存储与 CRUD
 - `packages/ai/ipc-main.ts`：AI 相关 IPC 处理器入口（注册 builtin provider、初始化 ChatService、注册设置/预设/模板/会话等 IPC）
@@ -45,11 +45,11 @@ AI 模块目前作为独立包位于 `packages/ai` 下，由主进程在启动�
 Preload：
 
 - `packages/ai/ipc-renderer.ts`：渲染进程可用的 `aiBridge` 封装，通过 `ipcRenderer` 调用上述 IPC
-- `electron/preload/index.ts`：通过 `contextBridge` 把 `aiBridge` 暴露为 `window.YUA.ai`，包含 getProviders/getAgents/chat/chatStream/embed/cancel 等方法以及预设/模板/历史等扩展接口。
+- `electron/preload/index.ts`：通过 `contextBridge` 把 `aiBridge` 暴露为 `window.chobits.ai`，包含 getProviders/getAgents/chat/chatStream/embed/cancel 等方法以及预设/模板/历史等扩展接口。
 
 Renderer（示例约定，实际路径视实现为准）：
 
-- 设置页/对话页组件：直接通过 `window.YUA.ai` 使用 `getProviders`/`listPresets`/`listPromptTemplates`/`listConversations` 等接口渲染配置和会话列表
+- 设置页/对话页组件：直接通过 `window.chobits.ai` 使用 `getProviders`/`listPresets`/`listPromptTemplates`/`listConversations` 等接口渲染配置和会话列表
   - 主聊天入口正向 model-first 迁移：界面选择 `provider + model`，发送前再解析隐藏 preset
 
 ## 3. 关键接口（Contract）
@@ -134,11 +134,11 @@ Renderer（示例约定，实际路径视实现为准）：
   - `packages/ai/registry.ts`
 - 用途：
   - 决定主聊天/工具调用/one-shot 执行时使用哪套 profile descriptor
-  - 为 `ai:getAgents` 提供 UI 可见的 profile 列表
+  - 为 `ai:get-agents` 提供 UI 可见的 profile 列表
 
 ### 3.6 Renderer AIApi（Preload 暴露）
 
-`types.ts` 中定义的 `AIApi` 是渲染侧可见的聚合接口（`window.YUA.ai` 的形状），核心能力包括：
+`types.ts` 中定义的 `AIApi` 是渲染侧可见的聚合接口（`window.chobits.ai` 的形状），核心能力包括：
 
 - Provider/Profile：
   - `getProviders()`
@@ -180,9 +180,9 @@ Renderer → Preload → Main：
 
 - **`ai:chat`** `(ChatRequest)` → `ChatResponse`
   - 有会话持久化：会根据 `conversationId` 在 `ChatRepo` 中 `ensureConversation`，并写入最后一条 user 消息和 assistant 回复。
-- **`ai:chatEphemeral`** `(ChatRequest)` → `ChatResponse`
+- **`ai:chat-ephemeral`** `(ChatRequest)` → `ChatResponse`
   - 无会话持久化：仍会合并预设 overrides / secrets，但不写入 `ChatRepo`。
-- **`ai:chatStream`** `(ChatRequest & { requestId? })` → `{ requestId, eventsChannel }`
+- **`ai:chat-stream`** `(ChatRequest & { requestId? })` → `{ requestId, eventsChannel }`
   - 流式、有持久化：在首条 user 消息后写入历史，结束时写入 assistant 最终消息，并通过 metadata 附带 `conversationId`。
 - **`ai:cancel`** `({ requestId })` → `{ ok: true }`
   - 使用内部 `AbortController` 取消指定请求。
@@ -197,50 +197,50 @@ Renderer → Preload → Main：
 
 由 `initAIHandlers` 注册：
 
-- **`ai:getProviders`** → `[{ id, aliases, label, configured, capabilities, defaultModels, kind, defaultModel, schema }]`
+- **`ai:get-providers`** → `[{ id, aliases, label, configured, capabilities, defaultModels, kind, defaultModel, schema }]`
   - 这些字段统一由 `ProviderDefinition` / `ProviderService` 派生。
   - `configured` 仍基于当前 adapter 的 `isConfigured()` 判断。
-- **`ai:getProviderSecrets`** `({ providerId })` → `{ [field]: value }`
+- **`ai:get-provider-secrets`** `({ providerId })` → `{ [field]: value }`
   - 使用 `ProviderService` 提供的 schema field key 列表 + `getAllSecrets(providerId, keys)` 读取。
-- **`ai:setProviderSecrets`** `({ providerId, secrets })` → `{ ok: true }`
+- **`ai:set-provider-secrets`** `({ providerId, secrets })` → `{ ok: true }`
   - 写入 keytar/回退 JSON，并调用 Provider 的 `setSecrets`。
-- **`ai:clearProviderSecrets`** `({ providerId })` → `{ ok: true }`
+- **`ai:clear-provider-secrets`** `({ providerId })` → `{ ok: true }`
   - 清除 keytar 与回退 JSON 中该 Provider 的所有秘钥，并调用 `clearSecrets()` 清空 adapter 内存中的秘钥（未实现的外部插件 adapter 退化为 `setSecrets({})`）。
-- **`ai:getAgents`** → `[{ id, label, description }]`
-- **`ai:listModels`** `({ providerId, presetId? })` → `Array<{ id, label? }>`
+- **`ai:get-agents`** → `[{ id, label, description }]`
+- **`ai:list-models`** `({ providerId, presetId? })` → `Array<{ id, label? }>`
   - builtin/compat 模型优先来自 `ProviderService`；
   - 若 Provider 支持远程列模型，则会在构造好 preset-scoped secrets 后再调用 `Provider.listModels(opts)`。
 
 ### 4.3 Provider 预设（Preset）管理
 
-- **`ai:listPresets`** `({ providerId? })` → `PresetService.listPresets(providerId?)`
-- **`ai:createPreset`** `({ providerId, name, model?, systemPrompt?, overrides?, config? })` → 新建预设记录（`config` 仅保留兼容 alias）
-- **`ai:updatePreset`** `({ id, patch })` → 更新预设
-- **`ai:deletePreset`** `({ id })` → `{ ok: boolean }`
+- **`ai:list-presets`** `({ providerId? })` → `PresetService.listPresets(providerId?)`
+- **`ai:create-preset`** `({ providerId, name, model?, systemPrompt?, overrides?, config? })` → 新建预设记录（`config` 仅保留兼容 alias）
+- **`ai:update-preset`** `({ id, patch })` → 更新预设
+- **`ai:delete-preset`** `({ id })` → `{ ok: boolean }`
   - 通过 `PresetService` 删除预设记录，并同步清理该 preset 的 secret 存储。
-- **`ai:getPresetSecrets`** `({ presetId })` → `{ [field]: value }`
+- **`ai:get-preset-secrets`** `({ presetId })` → `{ [field]: value }`
   - 通过 `PresetService` 根据预设关联的 Provider schema 取出字段，再从 keytar/JSON 读出值。
-- **`ai:setPresetSecrets`** `({ presetId, secrets })` → `{ ok: true }`
+- **`ai:set-preset-secrets`** `({ presetId, secrets })` → `{ ok: true }`
 - 旧的 instance 风格 IPC alias 已移除。
 
 ### 4.4 Prompt 模板与历史会话
 
 - Prompt 模板：
-  - **`ai:listPromptTemplates`**
-  - **`ai:createPromptTemplate`** `({ name, type, content, tags? })`
-  - **`ai:updatePromptTemplate`** `({ id, patch })`
-  - **`ai:deletePromptTemplate`** `({ id })` → `{ ok: boolean }`
+  - **`ai:list-prompt-templates`**
+  - **`ai:create-prompt-template`** `({ name, type, content, tags? })`
+  - **`ai:update-prompt-template`** `({ id, patch })`
+  - **`ai:delete-prompt-template`** `({ id })` → `{ ok: boolean }`
 - 会话与消息历史（基于 `ChatRepo`）：
-  - **`ai:listConversations`** `({ includeDeleted?, limit?, offset? }?)`
-  - **`ai:listMessages`** `({ conversationId, limit?, offset? })`
-  - **`ai:renameConversation`** `({ id, title })` → `{ ok, row? }`
-  - **`ai:deleteConversation`** `({ id })` → `{ ok }`（软删除）
-  - **`ai:restoreConversation`** `({ id })` → `{ ok }`
+  - **`ai:list-conversations`** `({ includeDeleted?, limit?, offset? }?)`
+  - **`ai:list-messages`** `({ conversationId, limit?, offset? })`
+  - **`ai:rename-conversation`** `({ id, title })` → `{ ok, row? }`
+  - **`ai:delete-conversation`** `({ id })` → `{ ok }`（软删除）
+  - **`ai:restore-conversation`** `({ id })` → `{ ok }`
 
 ## 5. 流式对话设计
 
 - ChatService 使用 `AbortController` 管理取消，请求 id 统一使用 `abortId` 或内部生成的 `requestId`。
-- `ai:chatStream`：
+- `ai:chat-stream`：
   - 主进程立即返回 `{ requestId, eventsChannel }`，让渲染进程先订阅事件通道。
   - 随后以异步任务方式启动实际的对话处理。
 - Provider/runtime 在生成时通过回调 `emit({ type: 'delta', data: { text } })` 推送 token 片段：
@@ -382,18 +382,18 @@ Provider 适配要点：
 
 - 主聊天入口开始从 preset-first 迁移到 model-first surface。
 - UI 层优先选择 `providerId + modelId`，不再把 preset 作为主入口选择项。
-- 发送前通过 `ai:resolveUsablePreset({ providerId, preferredPresetId? })` 解析真正可用的 `providerPresetId`。
+- 发送前通过 `ai:resolve-usable-preset({ providerId, preferredPresetId? })` 解析真正可用的 `providerPresetId`。
 - 聊天请求推荐形态为：
   - `providerId`: 当前模型所属 Provider
   - `providerPresetId`: 发送前解析得到的可用 preset
   - `extras.model`: 用户当前显式选择的模型 ID
 
-以下示例基于预期的 `window.YUA.ai` 接口（由 Preload 暴露）：
+以下示例基于预期的 `window.chobits.ai` 接口（由 Preload 暴露）：
 
 - **流式对话**（带会话历史）：
 
 ```ts
-const disposer = await window.YUA.ai.chatStream(
+const disposer = await window.chobits.ai.chatStream(
   {
     conversationId: undefined, // 首次可省略，后续可复用
     messages: [{ role: 'user', content: 'Hello there' }],
@@ -415,10 +415,10 @@ disposer.dispose();
 - **获取并保存 Provider 配置**：
 
 ```ts
-const providers = await window.YUA.ai.getProviders();
+const providers = await window.chobits.ai.getProviders();
 const openai = providers.find((p) => p.id === 'openai');
 if (openai) {
-  await window.YUA.ai.setProviderSecrets('openai', { apiKey: 'sk-...' });
+  await window.chobits.ai.setProviderSecrets('openai', { apiKey: 'sk-...' });
 }
 ```
 

@@ -2,7 +2,7 @@ import { normalizeProviderPreset, resolveProviderPresetId } from '../../provider
 import type { ChatRequest, ProviderScopedRequest, TokenUsage } from '../../types';
 import type { ResolvedPiRequest } from './contracts';
 import { resolvePiRequest } from './model-resolver';
-import { createResolvedPromptInspectionContext, inspectAiPrompt } from './prompt-inspector';
+import { createResolvedPromptInspectionContext, inspectAIPrompt } from './prompt-inspector';
 import { buildPiModel, buildPiModelHeaders } from './provider-model';
 import { extractPiProviderRequestId } from './provider-request-id';
 
@@ -153,7 +153,7 @@ export async function createPiTaskChatRuntime(resolved: ResolvedPiRequest): Prom
       try {
         console.log(`${TAG} streamSimple start: ${resolved.request.providerId}/${model.id}, prompt=${prompt.length} chars, hasApiKey=${!!resolved.model.apiKey}`);
         const context = createPromptContext(prompt);
-        inspectAiPrompt({
+        inspectAIPrompt({
           ...createResolvedPromptInspectionContext(resolved),
           messages: context.messages,
           prompt,

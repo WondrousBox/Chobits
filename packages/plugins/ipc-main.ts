@@ -95,7 +95,7 @@ export function initPluginResourceHandlers(win: BrowserWindow, options?: InitOpt
   });
 
   // 列出支持的插件定义
-  ipcMain.handle('plugin-resource:listSupported', async () => {
+  ipcMain.handle('plugin-resource:list-supported', async () => {
     if (!getPluginDefinitionsPathFn) {
       throw new Error('Plugin definitions path not configured');
     }
@@ -103,7 +103,7 @@ export function initPluginResourceHandlers(win: BrowserWindow, options?: InitOpt
   });
 
   // 列出“已安装的引擎”资源
-  ipcMain.handle('plugin-resource:listInstalledEngines', async () => {
+  ipcMain.handle('plugin-resource:list-installed-engines', async () => {
     if (!getPluginDefinitionsPathFn) {
       throw new Error('Plugin definitions path not configured');
     }
@@ -145,7 +145,7 @@ export function initPluginResourceHandlers(win: BrowserWindow, options?: InitOpt
   });
 
   // 列出“支持的模型”，仅针对已安装的引擎
-  ipcMain.handle('plugin-resource:listSupportedModels', async () => {
+  ipcMain.handle('plugin-resource:list-supported-models', async () => {
     if (!getPluginDefinitionsPathFn) {
       throw new Error('Plugin definitions path not configured');
     }
@@ -371,7 +371,7 @@ export function initPluginResourceHandlers(win: BrowserWindow, options?: InitOpt
   });
 
   // 检查资源是否已安装
-  ipcMain.handle('plugin-resource:isInstalled', async (_e, payload: { id: string }) => {
+  ipcMain.handle('plugin-resource:is-installed', async (_e, payload: { id: string }) => {
     // 先检查是否是系统预设插件
     if (getPluginDefinitionsPathFn) {
       const definitions = await loadPluginDefinitions(getPluginDefinitionsPathFn());
@@ -397,13 +397,13 @@ export function initPluginResourceHandlers(win: BrowserWindow, options?: InitOpt
   });
 
   // 获取Engine路径
-  ipcMain.handle('plugin-resource:getEnginePath', async (_e, payload: { pluginId: string; binaryName: string }) => {
+  ipcMain.handle('plugin-resource:get-engine-path', async (_e, payload: { pluginId: string; binaryName: string }) => {
     const enginePath = pluginResourceManager.getEnginePath(payload.pluginId, payload.binaryName);
     return { ok: true, path: enginePath };
   });
 
   // 获取模型路径
-  ipcMain.handle('plugin-resource:getModelPath', async (_e, payload: { pluginId: string; modelName: string }) => {
+  ipcMain.handle('plugin-resource:get-model-path', async (_e, payload: { pluginId: string; modelName: string }) => {
     const modelPath = pluginResourceManager.getModelPath(payload.pluginId, payload.modelName);
     return { ok: true, path: modelPath };
   });
@@ -432,31 +432,31 @@ export function initPluginResourceHandlers(win: BrowserWindow, options?: InitOpt
     }
     const removed = PluginResourceStore.remove(payload.id);
     if (removed || deletedPaths.length > 0) {
-      eventManager.emit(AppEvent.SPRITE_PLUGIN_REMOVE, { name: payload.id });
+      eventManager.emit(AppEvent.SPRITE_PLUGIN_REMOVED, { name: payload.id });
     }
     return { ok: removed || deletedPaths.length > 0, deletedPaths };
   });
 
   // 获取下载目录
-  ipcMain.handle('plugin-resource:getDownloadDir', async () => {
+  ipcMain.handle('plugin-resource:get-download-dir', async () => {
     const downloadDir = pluginResourceManager.getDownloadDir();
     return { ok: true, path: downloadDir };
   });
 
   // 设置下载目录
-  ipcMain.handle('plugin-resource:setDownloadDir', async (_e, payload: { dir: string }) => {
+  ipcMain.handle('plugin-resource:set-download-dir', async (_e, payload: { dir: string }) => {
     pluginResourceManager.setDownloadDir(payload.dir);
     return { ok: true };
   });
 
   // 获取插件目录
-  ipcMain.handle('plugin-resource:getPluginsDir', async () => {
+  ipcMain.handle('plugin-resource:get-plugins-dir', async () => {
     const pluginsDir = pluginResourceManager.getPluginsDir();
     return { ok: true, path: pluginsDir };
   });
 
   // 设置插件目录
-  ipcMain.handle('plugin-resource:setPluginsDir', async (event, payload: { dir: string }) => {
+  ipcMain.handle('plugin-resource:set-plugins-dir', async (event, payload: { dir: string }) => {
     const oldDir = pluginResourceManager.getPluginsDir();
     const newDir = payload.dir;
 
@@ -515,24 +515,24 @@ export function initPluginResourceHandlers(win: BrowserWindow, options?: InitOpt
   });
 
   // 获取并发数
-  ipcMain.handle('plugin-resource:getConcurrency', async () => {
+  ipcMain.handle('plugin-resource:get-concurrency', async () => {
     const config = PluginConfigStore.getConfig();
     return { ok: true, concurrency: config.concurrency ?? 2 };
   });
 
   // 设置并发数
-  ipcMain.handle('plugin-resource:setConcurrency', async (_e, payload: { concurrency: number }) => {
+  ipcMain.handle('plugin-resource:set-concurrency', async (_e, payload: { concurrency: number }) => {
     pluginResourceManager.setConcurrency(payload.concurrency);
     return { ok: true };
   });
 
   // 获取插件下载配置
-  ipcMain.handle('plugin-resource:getConfig', async () => {
+  ipcMain.handle('plugin-resource:get-config', async () => {
     return { ok: true, config: PluginConfigStore.getConfig() };
   });
 
   // 更新插件下载配置
-  ipcMain.handle('plugin-resource:setConfig', async (_e, payload: Partial<ReturnType<typeof PluginConfigStore.getConfig>>) => {
+  ipcMain.handle('plugin-resource:set-config', async (_e, payload: Partial<ReturnType<typeof PluginConfigStore.getConfig>>) => {
     const config = PluginConfigStore.setConfig(payload);
     if (typeof payload.concurrency === 'number') {
       pluginResourceManager.setConcurrency(payload.concurrency);
@@ -541,7 +541,7 @@ export function initPluginResourceHandlers(win: BrowserWindow, options?: InitOpt
   });
 
   // 检测网络连通性（使用系统代理设置，类似 electron-dl）
-  ipcMain.handle('plugin-resource:checkNetwork', async () => {
+  ipcMain.handle('plugin-resource:check-network', async () => {
     const sites = [
       { name: 'Hugging Face', url: 'https://huggingface.co' },
       { name: 'GitHub', url: 'https://github.com' }

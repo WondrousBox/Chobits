@@ -1190,15 +1190,15 @@ export class SpeakService {
     const config = this.configStore.getConfig();
 
     if (!config.enabled) {
-      return { success: false, error: 'TTS is disabled' };
+      return { ok: false, error: 'TTS is disabled' };
     }
 
     if (!originalText || originalText.trim().length === 0) {
-      return { success: false, error: 'Empty text' };
+      return { ok: false, error: 'Empty text' };
     }
 
     if (sanitizedText.length === 0) {
-      return { success: false, error: 'Empty text after emoji filtering' };
+      return { ok: false, error: 'Empty text after emoji filtering' };
     }
 
     const cacheId = this.generateCacheId(config, sanitizedText);
@@ -1216,7 +1216,7 @@ export class SpeakService {
       //   fromCache: true
       // });
       return {
-        success: true,
+        ok: true,
         cacheId,
         audioPath: cachedPath,
         fromCache: true
@@ -1232,7 +1232,7 @@ export class SpeakService {
       const output = await this.synthesizeWithService(sanitizedText, config);
 
       if (!output.buffer || output.buffer.length === 0) {
-        return { success: false, error: 'Synthesis returned empty audio' };
+        return { ok: false, error: 'Synthesis returned empty audio' };
       }
 
       // 存入缓存
@@ -1248,14 +1248,14 @@ export class SpeakService {
       });
 
       return {
-        success: true,
+        ok: true,
         cacheId,
         audioPath,
         fromCache: false
       };
     } catch (err: any) {
       console.error('[SpeakService] Synthesis failed:', err);
-      return { success: false, error: err?.message || 'Synthesis failed' };
+      return { ok: false, error: err?.message || 'Synthesis failed' };
     }
   }
 
@@ -1270,7 +1270,7 @@ export class SpeakService {
     const sanitizedText = stripEmoji(originalText);
     const result = await this.synthesizeSanitized(originalText, sanitizedText);
 
-    if (result.success && result.audioPath && this.onPlayAudio) {
+    if (result.ok && result.audioPath && this.onPlayAudio) {
       const config = this.configStore.getConfig();
       this.onPlayAudio(
         {

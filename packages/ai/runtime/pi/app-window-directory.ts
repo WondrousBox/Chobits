@@ -115,8 +115,6 @@ function sanitizeChatPayload(payload: unknown): Payload | undefined {
   pickString(payload, next, 'codingWorkspaceLabel', { maxLength: 200 });
   pickBoolean(payload, next, 'webSearchEnabled');
   pickBoolean(payload, next, 'characterPersonaEnabled');
-  const overlaySide = readString(payload, 'overlaySide', { maxLength: 16 });
-  if (overlaySide === 'left' || overlaySide === 'right') next.overlaySide = overlaySide;
   return emptyToUndefined(next);
 }
 
@@ -149,14 +147,6 @@ export const APP_WINDOW_TOOL_DIRECTORY: AppWindowToolEntry[] = [
     description: '打开独立聊天窗口，可带一条初始消息。',
     aliases: ['聊天', '对话', 'chat'],
     payloadFields: chatPayloadFields,
-    sanitizePayload: sanitizeChatPayload
-  },
-  {
-    key: 'chatOverlay',
-    title: '侧边聊天浮层',
-    description: '打开侧边聊天浮层，可带一条初始消息。',
-    aliases: ['侧边聊天', '浮层聊天', 'overlay chat'],
-    payloadFields: [...chatPayloadFields, { name: 'overlaySide', type: 'left | right', description: '浮层出现侧' }],
     sanitizePayload: sanitizeChatPayload
   },
   {

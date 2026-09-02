@@ -1,28 +1,28 @@
 import { ipcRenderer } from 'electron';
 
-import { AllModels, CommonConfig } from './common';
+import { SherpaModel, CommonConfig } from './common';
 import type { ASRConfig } from './ipc-main';
 
 export const sherpaIpcRenderer = {
   // ASR 配置持久化
   getASRConfig(): Promise<ASRConfig> {
-    return ipcRenderer.invoke('sherpa:getASRConfig');
+    return ipcRenderer.invoke('sherpa:get-asr-config');
   },
 
   saveASRConfig(partial: Partial<ASRConfig>): Promise<ASRConfig> {
-    return ipcRenderer.invoke('sherpa:saveASRConfig', partial);
+    return ipcRenderer.invoke('sherpa:save-asr-config', partial);
   },
-  createInstance(data: { model?: AllModels; punctuationModel?: string; language?: string; type?: 'online' | 'offline' | 'vad'; commonConfig?: CommonConfig }): Promise<boolean> {
-    return ipcRenderer.invoke('sherpa:createInstance', data);
+  createInstance(data: { model?: SherpaModel; punctuationModel?: string; language?: string; type?: 'online' | 'offline' | 'vad'; commonConfig?: CommonConfig }): Promise<boolean> {
+    return ipcRenderer.invoke('sherpa:create-instance', data);
   },
 
-  freeInstance(): Promise<boolean> {
-    return ipcRenderer.invoke('sherpa:freeInstance');
+  destroyInstance(): Promise<boolean> {
+    return ipcRenderer.invoke('sherpa:destroy-instance');
   },
 
   // 查询 ASR 引擎运行状态
   getStatus(): Promise<{ running: boolean }> {
-    return ipcRenderer.invoke('sherpa:getStatus');
+    return ipcRenderer.invoke('sherpa:get-status');
   },
 
   sendData(data: {
@@ -30,7 +30,7 @@ export const sherpaIpcRenderer = {
     workspaceId?: string;
     folderId?: string;
     data: Float32Array;
-    save?: boolean;
+    shouldSave?: boolean;
     tracks?: [
       {
         format: 'srt';
@@ -39,42 +39,42 @@ export const sherpaIpcRenderer = {
       }
     ];
   }): Promise<boolean> {
-    return ipcRenderer.invoke('sherpa:sendData', data);
+    return ipcRenderer.invoke('sherpa:send-data', data);
   },
 
-  startRecording(data: { workspaceId?: string; folderId?: string }): Promise<{ success: boolean; resourceId?: string; error?: string }> {
-    return ipcRenderer.invoke('sherpa:startRecording', data);
+  startRecording(data: { workspaceId?: string; folderId?: string }): Promise<{ ok: boolean; resourceId?: string; error?: string }> {
+    return ipcRenderer.invoke('sherpa:start-recording', data);
   },
 
   // 继续之前的录音（追加模式）
-  resumeRecording(data: { resourceId: string }): Promise<{ success: boolean; resourceId?: string; segmentCount?: number; error?: string }> {
-    return ipcRenderer.invoke('sherpa:resumeRecording', data);
+  resumeRecording(data: { resourceId: string }): Promise<{ ok: boolean; resourceId?: string; segmentCount?: number; error?: string }> {
+    return ipcRenderer.invoke('sherpa:resume-recording', data);
   },
 
-  stopRecording(): Promise<{ success: boolean; resourceId?: string; srtResourceId?: string; segmentCount?: number; error?: string }> {
-    return ipcRenderer.invoke('sherpa:stopRecording');
+  stopRecording(): Promise<{ ok: boolean; resourceId?: string; srtResourceId?: string; segmentCount?: number; error?: string }> {
+    return ipcRenderer.invoke('sherpa:stop-recording');
   },
 
   // 追加字幕片段（流式写入）
-  appendSubtitle(data: { segment: { text: string; start: number; end: number; translation?: string } }): Promise<{ success: boolean; segmentIndex?: number; error?: string }> {
-    return ipcRenderer.invoke('sherpa:appendSubtitle', data);
+  appendSubtitle(data: { segment: { text: string; start: number; end: number; translation?: string } }): Promise<{ ok: boolean; segmentIndex?: number; error?: string }> {
+    return ipcRenderer.invoke('sherpa:append-subtitle', data);
   },
 
-  saveSubtitle(data: { resourceId: string; srtContent: string }): Promise<{ success: boolean; srtResourceId?: string; error?: string }> {
-    return ipcRenderer.invoke('sherpa:saveSubtitle', data);
+  saveSubtitle(data: { resourceId: string; srtContent: string }): Promise<{ ok: boolean; srtResourceId?: string; error?: string }> {
+    return ipcRenderer.invoke('sherpa:save-subtitle', data);
   },
 
-  checkPendingRecording(data: { resourceId: string }): Promise<{ success: boolean; resourceId?: string; filePath?: string; error?: string }> {
-    return ipcRenderer.invoke('sherpa:checkPendingRecording', data);
+  checkPendingRecording(data: { resourceId: string }): Promise<{ ok: boolean; resourceId?: string; filePath?: string; error?: string }> {
+    return ipcRenderer.invoke('sherpa:check-pending-recording', data);
   },
 
-  cleanupStreams(): Promise<{ success: boolean; error?: string }> {
-    return ipcRenderer.invoke('sherpa:cleanupStreams');
+  cleanupStreams(): Promise<{ ok: boolean; error?: string }> {
+    return ipcRenderer.invoke('sherpa:cleanup-streams');
   },
 
   // 获取录音历史记录
   getRecordingHistory(data?: { limit?: number; offset?: number }): Promise<{
-    success: boolean;
+    ok: boolean;
     data: Array<{
       id: string;
       title: string;
@@ -91,33 +91,33 @@ export const sherpaIpcRenderer = {
     }>;
     error?: string;
   }> {
-    return ipcRenderer.invoke('sherpa:getRecordingHistory', data || {});
+    return ipcRenderer.invoke('sherpa:get-recording-history', data || {});
   },
 
   // 删除录音记录
-  deleteRecording(data: { resourceId: string }): Promise<{ success: boolean; error?: string }> {
-    return ipcRenderer.invoke('sherpa:deleteRecording', data);
+  deleteRecording(data: { resourceId: string }): Promise<{ ok: boolean; error?: string }> {
+    return ipcRenderer.invoke('sherpa:delete-recording', data);
   },
 
   // 读取字幕文件内容
-  readSubtitleContent(data: { filePath: string }): Promise<{ success: boolean; content?: string; error?: string }> {
-    return ipcRenderer.invoke('sherpa:readSubtitleContent', data);
+  readSubtitleContent(data: { filePath: string }): Promise<{ ok: boolean; content?: string; error?: string }> {
+    return ipcRenderer.invoke('sherpa:read-subtitle-content', data);
   },
 
   // ==================== TTS 相关方法 ====================
 
   // 创建 TTS 实例
-  ttsCreateInstance(data: { model: string; numThreads?: number; maxNumSentences?: number }): Promise<{ success: boolean; error?: string }> {
-    return ipcRenderer.invoke('sherpa:tts:createInstance', data);
+  ttsCreateInstance(data: { model: string; numThreads?: number; maxNumSentences?: number }): Promise<{ ok: boolean; error?: string }> {
+    return ipcRenderer.invoke('sherpa:tts:create-instance', data);
   },
 
   // 释放 TTS 实例
-  ttsFreeInstance(): Promise<{ success: boolean; error?: string }> {
-    return ipcRenderer.invoke('sherpa:tts:freeInstance');
+  ttsDestroyInstance(): Promise<{ ok: boolean; error?: string }> {
+    return ipcRenderer.invoke('sherpa:tts:destroy-instance');
   },
 
-  // 生成语音（异步，结果通过 renderer-message 事件返回）
-  ttsGenerate(data: { text: string; sid?: number; speed?: number; outputPath?: string; requestId: string }): Promise<{ success: boolean; requestId: string; error?: string }> {
+  // 生成语音（异步，结果通过 app:renderer-message 事件返回）
+  ttsGenerate(data: { text: string; sid?: number; speed?: number; outputPath?: string; requestId: string }): Promise<{ ok: boolean; requestId: string; error?: string }> {
     return ipcRenderer.invoke('sherpa:tts:generate', data);
   },
 
@@ -128,8 +128,8 @@ export const sherpaIpcRenderer = {
     speed?: number;
     outputPath: string;
     requestId: string;
-  }): Promise<{ success: boolean; outputPath?: string; duration?: number; error?: string; requestId: string }> {
-    return ipcRenderer.invoke('sherpa:tts:generateToFile', data);
+  }): Promise<{ ok: boolean; outputPath?: string; duration?: number; error?: string; requestId: string }> {
+    return ipcRenderer.invoke('sherpa:tts:generate-to-file', data);
   }
 };
 

@@ -8,14 +8,14 @@ type AppWindowClosePayload = Record<string, unknown> & {
 };
 
 function readWindowPayload(windowKey: string): Record<string, unknown> {
-  const payload = (globalThis as any).__lastWindowPayload?.[windowKey];
+  const payload = (globalThis as any).__chobitsLastWindowPayload?.[windowKey];
   return payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {};
 }
 
 export function rememberWindowPayload(windowKey: string, payload: unknown): void {
   if (!payload || typeof payload !== 'object') return;
-  (globalThis as any).__lastWindowPayload = (globalThis as any).__lastWindowPayload || {};
-  (globalThis as any).__lastWindowPayload[windowKey] = payload;
+  (globalThis as any).__chobitsLastWindowPayload = (globalThis as any).__chobitsLastWindowPayload || {};
+  (globalThis as any).__chobitsLastWindowPayload[windowKey] = payload;
 }
 
 export function emitAppWindowOpened(windowKey: string, payload: unknown, source: string): void {
@@ -29,9 +29,9 @@ export function emitAppWindowOpened(windowKey: string, payload: unknown, source:
 
 export function attachAppWindowClosedReporter(targetWindow: BrowserWindow | null, windowKey: string, source: string): void {
   if (!targetWindow || targetWindow.isDestroyed()) return;
-  const sources = ((targetWindow as any).__appWindowClosedReporterSources ??= new Map<string, string>()) as Map<string, string>;
+  const sources = ((targetWindow as any).__appWindowCloseSources ??= new Map<string, string>()) as Map<string, string>;
   sources.set(windowKey, source);
-  const reporters = ((targetWindow as any).__appWindowClosedReporterKeys ??= new Set<string>()) as Set<string>;
+  const reporters = ((targetWindow as any).__appWindowCloseReporterKeys ??= new Set<string>()) as Set<string>;
   if (reporters.has(windowKey)) return;
   reporters.add(windowKey);
 

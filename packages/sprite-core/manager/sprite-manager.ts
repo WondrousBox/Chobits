@@ -4,12 +4,12 @@
  * 作为 sprite-core 引擎在主进程的统一入口，整合所有子系统：
  * - SpriteEventBus: 事件总线
  * - SpriteStateMachine: 状态机
- * - PersonaStateManager: 人格状态
+ * - CharacterStateManager: 角色状态
  * - InteractionTracker: 交互追踪
  * - BehaviorEngine: 行为引擎
  * - AnimationRegistry: 动画注册表
  * - WindowController: 窗口控制 (Step 2 注入)
- * - PersonaStatePersistence: 内建持久化
+ * - CharacterStatePersistence: 内建持久化
  *
  * 设计原则：
  * 1. 单例模式 —— 全局唯一实例
@@ -26,8 +26,8 @@ import { SpriteEventBus } from '../event-bus';
 import { SPRITE_INTERACTION_EVENT_BY_INTENT, type SpriteInteractionIntent, type SpriteInteractionPayload } from '../interaction-contract';
 import { InteractionTracker } from '../interaction-tracker';
 import { getCharacterCategoryText, getCharacterSpriteEventText } from '../messages/character';
-import type { MoodType, PersonaState } from '../persona-state';
-import { PersonaStateManager } from '../persona-state';
+import type { MoodType, CharacterState } from '../character-state';
+import { CharacterStateManager } from '../character-state';
 import {
   SpritePresentationLock,
   type SpritePurpose,
@@ -91,10 +91,10 @@ import {
 import type { WindowControllerAvoidRegion } from '../window-controller-model';
 import { registerDefaultBehaviors } from './default-behaviors';
 import { MovementCoordinator } from './movement-coordinator';
-import { BubbleModeConfig, PersonaStatePersistence } from './persistence';
+import { BubbleModeConfig, CharacterStatePersistence } from './persistence';
 import { mapStateToEventType } from './state-mapping';
 import type {
-  PersonaStatePersistenceRow,
+  CharacterStatePersistenceRow,
   SpriteAmbientMessageContext,
   SpriteBehaviorScheduler,
   SpriteManagerOptions,
@@ -186,7 +186,7 @@ export class SpriteManager {
   // 内部引擎实例
   private eventBus: SpriteEventBus;
   private stateMachine: SpriteStateMachine;
-  private personaState: PersonaStateManager;
+  private characterState: CharacterStateManager;
   private interactionTracker: InteractionTracker;
   private behaviorEngine: BehaviorEngine;
   private behaviorScheduler?: SpriteBehaviorScheduler;
@@ -202,7 +202,7 @@ export class SpriteManager {
   private windowAnimationAdapter?: SpriteManagerOptions['windowAnimationAdapter'];
 
   // 内建持久化
-  private persistence: PersonaStatePersistence;
+  private persistence: CharacterStatePersistence;
   private bubbleModeConfig: BubbleModeConfig;
   private movementSuspensionReasons = new Set<string>();
   private animationMovementSuspensionReasons = new Map<string, string>();
@@ -222,8 +222,8 @@ export class SpriteManager {
   private win: SpriteWindow;
   private getScreenSize: () => { width: number; height: number; x?: number; y?: number };
   private spontaneousUtteranceExecutor?: SpriteSpontaneousUtteranceExecutor;
-  private activePersonaStateId = 'default';
-  private activePersonaIdentity: { name: string; description?: string };
+  private activeCharacterStateId = 'default';
+  private activeCharacterIdentity: { name: string; description?: string };
 
   // 当前动画和配置
   private currentAnimation: SpritePlayCommand | null = null;
@@ -266,16 +266,16 @@ export class SpriteManager {
     this.spontaneousUtteranceExecutor = options.spontaneousUtteranceExecutor;
     this.purposeWindowAdapter = options.purposeWindowAdapter;
     this.windowAnimationAdapter = options.windowAnimationAdapter;
-    this.activePersonaIdentity = {
+    this.activeCharacterIdentity = {
       name: options.appName ?? 'Chobits'
     };
 
     // 创建引擎实例
     this.eventBus = new SpriteEventBus();
     this.stateMachine = new SpriteStateMachine({ eventBus: this.eventBus });
-    this.personaState = new PersonaStateManager({
+    this.characterState = new CharacterStateManager({
       initialState: { name: options.appName ?? 'Chobits' },
-      onStateChange: () => this.onPersonaStateChange()
+      onStateChange: () => this.onCharacterStateChange()
     });
     this.interactionTracker = new InteractionTracker({ eventBus: this.eventBus });
     this.behaviorEngine = new BehaviorEngine({
@@ -375,7 +375,7 @@ export class SpriteManager {
               : result.status === 'cancelled'
                 ? 'step:cancelled'
                 : result.status === 'timeout'
-                  ? 'step:timeout'
+                  ? 'step:timed-out'
                   : result.status === 'skipped'
                     ? 'step:skipped'
                     : 'step:failed';
@@ -396,7 +396,7 @@ export class SpriteManager {
     });
 
     // 持久化
-    this.persistence = new PersonaStatePersistence(options.dataDir);
+    this.persistence = new CharacterStatePersistence(options.dataDir);
     this.bubbleModeConfig = new BubbleModeConfig(options.dataDir);
 
     // 额外消息接收方
@@ -467,12 +467,12 @@ export class SpriteManager {
     this.bubbleModeConfig.load();
     this.spriteConfig.bubbleMode = this.bubbleModeConfig.mode;
 
-    // 2. 加载持久化的人格状态（读取时忽略旧文件中的养成字段）
-    const saved = await this.persistence.load(this.activePersonaStateId);
+    // 2. 加载持久化的角色状态（读取时忽略旧文件中的养成字段）
+    const saved = await this.persistence.load(this.activeCharacterStateId);
     if (saved) {
-      this.personaState.loadState({
-        name: this.activePersonaIdentity.name,
-        ...(this.activePersonaIdentity.description !== undefined ? { description: this.activePersonaIdentity.description } : { description: saved.description }),
+      this.characterState.loadState({
+        name: this.activeCharacterIdentity.name,
+        ...(this.activeCharacterIdentity.description !== undefined ? { description: this.activeCharacterIdentity.description } : { description: saved.description }),
         mood: saved.mood,
         moodIntensity: saved.moodIntensity,
         achievements: saved.achievements,
@@ -481,11 +481,11 @@ export class SpriteManager {
         updatedAt: saved.updatedAt
       });
     } else {
-      this.personaState.loadState(this.buildDefaultPersonaState());
+      this.characterState.loadState(this.buildDefaultCharacterState());
     }
 
     // 3. 启动自动保存
-    this.persistence.startAutoSave(() => this.getPersonaStateForPersistence());
+    this.persistence.startAutoSave(() => this.getCharacterStateForPersistence());
 
     // 4. 注册默认行为
     registerDefaultBehaviors(this);
@@ -518,14 +518,14 @@ export class SpriteManager {
     await this.purposeManager.waitForIdlePresence();
 
     // 保存最终状态
-    await this.persistence.save(this.getPersonaStateForPersistence());
+    await this.persistence.save(this.getCharacterStateForPersistence());
 
     // 清理所有子系统
     this.behaviorEngine.destroy();
     this.unbindBehaviorSchedulerHandler?.();
     this.unbindBehaviorSchedulerHandler = null;
     this.interactionTracker.destroy();
-    this.personaState.destroy();
+    this.characterState.destroy();
     this.stateMachine.destroy();
     this.eventBus.clear();
     this.animationRegistry.clear();
@@ -834,7 +834,7 @@ export class SpriteManager {
     let resolvedTrigger = trigger;
     let candidates = this.animationRegistry.findCandidatesByTrigger({
       trigger,
-      personaState: this.personaState.getState()
+      characterState: this.characterState.getState()
     });
     const requestedCandidateCount = candidates.length;
     let fallbackTrigger: SpriteAnimationTrigger | undefined;
@@ -843,7 +843,7 @@ export class SpriteManager {
       resolvedTrigger = fallbackTrigger;
       candidates = this.animationRegistry.findCandidatesByTrigger({
         trigger: fallbackTrigger,
-        personaState: this.personaState.getState()
+        characterState: this.characterState.getState()
       });
     }
     const playlistMode = this.resolveAnimationPlaylistMode(resolvedTrigger);
@@ -970,7 +970,7 @@ export class SpriteManager {
 
     const candidates = this.animationRegistry.findCandidatesByTrigger({
       trigger,
-      personaState: this.personaState.getState()
+      characterState: this.characterState.getState()
     });
     if (candidates.length === 0) {
       return { ok: true, played: false, reason: 'missing-animation' };
@@ -1029,15 +1029,15 @@ export class SpriteManager {
    */
   private static MUTE_CATEGORIES: ReadonlySet<string> = new Set(['loading', 'processing', 'waiting']);
 
-  private sendMessageBridge(payload: MessageBridgePayload): RendererDeliveryResult {
+  private forwardBridgeMessage(payload: MessageBridgePayload): RendererDeliveryResult {
     return this.sendToRenderer(MESSAGE_IPC_CHANNELS.BRIDGE, payload);
   }
 
   private sendRendererMessage(payload: MessageIPCPayload): void {
-    this.sendMessageBridge({ kind: 'show', payload, source: 'sprite' });
+    this.forwardBridgeMessage({ kind: 'show', payload, source: 'sprite' });
   }
 
-  async sendBridgeMessage(payload: MessageIPCPayload, options?: { target?: MessageBridgeTarget }): Promise<{ deliveredToSprite: boolean }> {
+  async sendMessageThroughBridge(payload: MessageIPCPayload, options?: { target?: MessageBridgeTarget }): Promise<{ deliveredToSprite: boolean }> {
     if (options?.target === 'sprite') {
       try {
         await this.ensureMessageRecipients?.();
@@ -1045,7 +1045,7 @@ export class SpriteManager {
         console.warn('[SpriteManager] failed to ensure sprite message recipients', error);
       }
     }
-    const delivery = this.sendMessageBridge({ kind: 'show', payload, source: 'app', target: options?.target });
+    const delivery = this.forwardBridgeMessage({ kind: 'show', payload, source: 'app', target: options?.target });
     const deliveredToSprite = options?.target === 'sprite' || isBubbleWindowMode(this.bubbleModeConfig.mode) ? delivery.recipientCount > 0 : delivery.primarySent;
     return { deliveredToSprite };
   }
@@ -1088,7 +1088,7 @@ export class SpriteManager {
   }
 
   private clearRendererMessage(payload: MessageBridgeClearPayload): void {
-    this.sendMessageBridge({ kind: 'clear', payload, source: 'sprite' });
+    this.forwardBridgeMessage({ kind: 'clear', payload, source: 'sprite' });
   }
 
   /** 轻量提示 */
@@ -1166,7 +1166,7 @@ export class SpriteManager {
       persistent: options?.persistent,
       routineId: options?.routineId,
       level: options?.level as any,
-      speak: options?.speak
+      shouldSpeak: options?.speak
     };
     this.sendRendererMessage(payload);
 
@@ -1204,9 +1204,9 @@ export class SpriteManager {
       persistent: options?.persistent,
       routineId: options?.routineId,
       level: options?.level as any,
-      speak: options?.speak
+      shouldSpeak: options?.speak
     };
-    const result = await this.sendBridgeMessage(payload, { target: 'sprite' });
+    const result = await this.sendMessageThroughBridge(payload, { target: 'sprite' });
     return result.deliveredToSprite;
   }
 
@@ -1253,7 +1253,7 @@ export class SpriteManager {
     }
   ): Promise<SpeakResult> {
     if (this.shouldSuppressAmbientMessage(options?.ambientContext)) {
-      return { success: false, error: 'suppressed-by-onboarding' };
+      return { ok: false, error: 'suppressed-by-onboarding' };
     }
 
     const showBubble = options?.showBubble ?? true;
@@ -1388,50 +1388,50 @@ export class SpriteManager {
   }
 
   // ============================================================================
-  // 人格化 API
+  // 角色状态 API
   // ============================================================================
 
   /** 设置心情 */
   setMood(mood: MoodType, intensity?: number): void {
-    this.personaState.setMood(mood, intensity);
+    this.characterState.setMood(mood, intensity);
     this.persistence.markDirty();
   }
 
-  /** 获取完整人格状态 */
-  getPersonaState(): PersonaState {
-    return this.personaState.getState();
+  /** 获取完整角色状态 */
+  getCharacterState(): CharacterState {
+    return this.characterState.getState();
   }
 
-  /** 获取当前人格持久化 slot id */
-  getActivePersonaStateId(): string {
-    return this.activePersonaStateId;
+  /** 获取当前角色状态持久化 slot id */
+  getActiveCharacterStateId(): string {
+    return this.activeCharacterStateId;
   }
 
-  /** 配置下一次加载/保存要使用的人格 slot 与角色身份信息 */
-  configurePersonaStateSlot(slotId: string, identity?: { name?: string; description?: string }): void {
-    this.activePersonaStateId = slotId.trim() || 'default';
-    this.activePersonaIdentity = {
-      name: identity?.name?.trim() || this.activePersonaIdentity.name,
+  /** 配置下一次加载/保存要使用的角色状态 slot 与角色身份信息 */
+  configureCharacterStateSlot(slotId: string, identity?: { name?: string; description?: string }): void {
+    this.activeCharacterStateId = slotId.trim() || 'default';
+    this.activeCharacterIdentity = {
+      name: identity?.name?.trim() || this.activeCharacterIdentity.name,
       ...(identity?.description !== undefined ? { description: identity.description } : {})
     };
   }
 
-  /** 切换到新的角色人格存档：先保存当前 slot，再恢复目标 slot。 */
-  async switchPersonaStateSlot(slotId: string, identity?: { name?: string; description?: string }): Promise<{ restored: boolean; state: PersonaState }> {
-    await this.persistence.save(this.getPersonaStateForPersistence());
+  /** 切换到新的角色状态存档：先保存当前 slot，再恢复目标 slot。 */
+  async switchCharacterStateSlot(slotId: string, identity?: { name?: string; description?: string }): Promise<{ restored: boolean; state: CharacterState }> {
+    await this.persistence.save(this.getCharacterStateForPersistence());
 
-    this.configurePersonaStateSlot(slotId, identity);
+    this.configureCharacterStateSlot(slotId, identity);
 
-    const saved = await this.persistence.load(this.activePersonaStateId);
+    const saved = await this.persistence.load(this.activeCharacterStateId);
 
     if (saved) {
-      this.personaState.loadState({
+      this.characterState.loadState({
         ...saved,
         name: identity?.name?.trim() || saved.name,
         ...(identity?.description !== undefined ? { description: identity.description } : {})
       });
     } else {
-      this.personaState.loadState(this.buildDefaultPersonaState());
+      this.characterState.loadState(this.buildDefaultCharacterState());
     }
 
     this.persistence.markDirty();
@@ -1439,13 +1439,13 @@ export class SpriteManager {
 
     return {
       restored: !!saved,
-      state: this.personaState.getState()
+      state: this.characterState.getState()
     };
   }
 
   /** 批量初始化维度（仅对尚未初始化的维度设置初始值） */
   initDimensions(defs: Array<{ id: string; initialValue: number }>): void {
-    this.personaState.initDimensions(defs);
+    this.characterState.initDimensions(defs);
     this.persistence.markDirty();
   }
 
@@ -1601,7 +1601,7 @@ export class SpriteManager {
   findAnimationByTrigger(trigger: SpriteAnimationTrigger): AnimationEntry | undefined {
     return this.animationRegistry.findByTrigger({
       trigger,
-      personaState: this.personaState.getState()
+      characterState: this.characterState.getState()
     });
   }
 
@@ -1821,7 +1821,7 @@ export class SpriteManager {
     return {
       state: this.getState(),
       subState: this.getSubState(),
-      personaState: this.personaState.getState(),
+      characterState: this.characterState.getState(),
       animations: this.animationRegistry.getAll() as any,
       currentAnimation: this.currentAnimation,
       config: this.getSpriteConfig()
@@ -1987,7 +1987,7 @@ export class SpriteManager {
     this.sendToRenderer('sprite:state', {
       state: initial.state,
       subState: initial.subState,
-      personaSnapshot: initial.personaState
+      characterState: initial.characterState
     });
 
     if (initial.currentAnimation) {
@@ -2353,7 +2353,7 @@ export class SpriteManager {
     const playlistMode = this.resolveAnimationPlaylistMode(trigger);
     const candidates = this.animationRegistry.findCandidatesByTrigger({
       trigger,
-      personaState: this.personaState.getState(),
+      characterState: this.characterState.getState(),
       allowFallback: true
     });
     const selected = this.selectAnimationFromCandidates(candidates);
@@ -2377,8 +2377,8 @@ export class SpriteManager {
     }
   }
 
-  /** 人格状态变化回调 (节流: 每秒最多 1 次) */
-  private onPersonaStateChange(): void {
+  /** 角色状态变化回调 (节流: 每秒最多 1 次) */
+  private onCharacterStateChange(): void {
     this.persistence.markDirty();
 
     const now = Date.now();
@@ -2402,7 +2402,7 @@ export class SpriteManager {
     const snapshot: SpriteStateSnapshot = {
       state: this.getState(),
       subState: this.getSubState(),
-      personaSnapshot: this.personaState.getState()
+      characterState: this.characterState.getState()
     };
     this.sendToRenderer('sprite:state', snapshot);
   }
@@ -2531,7 +2531,7 @@ export class SpriteManager {
   }
 
   private async recordPurposeStepEvent(
-    eventType: Extract<SpritePurposeEventType, 'step:started' | 'step:completed' | 'step:timeout' | 'step:cancelled' | 'step:skipped' | 'step:failed'>,
+    eventType: Extract<SpritePurposeEventType, 'step:started' | 'step:completed' | 'step:timed-out' | 'step:cancelled' | 'step:skipped' | 'step:failed'>,
     routine: SpriteRoutine,
     step: SpriteRoutineStep,
     result?: {
@@ -2895,7 +2895,7 @@ export class SpriteManager {
 
     return {
       spriteState: this.stateMachine.getState(),
-      personaState: this.personaState.getState(),
+      characterState: this.characterState.getState(),
       interactionStats: this.interactionTracker.getStats(),
       now: new Date(),
       screenSize,
@@ -2904,10 +2904,10 @@ export class SpriteManager {
   }
 
   /** 获取持久化用的状态行 */
-  private getPersonaStateForPersistence(): PersonaStatePersistenceRow {
-    const state = this.personaState.getState();
+  private getCharacterStateForPersistence(): CharacterStatePersistenceRow {
+    const state = this.characterState.getState();
     return {
-      id: this.activePersonaStateId,
+      id: this.activeCharacterStateId,
       version: 2,
       name: state.name,
       description: state.description,
@@ -2920,11 +2920,11 @@ export class SpriteManager {
     };
   }
 
-  private buildDefaultPersonaState(): Partial<PersonaState> {
+  private buildDefaultCharacterState(): Partial<CharacterState> {
     const now = Date.now();
     return {
-      name: this.activePersonaIdentity.name,
-      ...(this.activePersonaIdentity.description !== undefined ? { description: this.activePersonaIdentity.description } : {}),
+      name: this.activeCharacterIdentity.name,
+      ...(this.activeCharacterIdentity.description !== undefined ? { description: this.activeCharacterIdentity.description } : {}),
       mood: 'neutral',
       moodIntensity: 50,
       achievements: [],

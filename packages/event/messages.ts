@@ -141,7 +141,7 @@ export interface MessageIPCPayload {
     title?: string;
     url: string;
   };
-  speak?: boolean;
+  shouldSpeak?: boolean;
   ctx?: any;
 }
 
@@ -155,7 +155,7 @@ export interface SpriteConfirmNoticeRequest {
   confirmLabel?: string;
   cancelLabel?: string;
   timeoutMs?: number;
-  speak?: boolean;
+  shouldSpeak?: boolean;
 }
 
 export interface SpriteConfirmNoticeResult {

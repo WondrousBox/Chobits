@@ -741,7 +741,7 @@ export class PluginResourceManager extends EventEmitter {
         message: `${task.resource.type === 'model' ? '模型' : '插件'}安装完成: ${resourceLabel}`,
         progress: 100
       });
-      eventManager.emit(AppEvent.SPRITE_PLUGIN_INSTALL, {
+      eventManager.emit(AppEvent.SPRITE_PLUGIN_INSTALLED, {
         name: task.resource.name || task.resource.id,
         pluginId: task.resource.pluginId,
         resourceId: task.resource.resourceId,
@@ -764,7 +764,7 @@ export class PluginResourceManager extends EventEmitter {
         });
         console.error('[PluginDL] failed', { id: task.resource.id, error: task.resource.lastError });
         this.emitProgress(task.resource.id, { status: 'failed', error: task.resource.lastError });
-        eventManager.emit(AppEvent.SPRITE_DOWNLOAD_FAIL, { name: task.resource.name || task.resource.id });
+        eventManager.emit(AppEvent.SPRITE_DOWNLOAD_FAILED, { name: task.resource.name || task.resource.id });
       }
       // 根据配置决定是否清理临时的 .download 文件（下载中断时的临时文件）
       const tempFile = `${finalFile}.download`;

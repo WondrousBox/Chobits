@@ -17,7 +17,7 @@ interface ProviderModelAbilities {
 
 interface ProviderModelConfig {
   deploymentName?: string;
-  enabledSearch?: boolean;
+  searchEnabled?: boolean;
 }
 
 type ProviderModelSearchImplementation = 'tool' | 'params' | 'internal';
@@ -28,7 +28,7 @@ type ProviderModelExtendedParam =
   | 'disableContextCaching'
   | 'reasoningEffort'
   | 'gpt5ReasoningEffort'
-  | 'gpt5_1ReasoningEffort'
+  | 'gpt51ReasoningEffort'
   | 'gpt5_2ReasoningEffort'
   | 'gpt5_2ProReasoningEffort'
   | 'textVerbosity'

@@ -17,7 +17,7 @@ export function getVadModel(): string {
 
 // Please download test files from
 // https://github.com/k2-fsa/sherpa-onnx/releases/tag/asr-models
-export type AllModels =
+export type SherpaModel =
   | 'sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20'
   | 'sherpa-onnx-streaming-zipformer-en-20M-2023-02-17'
   | 'sherpa-onnx-streaming-zipformer-zh-14M-2023-02-23'
@@ -56,7 +56,7 @@ export type AllModels =
 
 // 需要强制使用 online (streaming) 模式的模型列表
 // 这些模型即使名称中没有 'streaming'，也应该使用流式识别
-export const FORCE_ONLINE_MODELS: readonly AllModels[] = [
+export const FORCE_ONLINE_MODELS: readonly SherpaModel[] = [
   // 'sherpa-onnx-en-wenet-gigaspeech',
   // 'sherpa-onnx-zh-wenet-wenetspeech',
   // 'sherpa-onnx-en-wenet-librispeech',
@@ -81,7 +81,7 @@ const commonConfig = {
 
 export type CommonConfig = Partial<typeof commonConfig>;
 
-export function getModelConfig(data: { model: AllModels; modelDir: string; cpu_numThreads?: number; language?: string; commonConfig?: CommonConfig }): any {
+export function getModelConfig(data: { model: SherpaModel; modelDir: string; cpu_numThreads?: number; language?: string; commonConfig?: CommonConfig }): any {
   console.log(data);
   const modelDir = data.modelDir;
 
@@ -225,7 +225,7 @@ export function getModelConfig(data: { model: AllModels; modelDir: string; cpu_n
   }
 }
 
-export function punctuationModelConfig(data: { model: AllModels; modelDir: string; cpu_numThreads?: number }): any {
+export function punctuationModelConfig(data: { model: SherpaModel; modelDir: string; cpu_numThreads?: number }): any {
   const modelDir = data.modelDir;
 
   // Please download test files from
@@ -306,7 +306,7 @@ export type StreamInstances = Record<
 
 // ==================== TTS 相关类型 ====================
 
-export type TTSModels =
+export type TTSModel =
   | 'kokoro-multi-lang-v1_0'
   | 'kokoro-int8-multi-lang-v1_0'
   | 'kokoro-v1_0-zh'

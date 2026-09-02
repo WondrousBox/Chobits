@@ -7,7 +7,7 @@ export type AppNoticeButton = MessageButton;
 export type SpriteMessagePayload = MessageIPCPayload;
 
 export interface AppNoticePayload {
-  message: string;
+  content: string;
   level?: AppNoticeLevel;
   durationMs?: number;
   persistent?: boolean;
@@ -15,7 +15,7 @@ export interface AppNoticePayload {
   buttons?: AppNoticeButton[];
 }
 
-const DEFAULT_DURATION = 4000;
+const DEFAULT_NOTICE_DURATION = 4000;
 
 function sendToWindows(channel: string, payload: unknown, win?: BrowserWindow | null): void {
   if (win) {
@@ -39,28 +39,28 @@ function sendToWindows(channel: string, payload: unknown, win?: BrowserWindow | 
   });
 }
 
-function sendMessageBridge(payload: MessageBridgePayload, win?: BrowserWindow | null): void {
+function forwardBridgeMessage(payload: MessageBridgePayload, win?: BrowserWindow | null): void {
   sendToWindows(MESSAGE_IPC_CHANNELS.BRIDGE, payload, win);
 }
 
-function sendBridgeMessage(payload: SpriteMessagePayload, source: 'app' | 'sprite' = 'app', win?: BrowserWindow | null): void {
-  sendMessageBridge({ kind: 'show', payload, source }, win);
+function sendMessageThroughBridge(payload: SpriteMessagePayload, source: 'app' | 'sprite' = 'app', win?: BrowserWindow | null): void {
+  forwardBridgeMessage({ kind: 'show', payload, source }, win);
 }
 
 function clearBridgeMessage(payload: MessageBridgeClearPayload = { type: 'all' }, source: 'app' | 'sprite' = 'app', win?: BrowserWindow | null): void {
-  sendMessageBridge({ kind: 'clear', payload, source }, win);
+  forwardBridgeMessage({ kind: 'clear', payload, source }, win);
 }
 
 export function sendAppNotice(payload: AppNoticePayload, win?: BrowserWindow | null): void {
-  const message = payload?.message?.trim();
-  if (!message) return;
+  const content = payload?.content?.trim();
+  if (!content) return;
 
-  sendBridgeMessage(
+  sendMessageThroughBridge(
     {
       type: 'notice',
-      content: message,
+      content,
       level: payload.level || 'info',
-      duration: typeof payload.durationMs === 'number' ? payload.durationMs : DEFAULT_DURATION,
+      duration: typeof payload.durationMs === 'number' ? payload.durationMs : DEFAULT_NOTICE_DURATION,
       persistent: payload.persistent,
       routineId: payload.routineId,
       buttons: payload.buttons
@@ -71,7 +71,7 @@ export function sendAppNotice(payload: AppNoticePayload, win?: BrowserWindow | n
 }
 
 export function sendAppBusyStart(progress?: number, message?: string, win?: BrowserWindow | null): void {
-  sendBridgeMessage(
+  sendMessageThroughBridge(
     {
       type: 'busy',
       progress: progress !== undefined ? Math.max(0, Math.min(100, progress)) : undefined,
@@ -87,7 +87,7 @@ export function sendAppBusyEnd(win?: BrowserWindow | null): void {
 }
 
 export function sendAppBusyProgress(progress: number, message?: string, win?: BrowserWindow | null): void {
-  sendBridgeMessage(
+  sendMessageThroughBridge(
     {
       type: 'busy',
       progress: Math.max(0, Math.min(100, progress)),
@@ -99,7 +99,7 @@ export function sendAppBusyProgress(progress: number, message?: string, win?: Br
 }
 
 export function sendSpriteMessage(payload: SpriteMessagePayload, win?: BrowserWindow | null): void {
-  sendBridgeMessage(payload, 'app', win);
+  sendMessageThroughBridge(payload, 'app', win);
 }
 
 export function sendToast(

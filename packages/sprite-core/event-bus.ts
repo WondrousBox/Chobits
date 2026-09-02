@@ -25,18 +25,18 @@ export type SpriteAnimationEvent = 'anim:play' | 'anim:stop' | 'anim:complete' |
 /** 行为/AI 事件 */
 export type SpriteBehaviorEvent = 'behavior:walk-triggered' | 'behavior:sleep-triggered' | 'behavior:bored-triggered' | 'behavior:message-triggered' | 'behavior:emotion-triggered';
 
-/** 人格事件（养成数值事件已移除，仅保留角色切换通知） */
-export type SpritePersonaProgressEvent = 'persona:character-switched';
+/** 角色事件（养成数值事件已移除，仅保留角色切换通知） */
+export type SpriteCharacterProgressEvent = 'sprite:character:switched';
 
 /** 系统事件 */
 export type SpriteSystemEvent = 'system:init' | 'system:config-changed' | 'system:animation-loaded' | 'system:error';
 
 /** 所有事件类型的联合 */
-export type SpritePersonaEventType = SpriteStateEvent | SpriteInteractionEvent | SpriteAnimationEvent | SpriteBehaviorEvent | SpritePersonaProgressEvent | SpriteSystemEvent;
+export type SpriteBusEventType = SpriteStateEvent | SpriteInteractionEvent | SpriteAnimationEvent | SpriteBehaviorEvent | SpriteCharacterProgressEvent | SpriteSystemEvent;
 
 /** 事件载荷 */
-export interface SpritePersonaEvent<T = any> {
-  type: SpritePersonaEventType;
+export interface SpriteBusEvent<T = any> {
+  type: SpriteBusEventType;
   payload?: T;
   timestamp: number;
   /** 可选的来源标识，用于调试 */
@@ -44,11 +44,11 @@ export interface SpritePersonaEvent<T = any> {
 }
 
 /** 事件监听器 */
-export type SpritePersonaEventListener<T = any> = (event: SpritePersonaEvent<T>) => void;
+export type SpriteBusEventListener<T = any> = (event: SpriteBusEvent<T>) => void;
 
 /** 事件监听器配置 */
 interface ListenerEntry {
-  listener: SpritePersonaEventListener;
+  listener: SpriteBusEventListener;
   once: boolean;
   priority: number;
 }
@@ -57,7 +57,7 @@ interface ListenerEntry {
 
 export class SpriteEventBus {
   private listeners = new Map<string, ListenerEntry[]>();
-  private history: SpritePersonaEvent[] = [];
+  private history: SpriteBusEvent[] = [];
   private maxHistory: number;
   private enabled = true;
 
@@ -72,24 +72,24 @@ export class SpriteEventBus {
    * @param options priority 越大越先执行
    * @returns 取消订阅函数
    */
-  on(type: SpritePersonaEventType | '*', listener: SpritePersonaEventListener, options?: { priority?: number }): () => void {
+  on(type: SpriteBusEventType | '*', listener: SpriteBusEventListener, options?: { priority?: number }): () => void {
     return this._addListener(type, listener, false, options?.priority ?? 0);
   }
 
   /**
    * 只监听一次
    */
-  once(type: SpritePersonaEventType | '*', listener: SpritePersonaEventListener, options?: { priority?: number }): () => void {
+  once(type: SpriteBusEventType | '*', listener: SpriteBusEventListener, options?: { priority?: number }): () => void {
     return this._addListener(type, listener, true, options?.priority ?? 0);
   }
 
   /**
    * 发射事件
    */
-  emit<T = any>(type: SpritePersonaEventType, payload?: T, source?: string): void {
+  emit<T = any>(type: SpriteBusEventType, payload?: T, source?: string): void {
     if (!this.enabled) return;
 
-    const event: SpritePersonaEvent<T> = {
+    const event: SpriteBusEvent<T> = {
       type,
       payload,
       timestamp: Date.now(),
@@ -111,7 +111,7 @@ export class SpriteEventBus {
   /**
    * 获取事件历史
    */
-  getHistory(filter?: { type?: SpritePersonaEventType; since?: number; limit?: number }): SpritePersonaEvent[] {
+  getHistory(filter?: { type?: SpriteBusEventType; since?: number; limit?: number }): SpriteBusEvent[] {
     let result = this.history;
     if (filter?.type) {
       result = result.filter((e) => e.type === filter.type);
@@ -148,7 +148,7 @@ export class SpriteEventBus {
 
   // --- 内部方法 ---
 
-  private _addListener(type: string, listener: SpritePersonaEventListener, once: boolean, priority: number): () => void {
+  private _addListener(type: string, listener: SpriteBusEventListener, once: boolean, priority: number): () => void {
     const arr = this.listeners.get(type) ?? [];
     const entry: ListenerEntry = { listener, once, priority };
     arr.push(entry);
@@ -165,7 +165,7 @@ export class SpriteEventBus {
     };
   }
 
-  private _notifyListeners(type: string, event: SpritePersonaEvent): void {
+  private _notifyListeners(type: string, event: SpriteBusEvent): void {
     const entries = this.listeners.get(type);
     if (!entries || entries.length === 0) return;
 
