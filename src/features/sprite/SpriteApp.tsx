@@ -35,9 +35,12 @@ const SpriteAppInner: React.FC = () => {
   const effectivePadding = isBubbleWindow ? 0 : padding;
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const { onMouseDown, isDragReady } = useDragCollector();
+  const { onMouseDown, isDragReady, lastDragEndAtRef } = useDragCollector();
   const { handleDragEnter, handleDragLeave, handleDropFiles } = useFileDropCollector();
   const lastClickInteractionAtRef = useRef(0);
+
+  // 拖拽松手后浏览器仍会派发 click（快速连击时还有 dblclick），拖动刚结束时一律忽略
+  const isDragJustEnded = (): boolean => Date.now() - lastDragEndAtRef.current < CLICK_INTERACTION_DEDUP_MS;
 
   // 全局语音播放
   useSpriteSpeak();
@@ -101,6 +104,7 @@ const SpriteAppInner: React.FC = () => {
 
   // 交互采集
   const handleClick = (): void => {
+    if (isDragJustEnded()) return;
     const now = Date.now();
     if (now - lastClickInteractionAtRef.current < CLICK_INTERACTION_DEDUP_MS) {
       return;
@@ -126,6 +130,7 @@ const SpriteAppInner: React.FC = () => {
   };
 
   const handleDoubleClick = (): void => {
+    if (isDragJustEnded()) return;
     window.chobits.sprite.interact('double-click');
     void (async () => {
       const guide = await ensureChatApiConfigGoal({ trigger: 'sprite-double-click' });

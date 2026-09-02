@@ -19,11 +19,14 @@ export function useDragCollector(): {
   onMouseDown: (e: React.MouseEvent) => void;
   isDragging: boolean;
   isDragReady: boolean;
+  /** 最近一次真实拖拽结束的毫秒时间戳（0 表示从未拖拽）；用于让调用方抑制拖拽后紧随的 click/dblclick */
+  lastDragEndAtRef: { current: number };
 } {
   const [isDragging, setIsDragging] = useState(false);
   const [isDragReady, setIsDragReady] = useState(false);
   const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const holdCleanupRef = useRef<() => void>(() => {});
+  const lastDragEndAtRef = useRef(0);
 
   const cancelHold = useCallback(() => {
     if (holdTimerRef.current) {
@@ -81,6 +84,7 @@ export function useDragCollector(): {
 
     const onUp = (): void => {
       window.chobits.sprite.dragEnd();
+      lastDragEndAtRef.current = Date.now();
       setIsDragging(false);
       setIsDragReady(false);
     };
@@ -102,7 +106,7 @@ export function useDragCollector(): {
     };
   }, []);
 
-  return { onMouseDown, isDragging, isDragReady };
+  return { onMouseDown, isDragging, isDragReady, lastDragEndAtRef };
 }
 
 export default useDragCollector;
