@@ -33,6 +33,9 @@ yarn.lock
 
 .eslintcache
 
+# TypeScript 增量构建缓存（tsc composite 模式生成）
+*.tsbuildinfo
+
 # e2e 测试自动生成的截图（每次运行覆盖）
 /test/screenshots/e2e.png
 
