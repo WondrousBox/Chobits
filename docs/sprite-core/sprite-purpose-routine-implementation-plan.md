@@ -1,6 +1,8 @@
 # Sprite Purpose/Routine 完整实施方案
 
 > **mini 分支注记**：文中提到的长期记忆系统（Memory Note 复盘消费面）已移除；purpose/routine 运行时与复盘摘要面本身仍然保留。
+>
+> 另：FileActionsMenu 页面、packages/workflow、DailyCare service 与任务列表页（QuestListPage）均已移除（`daily.care.reminder` preset 本身仍保留）；`file.drop.intake` preset 已改名为 `file.drop`，`file.drop.invite` 已不存在；§7.2 的 `daily.rest-reminder` 示例中的 walkTo 步骤与当前 `createRestReminderSteps()` 实现不符（现为原地提醒，无位移）。正文不再逐段改写，下方文件/测试清单中的失效条目仅在条目旁标注“（已移除）”。
 
 > 状态：Phase 1-8 基础闭环已完成；受限 AI planner 默认关闭；剩余为真实 provider 手动冒烟、体验打磨与产品化 backlog。
 > 日期：2026-05-03
@@ -138,8 +140,8 @@ electron/main/handlers/sprite/
 | `packages/sprite-core/handlers/sprite-manager-ipc.ts`    | 注册 `sprite:purpose:*` IPC                                                    |
 | `packages/sprite-core/handlers/sprite-event-listener.ts` | workflow 事件可选升级为 Purpose/Routine                                        |
 | `src/features/sprite/hooks/useFileDropCollector.ts`      | 阶段性保持现状；后续可改为 startPurpose                                        |
-| `src/pages/FileActionsMenu/FileActionsMenu.tsx`          | 上报 action selected/cancelled/workflow started                                |
-| `packages/workflow/index.ts`                             | workflow AppEvent payload 增加 runId/workflowId/status/progress                |
+| `src/pages/FileActionsMenu/FileActionsMenu.tsx`（已移除）   | 上报 action selected/cancelled/workflow started                                |
+| `packages/workflow/index.ts`（已移除）                     | workflow AppEvent payload 增加 runId/workflowId/status/progress                |
 
 ## 4. 核心类型草案
 
@@ -623,8 +625,8 @@ daily.rest-reminder:
 测试：
 
 - `test/sprite-purpose-routine.spec.ts`
-- `test/file-actions-purpose-events.spec.tsx`
-- `test/file-drop-purpose.spec.tsx`
+- `test/file-actions-purpose-events.spec.tsx`（已移除）
+- `test/file-drop-purpose.spec.tsx`（已移除）
 
 ### Phase 5：workflow 等待与进度陪伴
 
@@ -665,9 +667,9 @@ daily.rest-reminder:
 
 - `test/sprite-purpose-routine.spec.ts`
 - `test/sprite-event-listener.spec.ts`
-- `test/file-actions-purpose-events.spec.tsx`
-- `test/workflow-waiting-purpose.spec.ts`
-- `test/file-actions-workflow-e2e.spec.tsx`
+- `test/file-actions-purpose-events.spec.tsx`（已移除）
+- `test/workflow-waiting-purpose.spec.ts`（已移除）
+- `test/file-actions-workflow-e2e.spec.tsx`（已移除）
 
 ### Phase 6：目的仲裁与行为接入
 
@@ -704,7 +706,7 @@ daily.rest-reminder:
 - [x] `test/sprite-manager-regression.spec.ts`
 - [x] `test/sprite-event-listener.spec.ts`
 - [x] `test/sprite-purpose-routine.spec.ts`
-- [x] `test/daily-care-service.spec.ts`
+- [x] `test/daily-care-service.spec.ts`（已移除）
 - [x] `test/sprite-manager-ipc.spec.ts`
 
 ### Phase 7：AI planner 预留与安全接入
@@ -806,10 +808,10 @@ daily.rest-reminder:
 - [x] `test/sprite-bridge.spec.ts`
 - [x] `test/sprite-manager-ipc.spec.ts`
 - [x] `test/purpose-retrospective-panel.spec.tsx`
-- [x] `test/purpose-retrospective-memory-sync.spec.ts`
-- [x] `test/memory-index-sync.spec.ts`
+- [x] `test/purpose-retrospective-memory-sync.spec.ts`（已移除）
+- [x] `test/memory-index-sync.spec.ts`（已移除）
 - [x] `test/spontaneous-utterance-purpose-retrospective.spec.ts`
-- [x] `test/sprite-purpose-retrospective-smoke.spec.ts`
+- [x] `test/sprite-purpose-retrospective-smoke.spec.ts`（已移除）
 
 ## 7. 第一版 preset 建议
 
@@ -1140,7 +1142,7 @@ window.chobits.sprite.trigger('write', {
   - 暴露 `playFeedback(request)`。
 - `src/features/sprite/message/MessageContext.tsx`
   - 将 `playQuestRecordAnimation()` 改为调用 `window.chobits.sprite.playFeedback({ trigger: 'write', kind: 'quest-record', silent: true })`。
-- `src/pages/QuestListPage/QuestListPage.tsx`
+- `src/pages/QuestListPage/QuestListPage.tsx`（已移除）
   - 同步改为同一个 helper；后续可抽一个 renderer 侧小工具，避免重复实现。
 
 ### 回归测试
@@ -1155,7 +1157,7 @@ window.chobits.sprite.trigger('write', {
   - IPC 返回结构化 result。
 - `test/sprite-message-queue.spec.tsx`
   - 推荐气泡 `quest:start:*` 成功后调用 `playFeedback({ trigger: 'write', kind: 'quest-record', silent: true })`。
-- `test/quest-list-page.spec.tsx` 或现有任务列表测试
+- `test/quest-list-page.spec.tsx`（已移除）或现有任务列表测试
   - 点击任务开始按钮后调用同一 helper。
 
 ### 验收标准

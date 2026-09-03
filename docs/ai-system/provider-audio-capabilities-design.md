@@ -183,7 +183,7 @@ export type MusicGenerationResponse = {
 };
 ```
 
-Pi agent 工具入口遵循同一规则：
+Pi agent 工具入口遵循同一规则（**mini 分支注记**：Pi 工具层与 execution 层的音乐能力已移除——`PiExecutionService` 不再有 `generateMusic()`/`generateLyrics()`，`musicGenerateTool`/`musicLyricsTool` 工具不存在，仅保留 Provider 层 `MiniMaxProvider.generateMusic()`）：
 
 - `musicGenerateTool` 接收可选 `providerId`、`providerPresetId`、`model` 和 `providerOptions`。
 - 解析顺序是：显式 `providerId` 优先；否则当前会话 provider 支持 `musicGeneration` 时沿用当前 provider；否则回落 `minimax`，保持旧调用兼容。
@@ -456,7 +456,7 @@ capabilities: {
 },
 defaults: {
   models: {
-    chat: 'MiniMax-M2.7',
+    chat: 'MiniMax-M3',
     musicGeneration: 'music-2.6',
     speechSynthesis: 'speech-2.8-turbo'
   }
@@ -474,8 +474,8 @@ MiniMax models：
 
 Execution service：
 
-- `generateMusic(payload)`：检查 `musicGeneration` 和 `provider.generateMusic`。
-- `generateLyrics(payload)`：检查 `musicGeneration` 和 `provider.generateLyrics`，用于歌曲歌词生成/改写前置步骤。
+- `generateMusic(payload)`：检查 `musicGeneration` 和 `provider.generateMusic`。（mini 分支：execution 层已移除，仅保留 Provider 层 `MiniMaxProvider.generateMusic()`）
+- `generateLyrics(payload)`：检查 `musicGeneration` 和 `provider.generateLyrics`，用于歌曲歌词生成/改写前置步骤。（mini 分支：execution 层已移除）
 - `synthesizeSpeech(payload)`：检查 `speechSynthesis` 和 `provider.synthesizeSpeech`。
 - `streamSpeechSynthesis(payload, emit, input?)`：检查 `speechSynthesis` 和 `provider.streamSpeechSynthesis`，管理 requestId、AbortSignal、append writer、事件转发和最终 artifact。
 
@@ -489,7 +489,7 @@ IPC / preload：
 - `ai:finish-speech-synthesis`
 - `ai:cancel-speech-synthesis`
 
-Workflow：
+Workflow（**mini 分支注记**：workflow 系统已整体移除，以下节点不复存在）：
 
 - `music/music-generate`
   - `providerCapability: 'musicGeneration'`
@@ -501,7 +501,7 @@ Workflow：
 
 `duplex-stream` 需要持续输入通道，普通批量 workflow 节点默认仍建议使用 `complete` 或 `output-stream`；精灵说话、voice session、实时旁白可以使用 stream handle 持续 `appendText()`。
 
-Pi agent 工具：
+Pi agent 工具（**mini 分支注记**：已随 Pi 工具/execution 层移除）：
 
 - `musicGenerateTool`：构造通用 `MusicGenerationRequest`，调用 `PiExecutionService.generateMusic()`，由 execution 层完成 capability 校验、provider adapter 调用、音频落盘、usage 记录。
 - `musicLyricsTool`：构造通用 `LyricsGenerationRequest`，调用 `PiExecutionService.generateLyrics()`，用于生成或改写歌词，并可将歌词保存为资源。
@@ -510,7 +510,7 @@ Pi agent 工具：
 
 `packages/tts` 和 `packages/sprite-core/speak` 不需要被重写。它们应从“合成引擎实现者”逐步变成“业务编排层”：
 
-- `packages/tts`：字幕批量合成、缓存、去静音、时间轴写回、重试。
+- `packages/tts`：字幕批量合成、缓存、去静音、时间轴写回、重试。（mini 分支：该包现仅剩 Edge 引擎与 `common`/`types`/`tts-player`，字幕批量合成相关能力已移除）
 - `packages/sprite-core/speak`：精灵说话缓存、播放控制、talk 动画触发、气泡展示。
 - AI Provider TTS：底层合成引擎，由 `speechSynthesis` capability 提供。
 
@@ -519,7 +519,7 @@ Pi agent 工具：
 迁移策略：
 
 1. 保留 Edge TTS，确保旧配置继续可用。
-2. `BatchTTSConfig` 增加 `providerId`、`providerPresetId`、`model`、`voiceId`。
+2. `BatchTTSConfig` 增加 `providerId`、`providerPresetId`、`model`、`voiceId`。（mini 分支：`BatchTTSConfig` 已随字幕批量合成移除，不再存在）
 3. 字幕批量 TTS 默认使用 `mode: 'complete'`，保证 duration、缓存和重试稳定。
 4. 精灵普通说话继续以完整文件和缓存为中心，并固定使用 `complete/http`；AI 聊天实时朗读默认关闭，开启后由系统按能力优先 WS、再 HTTP 流式、再 HTTP 完整合成。
 
@@ -563,7 +563,7 @@ Analytics 建议：
 - `PiExecutionService.streamSpeechSynthesis()`。
 - IPC/preload 暴露 TTS complete、HTTP stream 和 WebSocket duplex stream。
 - Stream handle 支持 `appendText()`、`flush()`、`finish()`、`cancel()`。
-- 新增 `audio/speech-synthesize` workflow 节点。
+- 新增 `audio/speech-synthesize` workflow 节点。（mini 分支：workflow 系统已整体移除，未落地）
 
 ### Phase 4：业务迁移
 
@@ -576,7 +576,7 @@ Analytics 建议：
 - `sprite-core/speak` 增加 `realtimeSpeech` 配置，默认关闭。
 - 新增 sprite 实时语音 session API，封装 Provider 自动策略输入队列，优先 `duplex-stream`，可降级到 `output-stream` 或 `complete`。
 - Renderer 增加 PCM streaming player，消费 `audio_delta`。
-- ChatPage 和 Resource AIChatSidebar 只把 assistant 正文 delta 送入 session。
+- ChatPage 只把 assistant 正文 delta 送入 session（`useRealtimeChatSpeech('mainChat')`；Resource AIChatSidebar 已随资源库移除）。
 - thinking、tool call、tool result 不进入实时朗读。
 - 开启实时朗读时，聊天页和 sprite 事件层会屏蔽工具结果 `speech`、表情包辅助说话以及 AI 开始/结束/错误提示的普通 TTS；关闭实时朗读后保持原来的普通 `sprite.speak()` 行为。
 

@@ -40,7 +40,7 @@
 - `SpriteRuntimeState` / `SpriteReactionState` — 状态机语义
 - `SpriteAnimationTrigger` — 动画分类语义（与状态机解耦）
 - `PersonaSnapshot` — 人格状态 DTO
-- `SpriteConfig` — 精灵配置快照（含 `autoWalkEnabled`）
+- `SpriteConfig` — 精灵配置快照
 - `SpriteMovementConfig` — 移动策略配置
 
 ### 2.3 分层而不是堆功能
@@ -67,7 +67,7 @@
 | R6  | 收口配置所有权                          | ✅ 已完成（auto-walk legacy bridge 已全部移除）                                 |
 | R7  | 交互统计改单源                          | ✅ 已完成（EventBus 单源）                                                      |
 | R8  | 抽离 MovementCoordinator                | ✅ 第一阶段已完成                                                               |
-| R9  | Persona 规则配置化                      | ✅ 已完成（`PersonaRulesProvider` / `PersonaRulesLayer` / `character-runtime`） |
+| R9  | Persona 规则配置化                      | ✅ 已完成（`character-runtime`；原 `PersonaRulesProvider` / `PersonaRulesLayer` 已移除） |
 | R10 | Capability Runtime                      | ✅ 主线已完成                                                                   |
 
 ### 角色包 Lifecycle（R9/R10 之间）
@@ -110,7 +110,7 @@
 - `WindowController` 边界继续下沉：纯计算层、平台访问、拖拽会话、行走会话、自动移动会话均已独立，顶层控制器当前主要只剩 timer / scheduler glue 与少量回调编排。
 - 2026-05-04 补充：动画资源 authoring 写入口（`sprite:register` / `sprite:register-from-data` / `sprite:update-config` / `sprite:update-meta` / `sprite:remove`）已改为接入基础 `spriteManage` capability guard。预设角色资源本体仍只读，但角色加载后允许通过用户覆盖层添加和编辑用户自己的精灵视频动画；再次编辑已有动画时，`sprite:update-config` 只更新索引 JSON 中的播放/触发配置，不重新转码或改动视频文件。
 - 2026-05-04 补充：精灵管理设置页已消费 `spriteManage` capability 状态，未解锁时前端会禁用导入 / 添加 / 删除 / metadata 与属性编辑入口并展示 locked notice，与主进程 guard 形成闭环。
-- 2026-04-24 补充：渲染层 persona mutation 已新增统一 `sprite:persona:grantReward` 入口，preload 的 `addXP()` / `changeFavor()` / `unlockAchievement()` 默认转发到 reward entry；旧 IPC 通道仅作为兼容 wrapper 保留。
+- 2026-04-24 补充：渲染层 persona mutation 已新增统一 `sprite:persona:grantReward` 入口，preload 的 `addXP()` / `changeFavor()` / `unlockAchievement()` 默认转发到 reward entry；旧 IPC 通道仅作为兼容 wrapper 保留。（后续更新：`sprite:persona:*` 通道及 `addXP()` / `changeFavor()` 兼容 wrapper 已全部删除。）
 - 2026-04-24 补充：`emotionExpression` 已消费到闲置情感自发表达（`idle-emotion`），未解锁时不会由默认行为自动触发表情动画；显式 `trigger()` 与测试播放仍保持可用。
 - 当前主线判断：`sprite runtime` 已进一步逼近 `freeze-safe`，后续更像 backlog 尾项清理，而不是新的架构重做。
 - 下一阶段优先建议：主线可以收尾冻结；后续仅在有明确产品入口时再补 `customAppearance` 的细分消费，同时评估 legacy persona mutation IPC 下线窗口，并推进 trust-root publisher key rotation / 发布流程。
@@ -129,7 +129,7 @@
 ### 低优先级 / Follow-up
 
 - 高阶 timed media / preview bridge 场景补强
-- `sprite:persona:addXP` / `changeFavor` 等 legacy mutation IPC 下线评估（当前已是统一 reward entry 的兼容 wrapper）
+- `sprite:persona:addXP` / `changeFavor` 等 legacy mutation IPC 下线评估（已失效：`sprite:persona:*` 通道及 `addXP()` / `changeFavor()` 兼容 wrapper 已全部删除）
 - 更丰富的角色包 preview 展示策略（poster / hover 细节）
 
 ---
@@ -139,7 +139,7 @@
 后续每个改动批次都要同步更新下列文档，避免"代码收口了，文档还停在旧状态"：
 
 - `docs/sprite-core/README.md` — 架构、API、IPC 协议
-- `CLAUDE.md` — 如涉及新 IPC 域 / 数据库表 / 设计原则
+- `AGENTS.md` — 如涉及新 IPC 域 / 数据库表 / 设计原则（原 `CLAUDE.md` 现为指向 AGENTS.md 的一行引用）
 - 相关模块 README — 如涉及 AI / 工作流 / 插件等
 
 ---

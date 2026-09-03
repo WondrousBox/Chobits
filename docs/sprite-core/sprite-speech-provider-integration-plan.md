@@ -376,7 +376,7 @@ durationMs?: number;
 - [x] `SpeakService` 实时 session 支持 WS -> HTTP 流式 -> HTTP 完整的 capability 驱动自动策略和失败降级。
 - [x] 新增 sprite realtime IPC/preload handle。
 - [x] Renderer 新增 PCM streaming player。
-- [x] ChatPage 和 Resource AIChatSidebar 接入 assistant delta，跳过 thinking/tool。
+- [x] ChatPage 接入 assistant delta，跳过 thinking/tool（原规划的 Resource AIChatSidebar 已随资源系统移除）。
 - [x] 聊天取消、页面卸载、message completed 时正确关闭 TTS session。
 
 ### Phase 3：实时播放增强与缓存增强
@@ -412,4 +412,4 @@ durationMs?: number;
 ## 12. 已验证
 
 - `pnpm exec tsc --noEmit`
-- `pnpm exec vitest run test/sprite-speak-provider.spec.ts test/tts-strip-emoji.spec.ts test/minimax-music-provider.spec.ts`
+- `pnpm exec vitest run test/sprite/sprite-speak-provider.spec.ts test/ai/minimax-music-provider.spec.ts`（原 `test/tts-strip-emoji.spec.ts` 已不存在）

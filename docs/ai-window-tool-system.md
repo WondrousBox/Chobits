@@ -91,6 +91,7 @@ appWindowTool({ action: 'open', windowKey: 'settings', payload: { category: 'ai'
 - `menu`
 - `status`
 - `spriteBubble`
+- `asrTest`
 
 ## Payload 规则
 

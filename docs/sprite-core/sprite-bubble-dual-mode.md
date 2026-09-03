@@ -94,7 +94,7 @@
 | `src/App.tsx`                                        | 路由 `/sprite-bubble` → `<SpriteBubblePage />`                                                                               |
 | `src/features/sprite/SpriteApp.tsx`                  | `effectivePadding` 计算逻辑；独立窗口模式跳过内联气泡渲染；padding 0 传入 `sprite:size:set`                                  |
 | `src/features/sprite/context/sprite-state-sync.ts`   | `DEFAULT_SPRITE_CONFIG.bubbleMode` 默认值；`resolveInitialSpriteConfig`/`mergePlayCommandIntoSpriteConfig` 传播 `bubbleMode` |
-| `src/pages/ExtensionSettings/BubbleModeSettings.tsx` | 气泡模式切换 UI（Select 组件）                                                                                               |
+| `src/pages/SpriteMenuPage/SpriteMenuPage.tsx`        | 气泡模式切换 UI（右键菜单页，见 `checkBubbleMode` / `setSpriteBubbleMode`）                                                  |
 
 ## 运行期行为
 
@@ -148,7 +148,7 @@ const effectivePadding = isBubbleWindowMode(bubbleMode) ? 0 : padding;
 
 ## 模式切换时序
 
-1. 用户在 `BubbleModeSettings` 选择新模式
+1. 用户在右键菜单页（`SpriteMenuPage`）选择新模式
 2. `window.chobits.sprite.setBubbleMode(mode)` → IPC `sprite:config:set-bubble-mode`
 3. 主进程 `mgr.setBubbleMode()` → 更新 `bubbleModeConfig` 并持久化 + 广播 `sprite:config`
 4. 主进程隐藏旧气泡承载窗口，避免过期消息残留

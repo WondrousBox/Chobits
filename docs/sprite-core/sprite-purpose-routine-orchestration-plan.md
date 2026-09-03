@@ -1,12 +1,14 @@
 # Sprite 目的与连续动作编排系统设计
 
 > **mini 分支注记**：文中引用的新手引导 / Quest 系统（原 docs/onboarding-system）已移除；`onboarding.*` preset routine 本身仍在 sprite-core 中保留。编排器主体设计仍然有效。
+>
+> 另：workflow 系统、资源库（Resource）与 FileActionsMenu 页面均已移除；`file.drop.intake` preset 已改名为 `file.drop`，`file.drop.invite` 已不存在。正文 §5 示例、§8.3、§8.4 等处保留的旧称不再逐段改写，以本注记为准。
 
 > 状态：规划文档；Phase 1-8 基础闭环已按实施方案落地，剩余项进入后续强化 / 产品化 backlog
 > 日期：2026-05-03
 > 范围：桌面精灵动画播放、窗口移动、等待、消息、用户选择、后台任务与“行为目的”的统一编排。
 >
-> **2026-05-20 关联**：新手引导 / 任务系统（[docs/onboarding-system/README.md](../onboarding-system/README.md)）将复用本编排器作为执行层，并在此之上抽出 Quest 调度层。Onboarding 暴露出对本编排器的三项扩展需求：
+> **2026-05-20 关联**：新手引导 / 任务系统（原 docs/onboarding-system，已移除）将复用本编排器作为执行层，并在此之上抽出 Quest 调度层。Onboarding 暴露出对本编排器的三项扩展需求：
 >
 > 1. 新增 `showNotice` step，承载带按钮气泡（数据层 `NoticeMessage.buttons` 与 UI 层 `NoticeRenderer` 已就绪）；
 > 2. 新增 `clearMessage` step，用于创建成功后清理常驻引导气泡；
@@ -295,11 +297,14 @@ type SpriteRoutineStep =
 ```text
 packages/sprite-core/
   purpose/
-    purpose-types.ts
+    types.ts
     purpose-manager.ts
     routine-runner.ts
     routine-presets.ts
-    routine-history.ts
+    purpose-history.ts
+    purpose-retrospective.ts
+    purpose-planner.ts
+    guide-goals.ts
 
 electron/main/handlers/sprite/
   purpose-service.ts
@@ -545,7 +550,7 @@ waitForSpriteEvent(input): Promise<StepResult>;
 
 - `sprite:purpose:start`
 - `sprite:purpose:cancel`
-- `sprite:purpose:getCurrent`
+- `sprite:purpose:get-snapshot`
 - `sprite:purpose:list-history`
 - `sprite:purpose:state` 下行广播
 

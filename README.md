@@ -34,6 +34,8 @@
 
 - **语音能力**
   - Edge TTS 朗读：让小叽把回复读出来。
+  - AI Provider TTS：支持 MiniMax `speechSynthesis` 合成与实时 PCM 流式朗读（AI 回复边生成边播）。
+  - 长按说话：按住麦克风按钮说话，松开自动识别并发送，滑到取消按钮可取消。
   - 录音转写（ASR）：本地 sherpa-onnx 离线识别，或走云端 transcribe。
   - 实时字幕与翻译。
 
@@ -122,7 +124,7 @@ Chobits/
 
 - **数据库变更**：先改 schema 定义，再 `pnpm db:generate` 生成迁移，不要手写 SQL 迁移文件。
 - **UI 组件**：shadcn 使用规范（Button 图标、tooltip 等）见 [AGENTS.md](./AGENTS.md)。
-- **锁文件**：仓库不提交任何 lockfile（`pnpm-lock.yaml` 等已被 gitignore，上游 CI 亦不接受）。
+- **锁文件**：仓库提交 `pnpm-lock.yaml` 以锁定依赖版本；只忽略 npm/yarn 的 `package-lock.json` / `yarn.lock`（见 `.gitignore` 注释）。
 
 ## 🐧 平台说明
 

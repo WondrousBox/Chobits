@@ -8,8 +8,7 @@
 >
 > - 主进程 `SpriteManager` 单例门面 + 渲染层退化为纯展示
 > - `CharacterState` 持久化（含按角色 slot 存档）、typed `sprite:interact`、统一 trigger metadata
-> - `PersonaRulesProvider` / `PersonaRulesLayer` 规则注入与 live sync
-> - `CapabilityRegistry` + `capability-runtime` + 主进程 capability guard（覆盖 movement / screenshot / recorder / ASR / dailyCare / sprite asset authoring）
+> - `CapabilityRegistry` + `capability-runtime` + 主进程 capability guard（覆盖 screenshot / screenRecord / ASR / dailyCare / sprite asset authoring）
 > - `CharacterPackManager`：角色包扫描 / 安装 / 激活 / 导入 / 卸载 / trust-root 公钥验签
 > - `CharacterGalleryManager`：角色包静态参考图集（动作/角度/表情/道具）索引、导入、替换、删除与 AI 编辑上下文
 > - `MovementCoordinator`：preview / animation / behavior movement 统一策略
@@ -26,11 +25,11 @@
 >
 > **2026-04-30 更新**：Purpose + Routine 已完成 Phase 1-2.5 第一版：基础目的/队列/routine 运行时、预设 routine、`sprite:purpose:*` IPC、`playId` 动画完成等待、routine 生命周期展示锁、状态机动画展示锁已接入。
 >
-> **2026-05-03 更新**：Purpose + Routine 已完成 Phase 3 基础版：`waitForEvent` step、`PurposeEventWaiter`、`sprite:purpose:event`、`sprite:purpose:list-history`、JSONL 历史落盘、step 生命周期历史、SpriteEventBus/AppEvent 转 purpose event、workflow run payload correlation 已接入；Phase 4/5 已开始接入 `branch` / `loopUntil`、`file.drop.intake` 结果分支、拖文件启动 purpose、FileActionsMenu purpose event 回报、`openWindow(fileActionsMenu)` adapter、菜单关闭/卸载取消兜底、取消/失败分支测试、file-drop 端到端集成验收、`workflow.waiting` preset、workflow 进度事件消费/updateBusy、FileActionsMenu 启动 waiting purpose、active purpose 展示去重、UI/e2e 风格验收与低频 speak/cooldown。Phase 6 已完成：PurposeManager 已补基础 priority arbitration、同类 purpose coalesce、默认 `idle.presence` semantic purpose、`night-sleepy` -> `daily.rest-reminder` purpose、文件投递打断休息提醒与完成后恢复 idle 回归、current critical step defer interrupt、低优先级 reject 与 queue limit/evict 策略、workflow/resource listener 可配置 purpose 路由、DailyCare dispatch -> purpose bridge。Phase 7 已基本完成安全接入：已补 `SpritePurposePlannerExecutor` 接口、planner 输入/输出类型、step/window/event/时长/timeout allowlist 校验器、AI draft -> `SpriteRoutine(source: ai)` helper、主进程 `SpritePurposePlannerService` 骨架、planner prompt/output digest 与 `planner:planned` / `planner:fallback` 历史记录、`PurposeManager` / `SpriteManager` 的可注入 live planner routine 执行入口、Electron main 默认关闭的 planner service + adapter 接线、真实 Pi runtime executor/prompt、持久化 planner preferences + `sprite:purpose-planner:*` IPC/preload 入口，以及扩展设置页中的目的规划器设置、最近结果、planner 历史列表与手动试跑入口；默认仍关闭，启用后输出仍必须通过校验器，否则 fallback preset；若已通过校验的 AI routine 在执行期失败，也会记录执行期 `planner:fallback` 并转 preset routine 收尾。
+> **2026-05-03 更新**：Purpose + Routine 已完成 Phase 3 基础版：`waitForEvent` step、`PurposeEventWaiter`、`sprite:purpose:event`、`sprite:purpose:list-history`、JSONL 历史落盘、step 生命周期历史、SpriteEventBus/AppEvent 转 purpose event 已接入；Phase 4/5 已开始接入 `branch` / `loopUntil`、`file.drop` 结果分支、拖文件启动 purpose、取消/失败分支测试、file-drop 端到端集成验收、active purpose 展示去重、UI/e2e 风格验收与低频 speak/cooldown。Phase 6 已完成：PurposeManager 已补基础 priority arbitration、同类 purpose coalesce、默认 `idle.presence` semantic purpose、`night-sleepy` -> `daily.rest-reminder` purpose、文件投递打断休息提醒与完成后恢复 idle 回归、current critical step defer interrupt、低优先级 reject 与 queue limit/evict 策略、DailyCare dispatch -> purpose bridge。Phase 7 已基本完成安全接入：已补 `SpritePurposePlannerExecutor` 接口、planner 输入/输出类型、step/window/event/时长/timeout allowlist 校验器、AI draft -> `SpriteRoutine(source: ai)` helper、主进程 `SpritePurposePlannerService` 骨架、planner prompt/output digest 与 `planner:planned` / `planner:fallback` 历史记录、`PurposeManager` / `SpriteManager` 的可注入 live planner routine 执行入口、Electron main 默认关闭的 planner service + adapter 接线、真实 Pi runtime executor/prompt、持久化 planner preferences + `sprite:purpose-planner:*` IPC/preload 入口，以及扩展设置页中的目的规划器设置、最近结果、planner 历史列表与手动试跑入口；默认仍关闭，启用后输出仍必须通过校验器，否则 fallback preset；若已通过校验的 AI routine 在执行期失败，也会记录执行期 `planner:fallback` 并转 preset routine 收尾。
 >
-> **2026-05-03 补充**：文件投递 routine 已补齐原始需求里的“拖入时先进入等待目的”：`file.drop.invite` 会在 `file-drag-over` 时走向屏幕中心并等待 `interact:file-drop` / `interact:file-drag-leave`；真正 drop 后继续由 `file.drop.intake` 接管菜单与处理链路。
+> **2026-05-03 补充**：文件投递链路：`file-drag-over` 时角色切换为 reacting 状态等待 `interact:file-drop` / `interact:file-drag-leave`；真正 drop 后由 `file.drop` purpose 接管处理链路；首次拖放另由新手引导 `onboarding.file.drop` 等待 `interact:file-drop` 并给出祝贺反馈。
 >
-> **2026-05-03 复盘层补充**：PurposeHistory 已新增每日 retrospective 摘要面：`getPurposeDailyRetrospective()` 会从 JSONL 历史汇总当天目的、完成/取消/失败统计、kind 分布、高价值 purpose 与 Memory-compatible recall cues，并通过 `sprite:purpose:get-daily-retrospective` / preload 暴露；状态页已接入“今日目的”展示；Memory index / daily index 生成前可通过主进程组合层注册的 retrospective provider 把高价值目的复盘写成 `Sprite Purpose Retrospective` Memory Note，Memory 模块不直接依赖 sprite-core。
+> **2026-05-03 复盘层补充**：PurposeHistory 已新增每日 retrospective 摘要面：`getPurposeDailyRetrospective()` 会从 JSONL 历史汇总当天目的、完成/取消/失败统计、kind 分布、高价值 purpose 与 recall cues，并通过 `sprite:purpose:get-daily-retrospective` / preload 暴露；状态页已接入“今日目的”展示；主进程组合层注册的 retrospective provider 会把高价值目的复盘注入给 AI 自发说话等消费方（Memory 系统已在 mini 分支移除，不再生成 Memory Note）。
 >
 > **2026-05-03 自发说话补充**：`SpriteSpontaneousUtteranceService` 现在通过构造注入的 retrospective provider 读取当天 purpose retrospective，把高价值目的与 recall cues 作为 prompt 中的安静自我感知上下文，避免逐 step 噪声进入闲置表达。
 >
@@ -38,7 +37,7 @@
 
 ## 概览
 
-`sprite-core` 是 Chobits 桌面精灵的**人格化核心引擎包**。包内按运行环境分层：`state-machine` / `behavior-engine` / `event-bus` 等纯逻辑模块不依赖 React、Electron，可独立测试和复用；`handler/`（IPC 注册）、`preload/`（渲染桥）为主进程 / preload 专用代码，依赖 Electron。
+`sprite-core` 是 Chobits 桌面精灵的**人格化核心引擎包**。包内按运行环境分层：`state-machine` / `behavior-engine` / `event-bus` 等纯逻辑模块不依赖 React、Electron，可独立测试和复用；`handlers/`（IPC 注册）、`preload/`（渲染桥）为主进程 / preload 专用代码，依赖 Electron。
 
 ## 进度小结（2026-04-24）
 
@@ -95,11 +94,11 @@ packages/sprite-core/
 │   ├── state-mapping.ts        # 状态→事件映射函数
 │   ├── progress-speech-announcer.ts # 忙碌进度语音播报
 │   └── default-behaviors.ts    # 默认自发行为注册
-├── handler/                    # IPC 处理层
+├── handlers/                   # IPC 处理层
 │   ├── index.ts                # barrel 导出
 │   ├── sprite-manager-ipc.ts   # SpriteManager IPC 绑定
 │   ├── sprite-event-listener.ts# AppEvent → 精灵动画触发
-│   ├── capability-events.ts    # capability 变化通知
+│   ├── capability-broadcast.ts # capability 变化通知
 │   └── sprite-assets.ts        # 动画资源文件管理
 ├── messages/                   # 消息文案
 │   ├── zh-CN.ts                # 中文气泡文案目录（53+ 类别 + 150+ 事件文案）
@@ -143,7 +142,7 @@ BehaviorEngine (tick 1s) → 检查条件 → 触发行为 → SpriteManager.tri
 │  ├ BehaviorEngine           # 自主行为调度 (tick 1s)       │
 │  ├ AnimationRegistry        # 事件→动画映射               │
 │  ├ WindowController         # 行走/位置/拖拽               │
-│  ├ SpeakService             # 语音合成（当前 Edge TTS，可扩展 AI Provider） │
+│  ├ SpeakService             # 语音合成（Edge TTS / AI Provider TTS）      │
 │  └ CharacterStatePersistence # JSON 持久化 (debounced)     │
 └──────────────────────────────────────────────────────────┘
 
@@ -415,16 +414,16 @@ engine.start();
 
 **预置行为工厂函数**（共 8 个，均从 `behavior-engine.ts` 导出）:
 
-| 函数                            | 说明                                                             |
-| ------------------------------- | ---------------------------------------------------------------- |
-| `createSleepyBehavior()`        | 22:00-06:00 打哈欠（接入 `daily.rest-reminder` purpose）         |
-| `createIdleSleepyBehavior()`    | 空闲 >100 秒打哈欠                                               |
-| `createBoredBehavior()`         | 空闲 >2 分钟无聊状态                                             |
-| `createRandomMessageBehavior()` | 空闲 >1 分钟随机消息                                             |
-| `createEmotionBehavior()`       | 随机情感（按好感度分池；受 `emotionExpression` capability 门控） |
-| `createActionBehavior()`        | 随机动作（高好感解锁更多，可接入 AI 自发说话）                   |
-| `createAmbientBehavior()`       | 氛围微动画（breath/blink/float）                                 |
-| `createSeasonalBehavior()`      | 季节/节日行为                                                    |
+| 函数                            | 说明                                                                                           |
+| ------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `createSleepyBehavior()`        | 23:00-06:00 夜间困倦（每分钟检查、10% 概率、冷却 30 分钟；接入 `daily.rest-reminder` purpose） |
+| `createIdleSleepyBehavior()`    | 5 分钟无交互提醒一次，之后除非有新交互事件否则不再提醒                                         |
+| `createBoredBehavior()`         | 空闲 >2 分钟无聊状态                                                                           |
+| `createRandomMessageBehavior()` | 随机调度间隔 10-30 分钟随机消息                                                                |
+| `createEmotionBehavior()`       | 随机情感（按好感度分池；受 `emotionExpression` capability 门控）                               |
+| `createActionBehavior()`        | 随机动作（高好感解锁更多，可接入 AI 自发说话）                                                 |
+| `createAmbientBehavior()`       | 氛围微动画（breath/blink/float）                                                               |
+| `createSeasonalBehavior()`      | 季节/节日行为                                                                                  |
 
 ### 7. AnimationRegistry — 动画注册表
 
@@ -586,7 +585,7 @@ await sprite.clearSpeakCache();
     │  window.chobits.sprite.speak('你好') │                         │
     │ ─────────────────────────────────►│                         │
     │                                   │                         │
-    │                            合成音频 (当前 Edge TTS)          │
+    │                            合成音频 (Edge TTS / AI Provider)     │
     │                            缓存检查/存储                    │
     │                                   │                         │
     │                            尝试 trigger('talk')              │
@@ -901,18 +900,18 @@ const enabled = await window.chobits.sprite.getDebugOverlay();
 
 ### A. 用户交互触发
 
-| 交互       | 触发位置               | IPC                | 主进程处理                                                 |
-| ---------- | ---------------------- | ------------------ | ---------------------------------------------------------- |
-| 点击       | `SpriteApp`            | `sprite:interact`  | `reportInteraction('click')` → `playOnce('click')`         |
-| 双击       | `SpriteApp`            | `sprite:interact`  | `reportInteraction('double-click')`                        |
-| 右键       | `SpriteApp`            | `sprite:interact`  | `reportInteraction('context-menu')`                        |
-| hover 进入 | `SpriteApp`            | `sprite:interact`  | `reportInteraction('hover-enter')`                         |
-| hover 离开 | `SpriteApp`            | `sprite:interact`  | `reportInteraction('hover-leave')`                         |
-| 拖拽开始   | `useDragCollector`     | `sprite:drag`      | `transitionTo('dragging')` + `emit('interact:drag:start')` |
-| 拖拽结束   | `useDragCollector`     | `sprite:drag`      | `transitionTo('idle')` + `emit('interact:drag:end')`       |
-| 文件悬停   | `useFileDropCollector` | `sprite:interact`  | `reportInteraction('file-drag-over')`                      |
-| 文件离开   | `useFileDropCollector` | `sprite:interact`  | `reportInteraction('file-drag-leave')`                     |
-| 文件拖放   | `useFileDropCollector` | `sprite:file-drop` | `reportInteraction('file-drop')`                           |
+| 交互       | 触发位置               | IPC                | 主进程处理                                                                                                                                    |
+| ---------- | ---------------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| 点击       | `SpriteApp`            | `sprite:interact`  | `reportInteraction('click')` → `playOnce('click')`                                                                                            |
+| 双击       | `SpriteApp`            | `sprite:interact`  | `reportInteraction('double-click')` + `ensureChatApiConfigGoal` 目标检查，通过后 toggle `chatMini` / `chatPanel`（双击弹出/关闭 mini 对话框） |
+| 右键       | `SpriteApp`            | `sprite:interact`  | `reportInteraction('context-menu')`                                                                                                           |
+| hover 进入 | `SpriteApp`            | `sprite:interact`  | `reportInteraction('hover-enter')`                                                                                                            |
+| hover 离开 | `SpriteApp`            | `sprite:interact`  | `reportInteraction('hover-leave')`                                                                                                            |
+| 拖拽开始   | `useDragCollector`     | `sprite:drag`      | `transitionTo('dragging')` + `emit('interact:drag:start')`                                                                                    |
+| 拖拽结束   | `useDragCollector`     | `sprite:drag`      | `transitionTo('idle')` + `emit('interact:drag:end')`                                                                                          |
+| 文件悬停   | `useFileDropCollector` | `sprite:interact`  | `reportInteraction('file-drag-over')`                                                                                                         |
+| 文件离开   | `useFileDropCollector` | `sprite:interact`  | `reportInteraction('file-drag-leave')`                                                                                                        |
+| 文件拖放   | `useFileDropCollector` | `sprite:file-drop` | `reportInteraction('file-drop')` + `handleFileDrop` 启动 `file.drop` purpose                                                                  |
 
 ### B. 业务事件触发 (AppEvent → sprite-event-listener)
 
@@ -957,16 +956,18 @@ sprite.trigger('success');
 
 ### D. 自发行为触发 (BehaviorEngine)
 
-| 行为 ID           | 触发条件             | 动作                                |
-| ----------------- | -------------------- | ----------------------------------- |
-| `night-sleepy`    | 22:00-06:00 时间窗口 | `startPurpose(daily.rest-reminder)` |
-| `idle-sleepy`     | 空闲 >100 秒         | `playOnce('sleepy')`                |
-| `long-idle-bored` | 空闲 >2 分钟         | `transitionTo('bored')`             |
-| `random-message`  | idle，空闲 >1 分钟   | `showToast(random tip)`             |
-| `emotion`         | idle 3-5 分钟        | 按好感度池随机触发情感事件          |
-| `action`          | idle 5-10 分钟       | 按好感度池随机触发动作事件          |
-| `ambient`         | 30-60 秒循环         | breath/blink/float 微动画           |
-| `seasonal`        | 每天首次打开         | 按日期触发季节/节日事件             |
+| 行为 ID           | 触发条件                  | 动作                                |
+| ----------------- | ------------------------- | ----------------------------------- |
+| `night-sleepy`    | 23:00-06:00 时间窗口      | `startPurpose(daily.rest-reminder)` |
+| `idle-sleepy`     | 空闲 >5 分钟              | `playOnce('sleepy')`                |
+| `long-idle-bored` | 空闲 >2 分钟              | `transitionTo('bored')`             |
+| `random-message`  | idle，随机调度 10-30 分钟 | `showToast(random tip)`             |
+| `emotion`         | idle 3-5 分钟             | 按好感度池随机触发情感事件          |
+| `action`          | idle 30-60 秒随机调度     | 按好感度池随机触发动作事件          |
+| `ambient`         | idle 5-10 分钟随机调度    | breath/blink/float 微动画           |
+| `seasonal`        | 每天首次打开              | 按日期触发季节/节日事件             |
+
+**主动发言共享冷却时钟**：AI 自发说话、休息提醒（`daily.rest-reminder`）、planner routine 的 speak 与关怀提醒（`daily.care.reminder`）四类主动发言共享同一个 `lastProactiveSpeechAt` 冷却时钟。`SpriteManager` 通过构造注入的 `proactiveSpeechGate`（在 `electron/main/handlers/index.ts` 接线，委托 `SpriteSpontaneousUtteranceService.shouldAllowProactiveSpeech()` / `recordProactiveSpeech()`）对 routine 的 speak 统一过闸：冷却期内的氛围型发言会被跳过（`proactive_speech_cooldown`），发言成功后写回时钟；`daily.care.reminder` 是按时间点派发的日程提醒，不被冷却阻塞，但发言后同样写入共享时钟。冷却时长即扩展设置页“主动发言间隔”（`cooldownMinutes`）。
 
 ### E. 渲染进程直接调用
 
@@ -983,8 +984,6 @@ await window.chobits.sprite.trigger('celebrate', { message: '太好了！' });
 
 说明：
 
-- 2026-04-21 更新：auto-walk 的正式配置入口已经收口到 `window.chobits.sprite.getAutoWalk()` / `setAutoWalk()`，`sprite:config` 快照现在会携带 `autoWalkEnabled`
-- 2026-04-22 更新：`electron/main/handlers/window.ts` 已不再持有本地 auto-walk 状态；legacy `window.chobits.window.getAutoWalkEnabled()` / `setAutoWalkEnabled()` bridge 也已从 preload / `sprite-manager-ipc.ts` 移除
 - 当前代码仍保留少量兼容输入，例如动画元数据里的旧 `eventType` 输入 fallback
 - 这些兼容输入用于平滑迁移，不应继续作为新的正式能力入口
 
@@ -993,9 +992,9 @@ await window.chobits.sprite.trigger('celebrate', { message: '太好了！' });
 | 通道                                                    | 载荷                                                    | 说明                                                                |
 | ------------------------------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------- |
 | `sprite:interact`                                       | `{ type: SpriteInteractionIntent, data? }`              | 用户交互上报                                                        |
-| `sprite:drag`                                           | `{ phase, screenX?, screenY?, offsetX?, offsetY? }`     | 拖拽事件                                                            |
+| `sprite:drag`                                           | `{ phase, offsetX?, offsetY? }`                         | 拖拽事件                                                            |
 | `sprite:anim-complete`                                  | `{ animId, phase, playId? }`                            | 动画播放完成                                                        |
-| `sprite:file-drop`                                      | `{ files }`                                             | 文件拖放                                                            |
+| `sprite:file-drop`                                      | `{ files, correlationId? }`                             | 文件拖放                                                            |
 | `sprite:ready`                                          | -                                                       | 渲染进程就绪                                                        |
 | `sprite:get-initial-state`                              | -                                                       | 获取初始全量状态                                                    |
 | `sprite:list` / `sprite:list-by-trigger` / `sprite:get` | -                                                       | 查询动画资源                                                        |
@@ -1260,7 +1259,7 @@ case 'dancing': return 'dance';
   - movement preview 开始 / 停止后尺寸与 padding 恢复
   - `behavior + direction` 组合确实按配置方向移动
 - capability 链路：
-  - dailyCare / screenshot / recorder / speechRecognition 分别关闭后，renderer 入口与主进程真实入口都被拒绝
+  - dailyCare / screenshot / screenRecord / speechRecognition 分别关闭后，renderer 入口与主进程真实入口都被拒绝
 - persona 链路：
   - 切换角色后 persona slot 正确恢复，不串档
 - 动画链路：

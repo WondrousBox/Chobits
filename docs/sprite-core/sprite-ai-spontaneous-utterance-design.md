@@ -23,13 +23,13 @@ BehaviorEngine idle-action 触发
 
 ### 关键文件
 
-| 文件                                                             | 职责                                          |
-| ---------------------------------------------------------------- | --------------------------------------------- |
-| `packages/sprite-core/manager/types.ts`                          | `SpriteSpontaneousUtteranceExecutor` 接口定义 |
-| `packages/sprite-core/manager/sprite-manager.ts`                 | 持有注入的 executor                           |
-| `packages/sprite-core/manager/default-behaviors.ts`              | `idle-action` 行为调用 executor               |
-| `electron/main/handlers/sprite/spontaneous-utterance-service.ts` | 主进程 AI 编排服务                            |
-| `electron/main/handlers/memory/retrieval-db-deps.ts`             | 记忆检索依赖注入                              |
+| 文件                                                             | 职责                                                                               |
+| ---------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `packages/sprite-core/manager/types.ts`                          | `SpriteSpontaneousUtteranceExecutor` 接口定义                                      |
+| `packages/sprite-core/manager/sprite-manager.ts`                 | 持有注入的 executor                                                                |
+| `packages/sprite-core/manager/default-behaviors.ts`              | `idle-action` 行为调用 executor                                                    |
+| `electron/main/handlers/sprite/spontaneous-utterance-service.ts` | 主进程 AI 编排服务                                                                 |
+| `packages/ai/services/persona-document.ts`                       | persona 文档解析（`parsePersonaMarkdown` / `extractSnapshot` / `extractTopFacts`） |
 
 ---
 
@@ -53,15 +53,15 @@ AI 生成当前由 activity-aware timeout controller 控制，绝对最长上限
 
 生成输入为结构化的 `IdleActionUtteranceRequest`：
 
-| 上下文来源 | 获取方式                                                                    | 截取策略                                                                                  |
-| ---------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| 用户画像   | `USER_PERSONA.md` → `extractSnapshot()` + `extractTopFacts()`               | snapshot + 最多 6 条 topFacts                                                             |
-| 助手角色   | `character-profile.json` + `buildCharacterPrompt()` + preset `systemPrompt` | 角色摘要                                                                                  |
-| 最近聊天   | `ChatRepo.listMessages()`                                                   | 最近 12-20 条，过滤工具噪音                                                               |
-| 持久记忆   | `MemoryRetrievalService` + `MEMORY.md`                                      | 轻量目标检索，3-5 条相关 note                                                             |
-| 重要对话   | 最近高信号片段 + 高重要度 note                                              | 摘要格式                                                                                  |
-| 目的复盘   | 主进程组合层注入的 retrospective provider                                   | 当天高价值 purpose、recall cues，过滤 idle 噪声；自发说话服务不直接依赖 sprite-core store |
-| 精灵状态   | `BehaviorContext` + `SpriteManager`                                         | mood / favor / level / idleDuration                                                       |
+| 上下文来源 | 获取方式                                                                                                     | 截取策略                                                                                  |
+| ---------- | ------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| 用户画像   | `USER_PERSONA.md` → `extractSnapshot()` + `extractTopFacts()`                                                | snapshot + 最多 6 条 topFacts                                                             |
+| 助手角色   | `character-profile.json` + `buildCharacterPrompt()` + preset `systemPrompt`                                  | 角色摘要                                                                                  |
+| 最近聊天   | `ChatRepo.listMessages()`                                                                                    | 最近 12-20 条，过滤工具噪音                                                               |
+| 持久记忆   | 已移除/置空（mini 分支）：硬编码为 `createEmptyMemoryContext()`（原 `MemoryRetrievalService` + `MEMORY.md`） | 轻量目标检索，3-5 条相关 note（原策略，现已不生效）                                       |
+| 重要对话   | 已移除/置空（mini 分支）：硬编码为空数组（原最近高信号片段 + 高重要度 note）                                 | 摘要格式（原策略，现已不生效）                                                            |
+| 目的复盘   | 主进程组合层注入的 retrospective provider                                                                    | 当天高价值 purpose、recall cues，过滤 idle 噪声；自发说话服务不直接依赖 sprite-core store |
+| 精灵状态   | `BehaviorContext` + `SpriteManager`                                                                          | mood / favor / level / idleDuration                                                       |
 
 ---
 
@@ -109,6 +109,8 @@ AI 生成当前由 activity-aware timeout controller 控制，绝对最长上限
 | 全局冷却 | 20 分钟                                                   |
 | 每日上限 | 8 次                                                      |
 | 文案去重 | 最近 20 条完全相同拒绝；最近 5 条同 intentCategory 降概率 |
+
+**共享冷却时钟**：AI 生成发言与预置提醒（`daily.rest-reminder`、planner routine 的 speak）共享同一个 `lastProactiveSpeechAt` 冷却时钟——AI 生成成功与 routine speak 成功（`SpriteManager` 经 `proactiveSpeechGate` 统一过闸）都会写回时钟，冷却期内互相阻塞；关怀提醒 `daily.care.reminder` 不被冷却阻塞，但发言后同样写入时钟。设置页“主动发言间隔”（`cooldownMinutes`）统一管理该冷却。
 
 ---
 

@@ -5,7 +5,7 @@
 ## 1. 目标
 
 - 在 `设置 -> 机能扩展 -> 语音合成/角色说话` 中增加“AI 回复实时朗读”开关，默认 `false`。
-- 开启后，ChatPage 和资源侧边栏 AI Chat 的 assistant 正文 delta 可以实时送入语音合成。
+- 开启后，ChatPage 的 assistant 正文 delta 可以实时送入语音合成。（原规划同时包含资源侧边栏 AI Chat；资源系统已移除，实际仅 ChatPage 接入，见 `src/pages/ChatPage/ChatPage.tsx` 中的 `useRealtimeChatSpeech('mainChat')`，`resourceChatSidebar` 仅剩类型/配置残留。下文其余提及处不再逐段改写。）
 - 优先使用 AI Provider `speechSynthesis` 的 `duplex-stream` + `websocket`，面向 LLM token/delta 输入；不可用时自动降级到 HTTP 流式，再不可用时降级到 HTTP 完整合成。
 - 音频输出优先使用 PCM，renderer 使用 Web Audio PCM 播放器消费 `audio_delta`，不等待完整音频文件。
 - 保留现有 `window.chobits.sprite.speak()` 的完整合成、缓存、播放语义。普通角色说话和聊天实时朗读是两个入口。
@@ -130,7 +130,7 @@ realtimeSpeech: {
 UI 控制：
 
 - Switch：`AI 回复实时朗读`，默认关闭。
-- Scope 选择：主聊天、资源侧边栏聊天。第一版可先展示两个 checkbox。
+- Scope 选择：主聊天（原规划含资源侧边栏聊天，已随资源系统移除）。第一版可先展示两个 checkbox。
 - 输出格式：第一版固定 `PCM`，只作为只读状态展示。
 - 高级项：
   - sample rate，默认 `32000`。
@@ -457,7 +457,7 @@ src/lib/audio/pcm-stream-worklet.ts
 
 - [x] 新增 `useRealtimeChatSpeech()` hook。
 - [x] ChatPage 接入 assistant `delta`、`message_completed`、`error`、`done`、cancel。
-- [x] Resource AIChatSidebar 接入同一 hook。
+- [x] Resource AIChatSidebar 接入同一 hook（已随资源系统移除，实际仅 ChatPage 接入）。
 - [x] 跳过 `thinking_delta`、tool call 和 tool result。
 - [x] 实时朗读开启时屏蔽 AI 开始/结束/错误提示、工具结果 `speech` 和表情包辅助说话。
 - [x] 页面卸载、切换会话、用户停止生成时取消 TTS session。
