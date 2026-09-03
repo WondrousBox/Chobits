@@ -27,13 +27,13 @@
 >
 > **2026-05-03 更新**：Purpose + Routine 已完成 Phase 3 基础版：`waitForEvent` step、`PurposeEventWaiter`、`sprite:purpose:event`、`sprite:purpose:list-history`、JSONL 历史落盘、step 生命周期历史、SpriteEventBus/AppEvent 转 purpose event 已接入；Phase 4/5 已开始接入 `branch` / `loopUntil`、`file.drop` 结果分支、拖文件启动 purpose、取消/失败分支测试、file-drop 端到端集成验收、active purpose 展示去重、UI/e2e 风格验收与低频 speak/cooldown。Phase 6 已完成：PurposeManager 已补基础 priority arbitration、同类 purpose coalesce、默认 `idle.presence` semantic purpose、`night-sleepy` -> `daily.rest-reminder` purpose、文件投递打断休息提醒与完成后恢复 idle 回归、current critical step defer interrupt、低优先级 reject 与 queue limit/evict 策略、DailyCare dispatch -> purpose bridge。Phase 7 已基本完成安全接入：已补 `SpritePurposePlannerExecutor` 接口、planner 输入/输出类型、step/window/event/时长/timeout allowlist 校验器、AI draft -> `SpriteRoutine(source: ai)` helper、主进程 `SpritePurposePlannerService` 骨架、planner prompt/output digest 与 `planner:planned` / `planner:fallback` 历史记录、`PurposeManager` / `SpriteManager` 的可注入 live planner routine 执行入口、Electron main 默认关闭的 planner service + adapter 接线、真实 Pi runtime executor/prompt、持久化 planner preferences + `sprite:purpose-planner:*` IPC/preload 入口，以及扩展设置页中的目的规划器设置、最近结果、planner 历史列表与手动试跑入口；默认仍关闭，启用后输出仍必须通过校验器，否则 fallback preset；若已通过校验的 AI routine 在执行期失败，也会记录执行期 `planner:fallback` 并转 preset routine 收尾。
 >
-> **2026-05-03 补充**：文件投递链路：`file-drag-over` 时角色切换为 reacting 状态等待 `interact:file-drop` / `interact:file-drag-leave`；真正 drop 后由 `file.drop` purpose 接管处理链路；首次拖放另由新手引导 `onboarding.file.drop` 等待 `interact:file-drop` 并给出祝贺反馈。
+> **2026-09-04 更新**：文件拖放功能已整体移除（含 `file.drop` / `onboarding.file.drop` / `onboarding.workspace.create` 预设、`sprite:file-drop` IPC 通道与 `file-drag-over` / `file-drag-leave` / `file-drop` 交互类型）；`onboarding.workspace.create` 与 `onboarding.file.drop` 两个新手引导预设因无运行时触发入口一并删除。
 >
 > **2026-05-03 复盘层补充**：PurposeHistory 已新增每日 retrospective 摘要面：`getPurposeDailyRetrospective()` 会从 JSONL 历史汇总当天目的、完成/取消/失败统计、kind 分布、高价值 purpose 与 recall cues，并通过 `sprite:purpose:get-daily-retrospective` / preload 暴露；状态页已接入“今日目的”展示；主进程组合层注册的 retrospective provider 会把高价值目的复盘注入给 AI 自发说话等消费方（Memory 系统已在 mini 分支移除，不再生成 Memory Note）。
 >
 > **2026-05-03 自发说话补充**：`SpriteSpontaneousUtteranceService` 现在通过构造注入的 retrospective provider 读取当天 purpose retrospective，把高价值目的与 recall cues 作为 prompt 中的安静自我感知上下文，避免逐 step 噪声进入闲置表达。
 >
-> **2026-05-25 引导目标补充**：`SpriteRoutinePresetDefinition` 支持 `goal` 元数据，用于声明 preset routine 想达成的状态。当前内置 `workspace.exists`（`onboarding.workspace.create`）和 `ai.chat-provider-configured`（`chat.api-config-guide`）。阻断式入口会先评估 goal，未达成时启动对应 guide / Quest 并停止原动作；例如双击助手打开聊天前会先检查聊天 API Key，右键菜单会先检查 workspace 是否存在。`chat.api-config-guide` 不会自动跳转设置页，必须先展示“去配置”按钮，用户点击后才打开设置页 AI 分类并定位 provider / preset。
+> **2026-05-25 引导目标补充**：`SpriteRoutinePresetDefinition` 支持 `goal` 元数据，用于声明 preset routine 想达成的状态。当前内置 `ai.chat-provider-configured`（`chat.api-config-guide`）与成就型 goal（`onboarding.chat.start`）。阻断式入口会先评估 goal，未达成时启动对应 guide 并停止原动作；例如双击助手打开聊天前会先检查聊天 API Key。`chat.api-config-guide` 不会自动跳转设置页，必须先展示“去配置”按钮，用户点击后才打开设置页 AI 分类并定位 provider / preset。
 
 ## 概览
 
@@ -154,7 +154,6 @@ BehaviorEngine (tick 1s) → 检查条件 → 触发行为 → SpriteManager.tri
 │     ├ SpriteMessage         # 收到 sprite:message → 展示  │
 │     ├ SpriteApp             # click/hover → sprite:interact│
 │     ├ DragCollector         # 拖拽采集 → sprite:drag       │
-│     ├ FileDropCollector     # 文件拖放 → sprite:file-drop  │
 │     └ SpeakPlayer           # 语音播放 → sprite:speak      │
 └──────────────────────────────────────────────────────────┘
 ```
@@ -210,7 +209,6 @@ sprite.endDrag();
 // ===== 交互 =====
 sprite.reportInteraction('click');
 sprite.reportInteraction('hover-enter');
-sprite.reportInteraction('file-drop', { fileCount: 3 });
 
 // ===== 动画 =====
 sprite.registerAnimation(anim);
@@ -301,14 +299,14 @@ sm.onChange((newState, oldState, ctx) => { ... });
 | `bored`              | 无聊                 |
 
 **子状态 (SpriteReactionState / legacy `SpriteSubState`)**:
-`click` | `hold` | `drop` | `file-drag-over` | `file-drop` | `sleepy` | `custom`
+`click` | `hold` | `sleepy` | `custom`
 
 说明：
 
 - `SpriteReactionState` 是新的首选命名；`SpriteSubState` 仅保留为兼容别名
 - `SpriteSubState` / `SpriteReactionState` 表示 runtime 中 `reacting` 的子状态，不等于所有动画 trigger
 - `thinking`、`happy`、`surprised` 等更适合作为 animation trigger，而不是继续扩张状态机子状态
-- 业务事件动画已开始统一收口到 `trigger()`；`playOnce()` 仅保留给 click / file-drop / sleepy 这类真实 reaction
+- 业务事件动画已开始统一收口到 `trigger()`；`playOnce()` 仅保留给 click / sleepy 这类真实 reaction
 
 ### 4. CharacterStateManager — 角色状态快照
 
@@ -367,10 +365,10 @@ const stats = tracker.getStats();
 ```
 
 **交互输入契约 (SpriteInteractionIntent)**:
-`click` | `double-click` | `hover-enter` | `hover-leave` | `file-drag-over` | `file-drag-leave` | `file-drop` | `context-menu`
+`click` | `double-click` | `hover-enter` | `hover-leave` | `context-menu`
 
 **交互类型 (InteractionType)**:
-`click` | `double-click` | `drag` | `hold` | `hover` | `file-drag-over` | `file-drag-leave` | `file-drop` | `context-menu` | `conversation` | `walk-trigger` | `custom`
+`click` | `double-click` | `drag` | `hold` | `hover` | `context-menu` | `conversation` | `walk-trigger` | `custom`
 
 说明：
 
@@ -634,9 +632,6 @@ IPC: sprite:play → 渲染进程播放
 | `bored`    | -                | `bored`        |
 | `reacting` | `click`          | `click`        |
 | `reacting` | `hold`           | `hold`         |
-| `reacting` | `drop`           | `drop`         |
-| `reacting` | `file-drag-over` | `fileDragOver` |
-| `reacting` | `file-drop`      | `fileDrop`     |
 | `reacting` | `sleepy`         | `sleep`        |
 | `reacting` | `celebrate`      | `celebrate`    |
 | `reacting` | `emotion`        | `happy`        |
@@ -738,7 +733,7 @@ sprite.trigger(trigger, options);
 
 `zh-CN.ts` 中定义了两层文案：
 
-1. **MessageCatalog (catalog)** — 按 `MessageCategory` 索引（53 个类别），用于 `showToast(undefined, { category })` 查找
+1. **MessageCatalog (catalog)** — 按 `MessageCategory` 索引（48 个类别），用于 `showToast(undefined, { category })` 查找
 2. **spriteEventMessages** — 按 `SpriteEventType` 索引（150+ 条目），用于 `trigger()` 和 `getSpriteEventText()` 查找
 
 **查找优先级（`getSpriteEventText(eventType, ctx)`）**：
@@ -909,9 +904,6 @@ const enabled = await window.chobits.sprite.getDebugOverlay();
 | hover 离开 | `SpriteApp`            | `sprite:interact`  | `reportInteraction('hover-leave')`                                                                                                            |
 | 拖拽开始   | `useDragCollector`     | `sprite:drag`      | `transitionTo('dragging')` + `emit('interact:drag:start')`                                                                                    |
 | 拖拽结束   | `useDragCollector`     | `sprite:drag`      | `transitionTo('idle')` + `emit('interact:drag:end')`                                                                                          |
-| 文件悬停   | `useFileDropCollector` | `sprite:interact`  | `reportInteraction('file-drag-over')`                                                                                                         |
-| 文件离开   | `useFileDropCollector` | `sprite:interact`  | `reportInteraction('file-drag-leave')`                                                                                                        |
-| 文件拖放   | `useFileDropCollector` | `sprite:file-drop` | `reportInteraction('file-drop')` + `handleFileDrop` 启动 `file.drop` purpose                                                                  |
 
 ### B. 业务事件触发 (AppEvent → sprite-event-listener)
 
@@ -994,7 +986,6 @@ await window.chobits.sprite.trigger('celebrate', { message: '太好了！' });
 | `sprite:interact`                                       | `{ type: SpriteInteractionIntent, data? }`              | 用户交互上报                                                        |
 | `sprite:drag`                                           | `{ phase, offsetX?, offsetY? }`                         | 拖拽事件                                                            |
 | `sprite:anim-complete`                                  | `{ animId, phase, playId? }`                            | 动画播放完成                                                        |
-| `sprite:file-drop`                                      | `{ files, correlationId? }`                             | 文件拖放                                                            |
 | `sprite:ready`                                          | -                                                       | 渲染进程就绪                                                        |
 | `sprite:get-initial-state`                              | -                                                       | 获取初始全量状态                                                    |
 | `sprite:list` / `sprite:list-by-trigger` / `sprite:get` | -                                                       | 查询动画资源                                                        |
@@ -1075,7 +1066,7 @@ await window.chobits.sprite.trigger('celebrate', { message: '太好了！' });
 
 **`window.chobits.sprite` / 动画管理**: `list()`, `listByTrigger()`, `get()`, `register()`, `registerFromData()`, `remove()`, `updateMeta()`
 
-**`window.chobits.sprite` / 交互上报**: `interact(type: SpriteInteractionIntent)`, `dragStart()`, `dragEnd()`, `animComplete()`, `fileDrop()`
+**`window.chobits.sprite` / 交互上报**: `interact(type: SpriteInteractionIntent)`, `dragStart()`, `dragEnd()`, `animComplete()`
 
 **`window.chobits.sprite` / 状态、配置与目的编排**: `getInitialState()`, `ready()`, `getDebugOverlay()`, `setDebugOverlay()`, `getAnimationPlaylistMode()`, `setAnimationPlaylistMode()`, `getBubbleMode()`, `setBubbleMode()`, `getSpontaneousUtterancePreferences()`, `updateSpontaneousUtterancePreferences()`, `listSpontaneousUtteranceHistory()`, `startPurpose()`, `cancelPurpose()`, `getPurposeSnapshot()`, `emitPurposeEvent()`, `listPurposeHistory()`, `getPurposeDailyRetrospective()`, `getPurposePlannerPreferences()`, `updatePurposePlannerPreferences()`, `getPurposePlannerStatus()`, `confirmNotice()`
 
@@ -1111,7 +1102,7 @@ await window.chobits.sprite.trigger('celebrate', { message: '太好了！' });
 
 | 分组        | 数量 | 示例事件                                                           |
 | ----------- | ---- | ------------------------------------------------------------------ |
-| interaction | 11   | click, hold, drag, fileDragOver, fileDrop, hover, doubleClick...   |
+| interaction | 8    | click, hold, drag, hover, selection...   |
 | feedback    | 8    | success, failure, celebrate, warning, error, info, confirm, deny   |
 | status      | 5    | loading, processing, waiting, ready, complete                      |
 | emotion     | 20   | happy, sad, angry, surprised, shy, curious, thinking, excited...   |
@@ -1169,7 +1160,6 @@ await window.chobits.sprite.trigger('celebrate', { message: '太好了！' });
 | SpriteStateContext                 | `src/features/sprite/context/SpriteStateContext.tsx`          |
 | VideoSprite                        | `src/features/sprite/renderers/VideoSprite.tsx`               |
 | useDragCollector                   | `src/features/sprite/hooks/useDragCollector.ts`               |
-| useFileDropCollector               | `src/features/sprite/hooks/useFileDropCollector.ts`           |
 | useSpriteSpeak                     | `src/features/sprite/speak/useSpriteSpeak.ts`                 |
 
 ---
@@ -1265,7 +1255,6 @@ case 'dancing': return 'dance';
 - 动画链路：
   - 条件动画 persona 命中
   - 三段式 trigger 播放
-  - `file-drag-over -> file-drop` reaction
   - pack 激活后动画资源真实切换
 
 ### 满足以下条件即可先停

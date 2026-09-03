@@ -1209,7 +1209,6 @@ describe('character pack manager', () => {
     expectCharacterMessagesCoverSpecs(character.messages);
     expect(character.messages.categories.welcome).toEqual(['Custom Alpha上线了。', '你回来啦，今天想先处理什么？', '我在这里。']);
     expect(character.messages.events.aiComplete).toEqual(['回答好了。', '搞定了。']);
-    expect(character.messages.routines['file.drop.intake.selected']).toBe('交给我吧。');
   });
 
   it('saves editor message overrides into custom character definitions', async () => {
@@ -1259,13 +1258,12 @@ describe('character pack manager', () => {
           click: ['自定义点击'],
           reminder: ['自定义休息'],
           tip: ['自定义提示'],
-          fileDrop: ['自定义收文件'],
+          message: ['自定义消息'],
           aiThinking: ['自定义思考'],
           aiComplete: ['自定义完成'],
           aiError: ['自定义错误'],
           downloadComplete: ['自定义下载完成'],
-          dailyRestReminder: ['自定义休息提醒'],
-          fileDropPrompt: ['自定义文件询问']
+          dailyRestReminder: ['自定义休息提醒']
         }
       },
       {
@@ -1278,11 +1276,10 @@ describe('character pack manager', () => {
     const character = readCharacter(path.join(userDataDir, 'data', 'character-packs', 'custom-lines'));
 
     expect(character.messages.categories.welcome).toBe('自定义欢迎');
-    expect(character.messages.categories.fileDrop).toBe('自定义收文件');
+    expect(character.messages.categories.message).toBe('自定义消息');
     expect(character.messages.events.aiThinking).toBe('自定义思考');
     expect(character.messages.events.downloadComplete).toBe('自定义下载完成');
     expect(getCharacterMessageTemplateLines(character.messages.events.appear)).toEqual(['咱来了。', '已经就位。']);
-    expect(character.messages.routines['file.drop.intake.selected']).toBe('交给我吧。');
     expectCharacterMessagesCoverSpecs(character.messages);
   });
 

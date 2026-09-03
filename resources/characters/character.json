@@ -142,10 +142,8 @@
         "摸摸头...嘿嘿~"
       ],
       "hold": ["嗯哼。", "好呀。", "挪一下。", "在呢。", "来啦。", "放这里？", "听你的。", "嗯。"],
-      "drag": "把文件交给我吗？",
-      "fileDrop": ["我收到文件啦。"],
       "reminder": ["记得适时休息一下，喝口水～", "久坐伤身哦，起来活动一下吧。"],
-      "tip": ["对我右键可以打开菜单。", "我可以被拖到任何位置～", "试试和我互动吧", "可以把文件拖到我这里哦"],
+      "tip": ["对我右键可以打开菜单。", "我可以被拖到任何位置～", "试试和我互动吧"],
       "message": ["有新消息～", "收到消息～"]
     },
     "events": {
@@ -165,20 +163,6 @@
     "routines": {
       "daily.rest-reminder.speak": ["差不多该休息一下了。"],
       "idle.sleepy.toast": ["有点困了呢..."],
-      "file.drop.intake.prompt": ["要怎么处理这个文件？"],
-      "file.drop.intake.selected": ["交给我吧。"],
-      "file.drop.intake.cancelled": ["那我先不打扰你。"],
-      "file.drop.intake.failed": ["这里好像没处理成功。"],
-      "onboarding.workspace.create.assistant-intro": ["你好，我是你的专属桌面助手。"],
-      "onboarding.workspace.create.growth-promise": ["我会陪伴你学习和工作，一起共同成长。"],
-      "onboarding.workspace.create.invite": ["先创建工作空间吧"],
-      "onboarding.workspace.create.workspace-intro": ["工作空间会存放所有重要的数据。"],
-      "onboarding.workspace.create.quickstart-tip": ["快速开始会默认创建到文档中"],
-      "onboarding.workspace.create.done": ["好啦！我可以做更多事情啦。"],
-      "onboarding.workspace.create.closed-without-create": ["还没有创建工作空间哦。"],
-      "onboarding.file.drop.invite": ["可以把文件拖拽给我"],
-      "onboarding.file.drop.intro": ["拖给我的文件会放到背包。"],
-      "onboarding.file.drop.done": ["收到啦！已经放到背包。"],
       "onboarding.chat.start.tip": ["鼠标双击我，就能打开聊天窗口。"],
       "onboarding.chat.start.done": ["打开啦！"],
       "chat.api-config-guide.invite": ["需要先配置 API Key"],

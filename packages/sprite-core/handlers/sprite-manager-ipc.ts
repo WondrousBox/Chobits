@@ -7,7 +7,6 @@
  *   sprite:interact         — 交互上报
  *   sprite:drag             — 拖拽事件
  *   sprite:anim-complete    — 动画完成
- *   sprite:file-drop        — 文件拖放
  *   sprite:ready            — 渲染进程就绪
  *   sprite:get-initial-state — 获取初始状态
  *   sprite:character:get-state  — 获取角色状态
@@ -590,11 +589,6 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
   ipcMain.handle('sprite:anim-complete', (_event, payload: { animId: string; phase: 'intro' | 'loop' | 'outro' | 'full'; playId?: string }) => {
     console.info('❤❤❤❤❤ ipc sprite:anim-complete', payload);
     mgr.handleAnimationComplete(payload.animId, payload.phase, payload.playId);
-  });
-
-  // 文件拖放
-  ipcMain.handle('sprite:file-drop', (_event, payload: { files: any[]; correlationId?: string }) => {
-    return mgr.handleFileDrop(payload.files, { correlationId: payload.correlationId });
   });
 
   // 渲染进程就绪

@@ -24,7 +24,7 @@
   "signature": {
     "algorithm": "sha256",
     "keyId": "builtin:chii-default",
-    "digest": "sha256:46b1e22d63b3b2635ff91d9bd79618dd0579df40e668cb1f0973d46536e71afd"
+    "digest": "sha256:a02b3c80502eae6e9fcc1f8c1350de65c8d77ea3adb2068e7f4b3f2ae7f70fa5"
   },
   "capabilities": {
     "hasVoice": false,

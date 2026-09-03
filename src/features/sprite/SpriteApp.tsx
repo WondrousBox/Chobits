@@ -9,13 +9,11 @@
 import { isBubbleWindowMode } from '@packages/sprite-core/types';
 import React, { useEffect, useRef } from 'react';
 
-import Dropzone from '@/components/common/Dropzone';
 import { ensureChatApiConfigGoal } from '@/lib/chat-api-config-guide';
 
 import { SPRITE_RENDERER_MODE } from './constants';
 import { useSpriteState } from './context/hooks';
 import { useDragCollector } from './hooks/useDragCollector';
-import { useFileDropCollector } from './hooks/useFileDropCollector';
 import { MessageProvider, SpriteMessage } from './message';
 import { Renderer } from './renderers';
 import { useSpriteSpeak } from './speak/useSpriteSpeak';
@@ -36,7 +34,6 @@ const SpriteAppInner: React.FC = () => {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const { onMouseDown, isDragReady, lastDragEndAtRef } = useDragCollector();
-  const { handleDragEnter, handleDragLeave, handleDropFiles } = useFileDropCollector();
   const lastClickInteractionAtRef = useRef(0);
 
   // 拖拽松手后浏览器仍会派发 click（快速连击时还有 dblclick），拖动刚结束时一律忽略
@@ -169,18 +166,7 @@ const SpriteAppInner: React.FC = () => {
       <PaddingDebugOverlay padding={effectivePadding} />
       {/* inline 模式下才在主窗口内嵌入气泡；独立窗口模式交给气泡窗口 */}
       {!isBubbleWindow && <SpriteMessage />}
-      <Dropzone
-        onDragEnter={handleDragEnter}
-        onDragLeave={handleDragLeave}
-        onDropFiles={handleDropFiles}
-        customDropzoneInside={
-          <div className="flex items-center justify-center absolute top-2 left-1/2 -translate-x-1/2 p-1 rounded-md bg-primary text-primary-foreground text-xs whitespace-nowrap z-10">
-            把文件交给我吧
-          </div>
-        }
-      >
-        <Renderer width={width} height={height} walkDirection={walkDirection} />
-      </Dropzone>
+      <Renderer width={width} height={height} walkDirection={walkDirection} />
     </div>
   );
 };

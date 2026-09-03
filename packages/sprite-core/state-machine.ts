@@ -26,7 +26,7 @@ export type SpriteState =
   | 'bored';
 
 /** 精灵反应子状态（reacting 的细分，仅保留真实 runtime reaction） */
-export type SpriteReactionState = 'click' | 'hold' | 'drop' | 'file-drag-over' | 'file-drop' | 'sleepy' | 'custom';
+export type SpriteReactionState = 'click' | 'hold' | 'sleepy' | 'custom';
 
 /** @deprecated 向后兼容别名，新代码请优先使用 SpriteReactionState。 */
 export type SpriteSubState = SpriteReactionState;
@@ -125,7 +125,6 @@ const DEFAULT_STATE_CONFIGS: Record<SpriteState, StateConfig> = {
   },
   reacting: {
     // 不设置 ephemeral — playOnce() 自行管理超时
-    // transitionTo('reacting') 用于持久性反应（如 fileDragOver）
   },
   bored: {
     animationEvent: 'bored',

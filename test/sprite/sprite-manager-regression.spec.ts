@@ -1485,9 +1485,9 @@ describe('sprite manager regression coverage', () => {
     });
     dataDirs.add(dataDir);
 
-    await (mgr as any).runPurposeOpenWindowStep({ id: 'open-menu', type: 'openWindow', window: 'fileActionsMenu', payload: { correlationId: 'drop-1' } }, new AbortController().signal);
+    await (mgr as any).runPurposeOpenWindowStep({ id: 'open-menu', type: 'openWindow', window: 'settings', payload: { correlationId: 'drop-1' } }, new AbortController().signal);
 
-    expect(opened).toEqual([{ windowKey: 'fileActionsMenu', payload: { correlationId: 'drop-1' } }]);
+    expect(opened).toEqual([{ windowKey: 'settings', payload: { correlationId: 'drop-1' } }]);
   });
 
   it('trigger() does not fall back to idle when explicit event animation is missing', () => {
@@ -1668,18 +1668,6 @@ describe('sprite manager regression coverage', () => {
     expect(mapStateToEventType('reacting', 'emotion' as any)).toBe('idle');
     expect(mapStateToEventType('reacting', 'celebrate' as any)).toBe('idle');
     expect(mapStateToEventType('reacting', 'write' as any)).toBe('idle');
-  });
-
-  it('file-drop from file-drag-over enters file-drop reaction instead of returning directly to idle', () => {
-    vi.useFakeTimers();
-
-    const { mgr, dataDir } = createManager();
-    dataDirs.add(dataDir);
-    mgr.transitionTo('reacting', { subState: 'file-drag-over', force: true });
-
-    mgr.reportInteraction('file-drop');
-    expect(mgr.getState()).toBe('reacting');
-    expect(mgr.getSubState()).toBe('file-drop');
   });
 
   it('stopMovementPreview restores the live sprite config', () => {

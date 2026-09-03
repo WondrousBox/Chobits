@@ -81,20 +81,6 @@ export const CHARACTER_MESSAGE_SPECS = [
     neutral: () => ['嗯哼。', '好呀。', '挪一下。', '在呢。', '来啦。', '放这里？', '听你的。', '嗯。']
   },
   {
-    field: 'drag',
-    section: 'categories',
-    key: 'drag',
-    label: '拖拽文件',
-    neutral: () => ['把文件交给我吧。']
-  },
-  {
-    field: 'fileDrop',
-    section: 'categories',
-    key: 'fileDrop',
-    label: '收到文件',
-    neutral: () => ['我收到文件了。']
-  },
-  {
     field: 'reminder',
     section: 'categories',
     key: 'reminder',
@@ -213,111 +199,6 @@ export const CHARACTER_MESSAGE_SPECS = [
     key: 'idle.sleepy.toast',
     label: '闲置犯困提示',
     neutral: () => ['有点困了呢...']
-  },
-  {
-    field: 'fileDropPrompt',
-    section: 'routines',
-    key: 'file.drop.intake.prompt',
-    label: '文件处理询问',
-    neutral: () => ['要怎么处理这个文件？']
-  },
-  {
-    field: 'fileDropSelected',
-    section: 'routines',
-    key: 'file.drop.intake.selected',
-    label: '文件处理已选择',
-    neutral: () => ['交给我吧。']
-  },
-  {
-    field: 'fileDropCancelled',
-    section: 'routines',
-    key: 'file.drop.intake.cancelled',
-    label: '文件处理取消',
-    neutral: () => ['那我先不打扰。']
-  },
-  {
-    field: 'fileDropFailed',
-    section: 'routines',
-    key: 'file.drop.intake.failed',
-    label: '文件处理失败',
-    neutral: () => ['这里好像没处理成功。']
-  },
-  {
-    field: 'workspaceCreateAssistantIntro',
-    section: 'routines',
-    key: 'onboarding.workspace.create.assistant-intro',
-    label: '工作空间引导助手自我介绍',
-    maxItems: 4,
-    neutral: () => ['你好，我是你的专属桌面助手。']
-  },
-  {
-    field: 'workspaceCreateGrowthPromise',
-    section: 'routines',
-    key: 'onboarding.workspace.create.growth-promise',
-    label: '工作空间引导陪伴说明',
-    maxItems: 4,
-    neutral: () => ['我会陪伴你学习和工作，一起共同成长。']
-  },
-  {
-    field: 'workspaceCreateInvite',
-    section: 'routines',
-    key: 'onboarding.workspace.create.invite',
-    label: '工作空间引导提示',
-    neutral: () => ['先创建工作空间吧']
-  },
-  {
-    field: 'workspaceCreateIntro',
-    section: 'routines',
-    key: 'onboarding.workspace.create.workspace-intro',
-    label: '工作空间用途介绍',
-    maxItems: 4,
-    maxLength: 240,
-    neutral: () => ['工作空间会存放所有重要的数据。']
-  },
-  {
-    field: 'workspaceCreateQuickstartTip',
-    section: 'routines',
-    key: 'onboarding.workspace.create.quickstart-tip',
-    label: '工作空间快速创建提示',
-    maxItems: 4,
-    neutral: () => ['快速开始会默认创建到文档中']
-  },
-  {
-    field: 'workspaceCreateDone',
-    section: 'routines',
-    key: 'onboarding.workspace.create.done',
-    label: '工作空间创建完成',
-    neutral: () => ['好啦！我可以做更多事情啦。']
-  },
-  {
-    field: 'workspaceCreateClosedWithoutCreate',
-    section: 'routines',
-    key: 'onboarding.workspace.create.closed-without-create',
-    label: '工作空间关闭未创建',
-    neutral: () => ['还没有创建工作空间哦。']
-  },
-  {
-    field: 'onboardingFileDropInvite',
-    section: 'routines',
-    key: 'onboarding.file.drop.invite',
-    label: '首次拖拽文件引导',
-    neutral: () => ['可以把文件拖拽给我']
-  },
-  {
-    field: 'onboardingFileDropIntro',
-    section: 'routines',
-    key: 'onboarding.file.drop.intro',
-    label: '首次拖拽文件说明',
-    maxItems: 4,
-    maxLength: 240,
-    neutral: () => ['拖给我的文件会放到背包。']
-  },
-  {
-    field: 'onboardingFileDropDone',
-    section: 'routines',
-    key: 'onboarding.file.drop.done',
-    label: '首次拖拽文件完成',
-    neutral: () => ['收到啦！已经放到背包。']
   },
   {
     field: 'onboardingChatStartTip',

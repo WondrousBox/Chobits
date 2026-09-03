@@ -119,7 +119,7 @@ function MyComponent() {
 
   // 显示 Toast（预设文案）
   showToast({ category: 'welcome' });
-  showToast({ category: 'fileDrop', ctx: { count: 3, names: ['a.txt', 'b.mp4'] } });
+  showToast({ category: 'reminder' });
 
   // 显示 Toast（自定义文案）
   showToast({ content: '操作成功！', level: 'success', duration: 3000 });

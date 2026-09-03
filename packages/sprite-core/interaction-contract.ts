@@ -7,7 +7,7 @@
  */
 
 /** 渲染层可上报的交互意图 */
-export const SPRITE_INTERACTION_INTENTS = ['click', 'double-click', 'hover-enter', 'hover-leave', 'file-drag-over', 'file-drag-leave', 'file-drop', 'context-menu'] as const;
+export const SPRITE_INTERACTION_INTENTS = ['click', 'double-click', 'hover-enter', 'hover-leave', 'context-menu'] as const;
 
 export type SpriteInteractionIntent = (typeof SPRITE_INTERACTION_INTENTS)[number];
 
@@ -21,9 +21,6 @@ export const SPRITE_INTERACTION_EVENTS = [
   'interact:hold:end',
   'interact:hover:enter',
   'interact:hover:leave',
-  'interact:file-drag-over',
-  'interact:file-drag-leave',
-  'interact:file-drop',
   'interact:context-menu'
 ] as const;
 
@@ -37,9 +34,6 @@ export const SPRITE_INTERACTION_EVENT_BY_INTENT: Record<SpriteInteractionIntent,
   'double-click': 'interact:double-click',
   'hover-enter': 'interact:hover:enter',
   'hover-leave': 'interact:hover:leave',
-  'file-drag-over': 'interact:file-drag-over',
-  'file-drag-leave': 'interact:file-drag-leave',
-  'file-drop': 'interact:file-drop',
   'context-menu': 'interact:context-menu'
 };
 

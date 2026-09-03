@@ -141,7 +141,7 @@ export const DEFAULT_SPRITE_PURPOSE_PLANNER_STEP_TYPES = [
   'branch'
 ] as const satisfies readonly SpriteRoutineStepType[];
 
-export const DEFAULT_SPRITE_PURPOSE_PLANNER_WINDOWS = ['fileActionsMenu'] as const;
+export const DEFAULT_SPRITE_PURPOSE_PLANNER_WINDOWS = [] as const;
 
 export const DEFAULT_SPRITE_PURPOSE_PLANNER_EVENTS = ['fileAction:resolved'] as const;
 

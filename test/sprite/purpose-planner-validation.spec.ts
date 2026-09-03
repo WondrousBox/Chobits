@@ -26,7 +26,7 @@ import {
 const validationOptions = {
   presetIds: DEFAULT_SPRITE_ROUTINE_PRESETS.map((preset) => preset.id),
   animationTriggers: ['wave', 'thinking', 'success'],
-  windows: ['fileActionsMenu'],
+  windows: ['settings'],
   events: ['fileAction:resolved'],
   maxSteps: 8,
   maxDurationMs: 20_000,
@@ -38,12 +38,12 @@ describe('SpritePurposePlanner validation', () => {
     const result = validateSpritePurposePlannerOutput(
       {
         whyThisPlan: 'acknowledge the drop and wait for the user choice',
-        fallbackPresetId: 'file.drop',
+        fallbackPresetId: 'daily.rest-reminder',
         routineDraft: {
           title: 'Drop intake',
           steps: [
             { id: 'wave', type: 'playAnimation', trigger: 'wave', durationMs: 800, waitFor: 'duration' },
-            { id: 'open-menu', type: 'openWindow', window: 'fileActionsMenu', timeoutMs: 4000 },
+            { id: 'open-menu', type: 'openWindow', window: 'settings', timeoutMs: 4000 },
             { id: 'wait-choice', type: 'waitForEvent', source: 'purpose-event', event: 'fileAction:resolved', timeoutMs: 8000, assignTo: 'choice' },
             {
               id: 'choice-branch',
@@ -88,7 +88,7 @@ describe('SpritePurposePlanner validation', () => {
       {
         routineDraft: {
           steps: [
-            { id: 'admin-window', type: 'openWindow', window: 'settings' },
+            { id: 'admin-window', type: 'openWindow', window: 'adminPanel' },
             { id: 'wait-secret', type: 'waitForEvent', source: 'app-event', event: 'SECRET_EVENT', timeoutMs: 1000 },
             { id: 'walk', type: 'walkTo', target: 'center' }
           ]
@@ -98,7 +98,7 @@ describe('SpritePurposePlanner validation', () => {
     );
 
     expect(result.ok).toBe(false);
-    expect(result.errors.join('\n')).toContain('window "settings" is not in the window allowlist');
+    expect(result.errors.join('\n')).toContain('window "adminPanel" is not in the window allowlist');
     expect(result.errors.join('\n')).toContain('event "SECRET_EVENT" is not in the event allowlist');
     expect(result.errors.join('\n')).toContain('routineDraft.steps[2].timeoutMs is required');
   });
@@ -613,7 +613,7 @@ describe('SpritePurposePlanner validation', () => {
       whyThisPlan: 'try to open an unsafe window',
       fallbackPresetId: 'daily.rest-reminder',
       routineDraft: {
-        steps: [{ id: 'open-settings', type: 'openWindow', window: 'settings', timeoutMs: 1000 }]
+        steps: [{ id: 'open-settings', type: 'openWindow', window: 'adminPanel', timeoutMs: 1000 }]
       }
     });
     const executor = createSpritePurposePiPlannerExecutor({
@@ -652,7 +652,7 @@ describe('SpritePurposePlanner validation', () => {
     if (result.status === 'fallback') {
       expect(result.reason).toBe('planner-output-invalid');
       expect(result.fallbackPresetId).toBe('daily.rest-reminder');
-      expect(result.validation?.ok === false ? result.validation.errors.join('\n') : '').toContain('window "settings" is not in the window allowlist');
+      expect(result.validation?.ok === false ? result.validation.errors.join('\n') : '').toContain('window "adminPanel" is not in the window allowlist');
     }
   });
 });

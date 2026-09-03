@@ -108,19 +108,4 @@ describe('sprite interaction runtime', () => {
     });
     expect(stats.byType.click).toBe(3);
   });
-
-  it('keeps file-drop on the same interaction -> reaction entry', () => {
-    const { mgr, dataDir } = createManager();
-    dataDirs.add(dataDir);
-    const playOnceSpy = vi.spyOn(mgr, 'playOnce').mockReturnValue(true);
-    const showToastSpy = vi.spyOn(mgr, 'showToast').mockImplementation(() => undefined);
-
-    mgr.reportInteraction('file-drop', { fileCount: 2 });
-
-    expect(playOnceSpy).toHaveBeenCalledWith('file-drop', { durationMs: 800 });
-    expect(showToastSpy).not.toHaveBeenCalled();
-
-    const stats = (mgr as any).interactionTracker.getStats();
-    expect(stats.byType['file-drop']).toBe(1);
-  });
 });

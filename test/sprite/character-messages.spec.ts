@@ -143,7 +143,7 @@ describe('character message overrides', () => {
             downloadComplete: ['{workflowName} 做好啦']
           },
           routines: {
-            'file.drop.intake.selected': ['交给我吧，{workflowName}']
+            'daily.rest-reminder.speak': ['交给我吧，{workflowName}']
           },
           progress: {
             kindLabels: {
@@ -161,7 +161,7 @@ describe('character message overrides', () => {
 
     expect(getCharacterCategoryText('welcome')).toBe('角色欢迎');
     expect(getCharacterSpriteEventText('downloadComplete', { workflowName: '字幕整理' })).toBe('字幕整理 做好啦');
-    expect(getCharacterRoutineText('file.drop.intake.selected', { workflowName: '字幕整理' })).toBe('交给我吧，字幕整理');
+    expect(getCharacterRoutineText('daily.rest-reminder.speak', { workflowName: '字幕整理' })).toBe('交给我吧，字幕整理');
     expect(getCharacterProgressSpeechText('progress', { kind: 'workflow', progress: 37 })).toBe('编排到了 37%');
     expect(getCharacterProgressSpeechText('almost', { kind: 'workflow', progress: 92 })).toBe('编排快收尾了');
     expect(getCharacterProgressSpeechText('complete', { kind: 'workflow' })).toBe('编排结束');
@@ -190,7 +190,7 @@ describe('character message overrides', () => {
 
     expect(getCharacterCategoryText('welcome')).toBe('Nova上线了。');
     expect(getCharacterSpriteEventText('aiThinking')).toBe('小诺想一下。');
-    expect(getCharacterRoutineText('file.drop.intake.selected', { workflowName: '字幕整理' })).toBe('交给我吧。');
+    expect(getCharacterRoutineText('daily.rest-reminder.speak', { workflowName: '字幕整理' })).toBe('差不多该休息一下了。');
     expect(getCharacterProgressSpeechText('progress', { kind: 'workflow', progress: 37 })).toBe('处理进度 37%。');
   });
 });

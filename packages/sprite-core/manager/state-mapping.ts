@@ -27,12 +27,6 @@ export function mapStateToEventType(state: SpriteState, subState: SpriteReaction
           return 'click';
         case 'hold':
           return 'hold';
-        case 'drop':
-          return 'drop';
-        case 'file-drag-over':
-          return 'fileDragOver';
-        case 'file-drop':
-          return 'fileDrop';
         case 'sleepy':
           return 'sleep';
         default:

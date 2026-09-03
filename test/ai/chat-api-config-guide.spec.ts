@@ -177,10 +177,11 @@ describe('guideChatApiConfigIfNeeded', () => {
       }
     });
     const { ensureGuideGoal, resetGuideGoalStateForTest } = await import('../../src/lib/guide-goals');
-    const { FIRST_FILE_DROP_GUIDE_GOAL } = await import('../../packages/sprite-core/purpose');
+    const { createAchievementUnlockedGuideGoal } = await import('../../packages/sprite-core/purpose');
     resetGuideGoalStateForTest();
 
-    const result = await ensureGuideGoal({ goal: FIRST_FILE_DROP_GUIDE_GOAL, trigger: 'workspace-entry', forceGuide: true });
+    const goal = createAchievementUnlockedGuideGoal({ achievementId: 'first-import' });
+    const result = await ensureGuideGoal({ goal, trigger: 'sidebar-open', forceGuide: true });
 
     expect(result).toMatchObject({ achieved: true, guided: false, blocked: false, achievementId: 'first-import', reason: 'achieved' });
     expect(harness.getCharacterState).toHaveBeenCalledTimes(1);

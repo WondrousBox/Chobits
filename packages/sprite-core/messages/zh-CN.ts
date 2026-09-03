@@ -49,17 +49,6 @@ const catalog: MessageCatalog = {
   press: ['按住了~'],
   release: ['松开了~'],
   hold: ['嗯哼。', '好呀。', '挪一下。', '在呢。', '来啦。', '放这里？', '听你的。', '嗯。'],
-  drag: '把文件交给我吧',
-  drop: '放置完成',
-  fileDragOver: ['交给我吧！', '放到我身上~'],
-  fileDrop: (ctx?: { count?: number; names?: string[]; singleName?: string }) => {
-    if (ctx?.count === 1 && ctx.singleName) return `我收到了文件"${ctx.singleName}" ✅`;
-    if (ctx?.count && ctx?.names?.length) {
-      const preview = ctx.names.slice(0, 3).join('、');
-      return `我收到了 ${ctx.count} 个项目：${preview}${ctx.count > 3 ? ' 等' : ''} ✅`;
-    }
-    return '收到了一些内容，但我没识别到文件名 🤔';
-  },
   selection: ['选中了~', '要对这段内容做什么？'],
 
   // ── 反馈类 ──
@@ -69,7 +58,7 @@ const catalog: MessageCatalog = {
   warning: '请注意！',
   info: '提示信息',
   celebrate: ['太棒了！🎉', '恭喜恭喜！✨', '好厉害！'],
-  tip: ['对我右键可以打开菜单。', '我可以被拖到任何位置~', '试试和我互动吧~', '可以把文件拖到我这里哦~'],
+  tip: ['对我右键可以打开菜单。', '我可以被拖到任何位置~', '试试和我互动吧~'],
   recommend: ['推荐你试试这个功能~', '这个可能对你有帮助哦~'],
 
   // ── 状态类 ──

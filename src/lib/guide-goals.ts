@@ -11,8 +11,7 @@ const GUIDE_COOLDOWN_MS = 30_000;
 const lastGuideStartedAtByKey = new Map<string, number>();
 const inflightEnsures = new Map<string, Promise<GuideGoalEnsureResult>>();
 
-export type GuideGoalTrigger =
-  'sprite-double-click' | 'sprite-menu-chat' | 'sprite-window-open' | 'chat-window-open' | 'chat-window-focus' | 'chat-send' | 'sidebar-open' | 'sidebar-send' | 'workspace-entry';
+export type GuideGoalTrigger = 'sprite-double-click' | 'sprite-menu-chat' | 'sprite-window-open' | 'chat-window-open' | 'chat-window-focus' | 'chat-send' | 'sidebar-open' | 'sidebar-send';
 
 export interface GuideGoalEnsureOptions {
   goal: SpriteRoutineGuideGoalDefinition;
@@ -210,7 +209,7 @@ async function startGuideForGoal(options: GuideGoalEnsureOptions, evaluation: Gu
 }
 
 function isBlockingTrigger(trigger: GuideGoalTrigger): boolean {
-  return trigger === 'sprite-double-click' || trigger === 'sprite-menu-chat' || trigger.endsWith('-send') || trigger === 'workspace-entry';
+  return trigger === 'sprite-double-click' || trigger === 'sprite-menu-chat' || trigger.endsWith('-send');
 }
 
 async function runEnsureGuideGoal(options: GuideGoalEnsureOptions): Promise<GuideGoalEnsureResult> {

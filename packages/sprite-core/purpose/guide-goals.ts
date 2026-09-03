@@ -1,4 +1,4 @@
-export type SpriteRoutineGuideGoalKind = 'workspace.exists' | 'ai.chat-provider-configured' | 'achievement.unlocked' | (string & {});
+export type SpriteRoutineGuideGoalKind = 'ai.chat-provider-configured' | 'achievement.unlocked' | (string & {});
 
 interface BaseSpriteRoutineGuideGoalDefinition<TKind extends SpriteRoutineGuideGoalKind> {
   /** Stable goal id used by guide evaluators and tests. */
@@ -10,9 +10,6 @@ interface BaseSpriteRoutineGuideGoalDefinition<TKind extends SpriteRoutineGuideG
   /** True when the original user action should wait until this goal is achieved. */
   blocking?: boolean;
 }
-
-/** Goal: at least one workspace exists, so workspace-dependent flows can continue. */
-export interface WorkspaceExistsGuideGoalDefinition extends BaseSpriteRoutineGuideGoalDefinition<'workspace.exists'> {}
 
 /** Goal: a chat-capable AI provider preset has usable secrets configured. */
 export interface ChatApiConfiguredGuideGoalDefinition extends BaseSpriteRoutineGuideGoalDefinition<'ai.chat-provider-configured'> {}
@@ -28,15 +25,7 @@ export interface CustomSpriteRoutineGuideGoalDefinition extends BaseSpriteRoutin
   [key: string]: unknown;
 }
 
-export type SpriteRoutineGuideGoalDefinition =
-  WorkspaceExistsGuideGoalDefinition | ChatApiConfiguredGuideGoalDefinition | AchievementUnlockedGuideGoalDefinition | CustomSpriteRoutineGuideGoalDefinition;
-
-export const WORKSPACE_EXISTS_GUIDE_GOAL: SpriteRoutineGuideGoalDefinition = {
-  id: 'workspace.exists',
-  kind: 'workspace.exists',
-  description: '至少存在一个未删除的工作空间。',
-  blocking: true
-};
+export type SpriteRoutineGuideGoalDefinition = ChatApiConfiguredGuideGoalDefinition | AchievementUnlockedGuideGoalDefinition | CustomSpriteRoutineGuideGoalDefinition;
 
 export const CHAT_API_CONFIGURED_GUIDE_GOAL: SpriteRoutineGuideGoalDefinition = {
   id: 'ai.chat-provider-configured',
@@ -55,11 +44,6 @@ export function createAchievementUnlockedGuideGoal(input: { achievementId: strin
     ...(input.blocking !== undefined ? { blocking: input.blocking } : {})
   };
 }
-
-export const FIRST_FILE_DROP_GUIDE_GOAL = createAchievementUnlockedGuideGoal({
-  achievementId: 'first-import',
-  description: '首次通过桌面角色拖拽导入资源的成就已解锁。'
-});
 
 export const FIRST_CHAT_GUIDE_GOAL = createAchievementUnlockedGuideGoal({
   achievementId: 'first-chat',

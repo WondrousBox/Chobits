@@ -48,7 +48,7 @@ export { DEFAULT_DURATION, MESSAGE_IPC_CHANNELS, MESSAGE_PRIORITY } from '@packa
 // ============================================================================
 
 export const SpriteEventGroups = {
-  interaction: ['idle', 'hover', 'click', 'focus', 'input', 'scroll', 'drag', 'drop', 'fileDragOver', 'fileDrop', 'selection'],
+  interaction: ['idle', 'hover', 'click', 'focus', 'input', 'scroll', 'drag', 'selection'],
   feedback: ['success', 'failure', 'error', 'warning', 'info', 'celebrate', 'tip', 'recommend'],
   status: ['loading', 'processing', 'waiting', 'timeout', 'retry'],
   workflow: ['confirmation', 'cancellation', 'task', 'update', 'install', 'remove', 'configure', 'settings'],

@@ -53,9 +53,6 @@
 | `bored`                        | `bored`        |
 | `reacting/click`               | `click`        |
 | `reacting/hold`                | `hold`         |
-| `reacting/drop`                | `drop`         |
-| `reacting/file-drag-over`      | `fileDragOver` |
-| `reacting/file-drop`           | `fileDrop`     |
 | `reacting/sleepy`              | `sleep`        |
 | `reacting/custom` 或未知子状态 | `idle`         |
 
@@ -71,10 +68,9 @@
 | `window.chobits.sprite.animComplete()` / `sprite:anim-complete`  | `SpriteManager.handleAnimationComplete()` | 条件触发         | 可能因 `autoIdle` 回 idle，也可能只推进 playlist。                                  |
 | `window.chobits.sprite.ready()` / `sprite:ready`                 | `SpriteManager.handleRendererReady()`     | 否               | 下发初始状态/当前动画，并延迟 `trigger('welcome')`；`welcome` 本身不改状态。        |
 | `window.chobits.sprite.speak()` / `sprite:speak`                 | `SpriteManager.speak()`                   | 否               | 说话和显示气泡；TTS 成功播放时由系统级 speech hook 尝试播放 `talk`。                |
-| `window.chobits.sprite.interact()` / `sprite:interact`           | `SpriteManager.reportInteraction()`       | 条件触发         | 点击、文件拖拽等会走状态机；普通 hover / 双击 / context-menu 只上报事件或暂停移动。 |
+| `window.chobits.sprite.interact()` / `sprite:interact`           | `SpriteManager.reportInteraction()`       | 条件触发         | 点击会走状态机；普通 hover / 双击 / context-menu 只上报事件或暂停移动。             |
 | `window.chobits.sprite.dragStart()` / `sprite:drag start`        | `SpriteManager.startDrag()`               | 是               | `transitionTo('dragging')`。                                                        |
 | `window.chobits.sprite.dragEnd()` / `sprite:drag end`            | `SpriteManager.endDrag()`                 | 是               | `transitionTo('idle')`。                                                            |
-| `window.chobits.sprite.fileDrop()` / `sprite:file-drop`          | `SpriteManager.handleFileDrop()`          | 是               | 内部 `reportInteraction('file-drop')`，走 `playOnce('file-drop')`。                 |
 
 ## Routine step 入口
 

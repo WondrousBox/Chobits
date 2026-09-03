@@ -61,7 +61,6 @@ const DEFAULT_QUEUE_POLICY: Required<SpritePurposeQueuePolicyOptions> = {
 
 const SINGLETON_PURPOSE_KINDS = new Set(['idle.presence', 'daily.rest-reminder']);
 const CONTEXT_COALESCE_KEYS = ['correlationId', 'workflowRunId', 'runId', 'dropId'];
-const DIAGNOSTIC_PURPOSE_KINDS = new Set(['onboarding.file.drop', 'file.drop']);
 
 interface CurrentRoutineStepState {
   purposeId: string;
@@ -125,13 +124,9 @@ export class SpritePurposeManager {
       plannerMode: request.plannerMode,
       context: request.context
     };
-    this.logDiagnosticPurpose('start requested', purpose, { presetFound: Boolean(preset) });
 
     const coalescedPurpose = this.findCoalescedPurpose(purpose);
     if (coalescedPurpose) {
-      this.logDiagnosticPurpose('coalesced with existing purpose', purpose, {
-        coalescedPurpose: this.describePurposeForLog(coalescedPurpose)
-      });
       await this.record({
         timestamp: now,
         eventType: 'purpose:coalesced',
@@ -167,11 +162,6 @@ export class SpritePurposeManager {
       const admission = await this.admitQueuedPurpose(purpose);
       if (!admission.accepted) {
         purpose.status = 'rejected';
-        this.logDiagnosticPurpose('rejected by queue admission', purpose, {
-          reason: admission.reason,
-          current: this.describePurposeForLog(this.current),
-          currentStep: this.describeCurrentStepForLog()
-        });
         await this.recordRejectedPurpose(purpose, admission.reason);
         this.emitSnapshot();
         return {
@@ -184,12 +174,6 @@ export class SpritePurposeManager {
 
       this.queue.push(purpose);
       this.sortQueue();
-      this.logDiagnosticPurpose('queued behind current purpose', purpose, {
-        queueReason,
-        current: this.describePurposeForLog(this.current),
-        currentStep: this.describeCurrentStepForLog(),
-        queue: this.queue.map((item) => this.describePurposeForLog(item))
-      });
       this.emitSnapshot();
       return {
         accepted: true,
@@ -200,10 +184,6 @@ export class SpritePurposeManager {
     }
 
     if (this.current) {
-      this.logDiagnosticPurpose('superseding current purpose', purpose, {
-        current: this.describePurposeForLog(this.current),
-        currentStep: this.describeCurrentStepForLog()
-      });
       await this.supersedeCurrent(purpose.id);
     }
 
@@ -422,7 +402,6 @@ export class SpritePurposeManager {
   private async completeCurrent(status: 'completed' | 'cancelled' | 'failed', error?: string): Promise<void> {
     if (!this.current) return;
     const purpose = this.current;
-    this.logDiagnosticPurpose('current purpose completing', purpose, { status, error, currentStep: this.describeCurrentStepForLog() });
     purpose.status = status;
     purpose.endedAt = this.now();
     await this.record({
@@ -609,9 +588,6 @@ export class SpritePurposeManager {
       }
       return;
     }
-    this.logDiagnosticPurpose('starting next queued purpose', next, {
-      remainingQueue: this.queue.map((item) => this.describePurposeForLog(item))
-    });
 
     const preset = this.presets.findForRequest({
       kind: next.kind,
@@ -649,10 +625,6 @@ export class SpritePurposeManager {
     if (semanticPurpose) {
       // idle.presence remains active until a higher priority purpose supersedes it.
     } else if (routine && activePurpose) {
-      this.logDiagnosticPurpose('routine started', activePurpose, {
-        routineId: routine.id,
-        stepCount: routine.steps.length
-      });
       void this.runRoutine(activePurpose, routine, preset);
     } else {
       await this.completeCurrent('completed');
@@ -660,42 +632,6 @@ export class SpritePurposeManager {
     }
 
     return routine;
-  }
-
-  private shouldLogDiagnosticPurpose(purpose?: Pick<SpritePurpose, 'kind'> | null): boolean {
-    return !!purpose && DIAGNOSTIC_PURPOSE_KINDS.has(purpose.kind);
-  }
-
-  private logDiagnosticPurpose(message: string, purpose: SpritePurpose, extra?: Record<string, unknown>): void {
-    if (!this.shouldLogDiagnosticPurpose(purpose) && !this.shouldLogDiagnosticPurpose(this.current)) return;
-    console.info(`[SpritePurposeManager] ${message}`, {
-      purpose: this.describePurposeForLog(purpose),
-      ...(extra ?? {})
-    });
-  }
-
-  private describePurposeForLog(purpose?: SpritePurpose | null): Record<string, unknown> | null {
-    if (!purpose) return null;
-    return {
-      id: purpose.id,
-      kind: purpose.kind,
-      status: purpose.status,
-      priority: purpose.priority,
-      source: purpose.source,
-      presetId: purpose.presetId,
-      coalesceKey: purpose.coalesceKey,
-      correlationId: purpose.correlationId
-    };
-  }
-
-  private describeCurrentStepForLog(): Record<string, unknown> | null {
-    if (!this.currentStep) return null;
-    return {
-      purposeId: this.currentStep.purposeId,
-      routineId: this.currentStep.routineId,
-      stepId: this.currentStep.step.id,
-      stepType: this.currentStep.step.type
-    };
   }
 
   private async resolveRoutineForPurpose(purpose: SpritePurpose, preset: SpriteRoutinePresetDefinition | undefined, now: number): Promise<SpriteRoutine | undefined> {

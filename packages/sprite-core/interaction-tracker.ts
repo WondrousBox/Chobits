@@ -19,7 +19,7 @@ import { isSpriteInteractionEvent, type SpriteInteractionEvent, type SpriteInter
 // ============ 类型定义 ============
 
 /** 交互类型 */
-export type InteractionType = 'click' | 'double-click' | 'drag' | 'hold' | 'hover' | 'file-drag-over' | 'file-drag-leave' | 'file-drop' | 'context-menu' | 'conversation' | 'walk-trigger' | 'custom';
+export type InteractionType = 'click' | 'double-click' | 'drag' | 'hold' | 'hover' | 'context-menu' | 'conversation' | 'walk-trigger' | 'custom';
 
 /** 单次交互记录 */
 export interface InteractionEvent {
@@ -57,9 +57,6 @@ const EVENT_TO_INTERACTION: Partial<Record<SpriteInteractionEvent, InteractionTy
   'interact:hold:end': 'hold',
   'interact:hover:enter': 'hover',
   'interact:hover:leave': 'hover',
-  'interact:file-drag-over': 'file-drag-over',
-  'interact:file-drag-leave': 'file-drag-leave',
-  'interact:file-drop': 'file-drop',
   'interact:context-menu': 'context-menu'
 };
 
@@ -164,9 +161,6 @@ export class InteractionTracker {
       drag: 0,
       hold: 0,
       hover: 0,
-      'file-drag-over': 0,
-      'file-drag-leave': 0,
-      'file-drop': 0,
       'context-menu': 0,
       conversation: 0,
       'walk-trigger': 0,

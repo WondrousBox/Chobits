@@ -122,7 +122,7 @@ type WalkToStep = BaseRoutineStep<'walkTo'> & {
    * - `center` / `corner`：屏幕语义位置；
    * - `previous`：保持当前位置；
    * - `{ x, y }`：绝对窗口坐标；
-   * - `{ window, placement, offset }`：贴近某个 purpose window，比如 workspaceWizard 右侧。
+   * - `{ window, placement, offset }`：贴近某个 purpose window，比如 settings 右侧。
    */
   target:
     | 'center'
@@ -266,7 +266,7 @@ type OpenWindowStep = BaseRoutineStep<'openWindow'> & {
   window: string;
   /** 传给窗口的初始化 payload。 */
   payload?: Record<string, unknown>;
-  /** 从 runner variables 中读取窗口 payload 的点路径，例如 `fileDropReady.payload.fileActionsMenuPayload`。 */
+  /** 从 runner variables 中读取窗口 payload 的点路径，例如 `chatApiConfigBubbleEvent.event.payload`。 */
   payloadFrom?: string;
   /** 打开窗口后继续等待某个事件；内部会派生一个 waitForEvent step。 */
   waitForEvent?: string;

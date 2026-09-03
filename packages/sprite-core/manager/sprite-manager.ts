@@ -163,15 +163,6 @@ interface SpriteBehaviorSchedulerPayload {
   behaviorId: string;
 }
 
-interface SpriteFileDropPayloadItem {
-  name?: string;
-  path?: string;
-}
-
-interface SpriteFileDropOptions {
-  correlationId?: string;
-}
-
 const SPRITE_BEHAVIOR_SCHEDULER_OWNER = 'sprite.behavior';
 const SPRITE_TRIGGER_DEBUG_PREFIX = '[SpriteManager][trigger]';
 const MUSIC_DANCE_TRIGGER = 'music:dance' as SpriteAnimationTrigger;
@@ -1465,22 +1456,9 @@ export class SpriteManager {
       this.setMovementSuspended('context-menu', data?.open !== false);
     }
 
-    // file-drag-over → 切换到 reacting/file-drag-over（持续到 drag-leave 或 file-drop）
-    if (type === 'file-drag-over' && this.getState() !== 'dragging') {
-      this.transitionTo('reacting', { subState: 'file-drag-over', force: true });
-      return;
-    }
-
-    // file-drag-leave → 从 file-drag-over 回到 idle
-    if (type === 'file-drag-leave' && this.getState() === 'reacting' && this.getSubState() === 'file-drag-over') {
-      this.transitionTo('idle', { force: true });
-      return;
-    }
-
     // 自动触发临时反应状态
     const reactionMap: Partial<Record<SpriteInteractionIntent, SpriteReactionState>> = {
-      click: 'click',
-      'file-drop': 'file-drop'
+      click: 'click'
     };
     const subState = reactionMap[type];
     if (subState && this.getState() !== 'dragging') {
@@ -1489,8 +1467,7 @@ export class SpriteManager {
 
     // 根据交互类型显示对应文案
     const toastCategoryMap: Partial<Record<SpriteInteractionIntent, MessageCategory>> = {
-      click: 'click',
-      'file-drag-over': 'drag'
+      click: 'click'
     };
     const toastCategory = toastCategoryMap[type];
     if (toastCategory) {
@@ -1943,45 +1920,6 @@ export class SpriteManager {
     //   subState: this.getSubState()
     // });
     this.transitionToIdleAnimation(this.consumeIdleTransitionPresentationOptions());
-  }
-
-  /** 处理文件拖放 */
-  async handleFileDrop(files: SpriteFileDropPayloadItem[], options: SpriteFileDropOptions = {}): Promise<SpritePurposeStartResult> {
-    const normalizedFiles = Array.isArray(files) ? files : [];
-    const correlationId = options.correlationId ?? this.createFileDropCorrelationId();
-    this.reportInteraction('file-drop', { fileCount: normalizedFiles.length, correlationId });
-
-    return this.startFileDropPurpose(normalizedFiles, correlationId);
-  }
-
-  private startFileDropPurpose(files: SpriteFileDropPayloadItem[], correlationId: string): Promise<SpritePurposeStartResult> {
-    return this.startPurpose({
-      kind: 'file.drop',
-      reason: '用户把文件拖给角色处理',
-      source: 'user-event',
-      presetId: 'file.drop',
-      priority: 100,
-      interruptPolicy: 'interruptible',
-      correlationId,
-      coalesceKey: `file-drop:${correlationId}`,
-      plannerMode: 'preset-only',
-      context: {
-        source: 'drop',
-        purposeSource: 'sprite-drop',
-        files,
-        fileCount: files.length,
-        fileNames: files.map((file) => file.name).filter(Boolean)
-      }
-    });
-  }
-
-  private getFileDropCorrelationId(data?: SpriteInteractionPayload): string {
-    const correlationId = data?.correlationId;
-    return typeof correlationId === 'string' && correlationId.trim() ? correlationId : this.createFileDropCorrelationId();
-  }
-
-  private createFileDropCorrelationId(): string {
-    return `file-drop-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   }
 
   /** 渲染进程就绪 */

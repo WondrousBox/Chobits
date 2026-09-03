@@ -98,9 +98,6 @@ export type SpriteBridgeType = {
   // 动画完成上报
   animComplete(animId: string, phase: string, playId?: string): Promise<void>;
 
-  // 文件拖放
-  fileDrop(files: any[], options?: { correlationId?: string }): Promise<SpritePurposeStartResult>;
-
   // 初始状态
   getInitialState(): Promise<any>;
 
@@ -203,9 +200,6 @@ export const spriteBridge: SpriteBridgeType = {
 
   // ── 动画完成上报 ─────────────────────────────────────────
   animComplete: (animId, phase, playId) => ipcRenderer.invoke('sprite:anim-complete', { animId, phase, playId }),
-
-  // ── 文件拖放 ─────────────────────────────────────────────
-  fileDrop: (files, options) => ipcRenderer.invoke('sprite:file-drop', { files, correlationId: options?.correlationId }),
 
   // ── 初始状态 ─────────────────────────────────────────────
   getInitialState: () => ipcRenderer.invoke('sprite:get-initial-state'),

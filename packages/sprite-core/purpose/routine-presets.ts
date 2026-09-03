@@ -1,5 +1,5 @@
 import { getCharacterRoutineText } from '../messages/character';
-import { CHAT_API_CONFIGURED_GUIDE_GOAL, FIRST_CHAT_GUIDE_GOAL, FIRST_FILE_DROP_GUIDE_GOAL, type SpriteRoutineGuideGoalDefinition, WORKSPACE_EXISTS_GUIDE_GOAL } from './guide-goals';
+import { CHAT_API_CONFIGURED_GUIDE_GOAL, FIRST_CHAT_GUIDE_GOAL, type SpriteRoutineGuideGoalDefinition } from './guide-goals';
 import type { SpritePurpose, SpriteRoutine, SpriteRoutineStep, SpriteRoutineStepInput, StartSpritePurposeRequest } from './types';
 
 export interface SpriteRoutinePresetDefinition {
@@ -164,94 +164,6 @@ function createIdlePresenceSteps(): SpriteRoutineStepInput[] {
   return [];
 }
 
-function getRecord(value: unknown): Record<string, unknown> | undefined {
-  return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : undefined;
-}
-
-function createFileActionsMenuPayload(purpose: SpritePurpose): Record<string, unknown> {
-  const payload = getRecord(purpose.context?.fileActionsMenuPayload);
-  if (payload) {
-    return {
-      ...payload,
-      correlationId: purpose.correlationId ?? payload.correlationId
-    };
-  }
-
-  return {
-    files: Array.isArray(purpose.context?.files) ? purpose.context.files : [],
-    resources: Array.isArray(purpose.context?.resources) ? purpose.context.resources : [],
-    source: 'drop',
-    correlationId: purpose.correlationId
-  };
-}
-
-function createFileDropIntakeSteps(purpose: SpritePurpose, options: { waitForResourcesReady?: boolean } = {}): SpriteRoutineStepInput[] {
-  const match = purpose.correlationId ? { correlationId: purpose.correlationId } : undefined;
-  const ctx = {
-    purposeKind: purpose.kind,
-    correlationId: purpose.correlationId,
-    files: purpose.context?.files,
-    resources: purpose.context?.resources
-  };
-  const waitForResourcesReady = options.waitForResourcesReady ?? false;
-  const readyStep: SpriteRoutineStepInput[] = waitForResourcesReady
-    ? [
-        {
-          id: 'wait-file-drop-resources-ready',
-          type: 'waitForEvent',
-          source: 'purpose-event',
-          event: 'fileDrop:resources-ready',
-          match,
-          timeoutMs: 2 * 60 * 1000,
-          assignTo: 'fileDropReady'
-        }
-      ]
-    : [];
-  const openWindowStep: SpriteRoutineStepInput = waitForResourcesReady
-    ? {
-        id: 'open-file-actions-menu',
-        type: 'openWindow',
-        window: 'fileActionsMenu',
-        payloadFrom: 'fileDropReady.payload.fileActionsMenuPayload',
-        timeoutMs: 10000
-      }
-    : { id: 'open-file-actions-menu', type: 'openWindow', window: 'fileActionsMenu', payload: createFileActionsMenuPayload(purpose), timeoutMs: 10000 };
-
-  return [
-    { id: 'ack-drop', type: 'playAnimation', trigger: 'fileDrop', durationMs: 900, waitFor: 'duration', silent: true },
-    { id: 'thinking', type: 'playAnimation', trigger: 'thinking', durationMs: 1200, waitFor: 'duration', silent: true },
-    ...readyStep,
-    { id: 'prompt-action', type: 'showToast', content: getCharacterRoutineText('file.drop.intake.prompt', ctx, '要怎么处理这个文件？'), category: 'question', duration: 2600 },
-    openWindowStep,
-    { id: 'wait-menu-result', type: 'waitForEvent', source: 'purpose-event', event: 'fileAction:resolved', match, timeoutMs: 5 * 60 * 1000, assignTo: 'menuResult' },
-    {
-      id: 'result-branch',
-      type: 'branch',
-      by: 'menuResult.payload.outcome',
-      cases: {
-        selected: [
-          { id: 'selected-success', type: 'playAnimation', trigger: 'success', durationMs: 1200, waitFor: 'duration', silent: true },
-          { id: 'selected-toast', type: 'showToast', content: getCharacterRoutineText('file.drop.intake.selected', ctx, '交给我吧。'), category: 'success', duration: 1800 }
-        ],
-        cancelled: [
-          { id: 'cancelled-confused', type: 'playAnimation', trigger: 'confused', durationMs: 1200, waitFor: 'duration', silent: true },
-          { id: 'cancelled-toast', type: 'showToast', content: getCharacterRoutineText('file.drop.intake.cancelled', ctx, '那我先不打扰你。'), category: 'cancellation', duration: 1800 }
-        ],
-        failed: [
-          { id: 'failed-reaction', type: 'playAnimation', trigger: 'failure', durationMs: 1200, waitFor: 'duration', silent: true },
-          { id: 'failed-toast', type: 'showToast', content: getCharacterRoutineText('file.drop.intake.failed', ctx, '这里好像没处理成功。'), category: 'failure', duration: 2200 }
-        ]
-      },
-      default: [{ id: 'default-done', type: 'playAnimation', trigger: 'success', durationMs: 900, waitFor: 'duration', silent: true }]
-    },
-    { id: 'return-corner', type: 'walkTo', target: 'corner', speed: 110, timeoutMs: 10000 }
-  ];
-}
-
-function createFileDropSteps(purpose: SpritePurpose): SpriteRoutineStepInput[] {
-  return createFileDropIntakeSteps(purpose, { waitForResourcesReady: true });
-}
-
 function getPurposeContextString(purpose: SpritePurpose, key: string): string | undefined {
   const value = purpose.context?.[key];
   return typeof value === 'string' && value.trim() ? value : undefined;
@@ -279,13 +191,6 @@ function createDailyCareReminderSteps(purpose: SpritePurpose): SpriteRoutineStep
   ];
 }
 
-const WORKSPACE_CREATE_NOTICE_ID = 'onboarding.workspace.create.invite';
-const WORKSPACE_CREATE_MANDATORY_REPROMPT_DELAY_MS = 5_000;
-const WORKSPACE_CREATE_NOTICE_WAIT_MS = 30 * 60 * 1000;
-const WORKSPACE_CREATE_WINDOW_HELPER_COOLDOWN_MS = 5 * 60 * 1000;
-const FIRST_FILE_DROP_WAIT_MS = 30 * 60 * 1000;
-const FIRST_FILE_DROP_HELP_COOLDOWN_MS = 60_000;
-const FIRST_FILE_DROP_PROMPT_CYCLE_MS = 6500;
 const FIRST_CHAT_WAIT_MS = 30 * 60 * 1000;
 const FIRST_CHAT_HELP_COOLDOWN_MS = 60_000;
 const CHAT_API_CONFIG_NOTICE_ID = 'chat.api-config-guide.invite';
@@ -314,255 +219,6 @@ function isPurposeContextFlagEnabled(purpose: SpritePurpose, key: string): boole
 function shouldLockChatApiConfigGuideProvider(purpose: SpritePurpose): boolean {
   const trigger = getPurposeContextString(purpose, 'trigger');
   return trigger === 'chat-send' || trigger === 'sidebar-send' || isPurposeContextFlagEnabled(purpose, 'strictProviderMatch');
-}
-
-/**
- * 新手引导 — 引导用户创建工作空间。
- *
- * 流程概览：
- * 1) 挥手吸引注意；
- * 2) 展示带"立即创建"按钮的 NoticeMessage，气泡仍打开时只等待用户操作，不重复刷新；
- * 3) 用户点击按钮后清掉邀请 notice，打开/聚焦 workspaceWizard，并走到创建窗口旁，说明工作空间用途与快速创建方式；
- * 4) 用户手动关闭气泡后，短暂缓冲并继续提示；若未创建就关闭窗口，立即提醒并回到带按钮的提示态；
- * 5) 创建成功 → 清理引导气泡并庆祝。QuestEngine 监听 AppEvent 决定是否标记完成和发奖。
- */
-function createWorkspaceCreateRoutineSteps(): SpriteRoutineStepInput[] {
-  return [
-    'playAnimation welcome silent',
-    {
-      id: 'speak-workspace-assistant-intro',
-      type: 'speak',
-      text: getCharacterRoutineText('onboarding.workspace.create.assistant-intro', undefined, '你好，我是你的专属桌面助手。'),
-      bubbleDuration: 3600,
-      waitAfter: true
-    },
-    {
-      id: 'speak-workspace-growth-promise',
-      type: 'speak',
-      text: getCharacterRoutineText('onboarding.workspace.create.growth-promise', undefined, '我会陪伴你学习和工作，一起共同成长。'),
-      bubbleDuration: 4200,
-      waitAfter: true
-    },
-    {
-      id: 'invite-notice',
-      type: 'showNotice',
-      messageId: WORKSPACE_CREATE_NOTICE_ID,
-      content: getCharacterRoutineText('onboarding.workspace.create.invite', undefined, '先创建工作空间吧'),
-      level: 'info',
-      persistent: true,
-      buttons: [{ id: 'focus-wizard', label: '立即创建', variant: 'default', purposeAction: 'open-wizard' }],
-      speak: true
-    },
-    {
-      id: 'workspace-onboarding-loop',
-      type: 'loopUntil',
-      source: 'app-event',
-      untilEvent: 'WORKSPACE_CREATED',
-      maxDurationMs: WORKSPACE_CREATE_NOTICE_WAIT_MS,
-      assignTo: 'workspaceCreatedEvent',
-      body: [
-        {
-          id: 'wait-create-bubble-event',
-          type: 'loopUntil',
-          source: 'purpose-event',
-          untilEvent: ['bubble:action', 'bubble:dismissed'],
-          match: { messageId: WORKSPACE_CREATE_NOTICE_ID },
-          maxDurationMs: WORKSPACE_CREATE_NOTICE_WAIT_MS,
-          assignTo: 'workspaceBubbleEvent',
-          ignoreHistory: true,
-          body: [{ id: 'wait-create-bubble-event-pause', type: 'wait', durationMs: 1000 }]
-        },
-        {
-          id: 'handle-bubble-event',
-          type: 'branch',
-          by: 'workspaceBubbleEvent.event.event',
-          cases: {
-            'bubble:action': [
-              {
-                id: 'open-wizard-after-click',
-                type: 'branch',
-                by: 'workspaceBubbleEvent.event.payload.purposeAction',
-                cases: {
-                  'open-wizard': [
-                    { id: 'clear-invite-after-click', type: 'clearMessage', messageId: WORKSPACE_CREATE_NOTICE_ID, messageType: 'notice' },
-                    { id: 'open-wizard', type: 'openWindow', window: 'workspaceWizard', timeoutMs: 10000 },
-                    {
-                      id: 'guide-near-wizard',
-                      type: 'parallel',
-                      body: [
-                        [
-                          { id: 'walk-near-wizard', type: 'walkTo', target: { window: 'workspaceWizard', placement: 'right', offset: 16 }, speed: 130, timeoutMs: 10000 },
-                          'playAnimation lookLeft silent'
-                        ],
-                        {
-                          id: 'await-wizard-result',
-                          type: 'loopUntil',
-                          source: 'app-event',
-                          untilEvent: ['WORKSPACE_CREATED', 'WORKSPACE_WIZARD_CLOSED'],
-                          maxDurationMs: WORKSPACE_CREATE_NOTICE_WAIT_MS,
-                          ignoreHistory: true,
-                          assignTo: 'workspaceWizardResult',
-                          body: [
-                            {
-                              id: 'speak-workspace-intro',
-                              type: 'speak',
-                              text: getCharacterRoutineText('onboarding.workspace.create.workspace-intro', undefined, '工作空间会存放所有重要的数据。'),
-                              bubbleDuration: 4000,
-                              waitAfter: 5000,
-                              cooldownKey: 'onboarding.workspace.create.workspace-intro',
-                              cooldownMs: WORKSPACE_CREATE_WINDOW_HELPER_COOLDOWN_MS
-                            },
-                            {
-                              id: 'speak-workspace-quickstart-tip',
-                              type: 'speak',
-                              text: getCharacterRoutineText('onboarding.workspace.create.quickstart-tip', undefined, '快速开始会默认创建到文档中'),
-                              bubbleDuration: 4200,
-                              cooldownKey: 'onboarding.workspace.create.quickstart-tip',
-                              cooldownMs: WORKSPACE_CREATE_WINDOW_HELPER_COOLDOWN_MS
-                            },
-                            { id: 'await-wizard-result-pause', type: 'wait', durationMs: 1000 }
-                          ]
-                        }
-                      ]
-                    },
-                    {
-                      id: 'wizard-result-branch',
-                      type: 'branch',
-                      by: 'workspaceWizardResult.event.event',
-                      cases: {
-                        WORKSPACE_WIZARD_CLOSED: [
-                          {
-                            id: 'closed-without-create',
-                            type: 'showNotice',
-                            messageId: WORKSPACE_CREATE_NOTICE_ID,
-                            content: getCharacterRoutineText('onboarding.workspace.create.closed-without-create', undefined, '还没有创建工作空间哦。'),
-                            level: 'warning',
-                            persistent: true,
-                            buttons: [{ id: 'focus-wizard', label: '去创建', variant: 'default', purposeAction: 'open-wizard' }],
-                            speak: true
-                          }
-                        ]
-                      },
-                      default: []
-                    }
-                  ]
-                },
-                default: []
-              }
-            ],
-            'bubble:dismissed': [
-              { id: 'dismissed-mandatory-reprompt-pause', type: 'wait', durationMs: WORKSPACE_CREATE_MANDATORY_REPROMPT_DELAY_MS },
-              {
-                id: 'invite-notice-after-dismiss',
-                type: 'showNotice',
-                messageId: WORKSPACE_CREATE_NOTICE_ID,
-                content: getCharacterRoutineText('onboarding.workspace.create.invite', undefined, '先创建工作空间吧'),
-                level: 'info',
-                persistent: true,
-                buttons: [{ id: 'focus-wizard', label: '立即创建', variant: 'default', purposeAction: 'open-wizard' }],
-                speak: true
-              }
-            ]
-          },
-          default: []
-        }
-      ]
-    },
-    {
-      id: 'branch-result',
-      type: 'branch',
-      by: 'workspaceCreatedEvent.event.event',
-      cases: {
-        WORKSPACE_CREATED: [
-          { id: 'clear-invite-notice', type: 'clearMessage', messageId: WORKSPACE_CREATE_NOTICE_ID, messageType: 'notice' },
-          { id: 'play-celebrate', type: 'playAnimation', trigger: 'celebrate', durationMs: 1400, waitFor: 'duration', silent: true },
-          {
-            id: 'speak-done',
-            type: 'speak',
-            text: getCharacterRoutineText('onboarding.workspace.create.done', undefined, '好啦！我可以做更多事情啦。'),
-            bubbleDuration: 3600
-          }
-        ]
-      },
-      default: [
-        {
-          id: 'speak-not-yet',
-          type: 'speak',
-          text: getCharacterRoutineText('onboarding.workspace.create.closed-without-create', undefined, '没创建呀…要不再试一次？'),
-          bubbleDuration: 2800
-        }
-      ]
-    }
-  ];
-}
-
-/**
- * 新手引导 — 引导用户把第一个文件拖到角色身上。
- *
- * 真实导入仍由 useFileDropCollector 触发统一的 file.drop routine 接管；
- * 这里负责展示任务引导、说明拖拽价值，并等待拖放交互事件后给出祝贺反馈。
- */
-function createOnboardingFileDropRoutineSteps(): SpriteRoutineStepInput[] {
-  return [
-    'playAnimation welcome 900 duration silent',
-    {
-      id: 'invite-file-drop-notice',
-      type: 'speak',
-      text: getCharacterRoutineText('onboarding.file.drop.invite', undefined, '可以把文件拖拽给我')
-    },
-    3000,
-    {
-      id: 'wait-first-file-drop',
-      type: 'loopUntil',
-      source: 'sprite-event-bus',
-      untilEvent: 'interact:file-drop',
-      ignoreHistory: true,
-      maxDurationMs: FIRST_FILE_DROP_WAIT_MS,
-      assignTo: 'firstFileDropResult',
-      body: [
-        {
-          id: 'drop-wait-cycle',
-          type: 'parallel',
-          body: [
-            { id: 'drop-ready-loop', type: 'playAnimation', trigger: 'fileDragOver', durationMs: FIRST_FILE_DROP_PROMPT_CYCLE_MS, waitFor: 'duration', silent: true },
-            {
-              id: 'drop-intro-speak',
-              type: 'speak',
-              text: getCharacterRoutineText('onboarding.file.drop.intro', undefined, '拖给我的文件会放到背包。'),
-              bubbleDuration: 4200,
-              cooldownKey: 'onboarding.file.drop.intro',
-              cooldownMs: FIRST_FILE_DROP_HELP_COOLDOWN_MS
-            },
-            { id: 'drop-wait-pause', type: 'wait', durationMs: FIRST_FILE_DROP_PROMPT_CYCLE_MS }
-          ]
-        }
-      ]
-    },
-    {
-      id: 'first-file-drop-result',
-      type: 'branch',
-      by: 'firstFileDropResult.event.event',
-      cases: {
-        'interact:file-drop': [
-          { id: 'first-file-drop-celebrate', type: 'playAnimation', trigger: 'celebrate', durationMs: 1400, waitFor: 'duration', silent: true },
-          {
-            id: 'first-file-drop-done',
-            type: 'speak',
-            text: getCharacterRoutineText('onboarding.file.drop.done', undefined, '收到啦！已经放到背包。'),
-            bubbleDuration: 3600
-          }
-        ]
-      },
-      default: [
-        {
-          id: 'first-file-drop-timeout',
-          type: 'speak',
-          text: getCharacterRoutineText('onboarding.file.drop.invite', undefined, '可以把文件拖拽给我'),
-          bubbleDuration: 3200
-        }
-      ]
-    }
-  ];
 }
 
 /**
@@ -766,13 +422,6 @@ export const DEFAULT_SPRITE_ROUTINE_PRESETS: SpriteRoutinePresetDefinition[] = [
     steps: createIdlePresenceSteps
   },
   {
-    id: 'file.drop',
-    title: '文件投递',
-    purposeKind: 'file.drop',
-    defaultPriority: 100,
-    steps: createFileDropSteps
-  },
-  {
     id: 'daily.rest-reminder',
     title: '休息提醒',
     purposeKind: 'daily.rest-reminder',
@@ -795,28 +444,12 @@ export const DEFAULT_SPRITE_ROUTINE_PRESETS: SpriteRoutinePresetDefinition[] = [
     steps: createChatApiConfigGuideSteps
   },
   {
-    id: 'onboarding.workspace.create',
-    title: '新手引导：创建工作空间',
-    purposeKind: 'onboarding.workspace.create',
-    defaultPriority: 70,
-    goal: WORKSPACE_EXISTS_GUIDE_GOAL,
-    steps: createWorkspaceCreateRoutineSteps
-  },
-  {
     id: 'onboarding.chat.start',
     title: '新手引导：开始聊天',
     purposeKind: 'onboarding.chat.start',
     defaultPriority: 68,
     goal: FIRST_CHAT_GUIDE_GOAL,
     steps: createFirstChatRoutineSteps
-  },
-  {
-    id: 'onboarding.file.drop',
-    title: '新手引导：拖拽导入文件',
-    purposeKind: 'onboarding.file.drop',
-    defaultPriority: 68,
-    goal: FIRST_FILE_DROP_GUIDE_GOAL,
-    steps: createOnboardingFileDropRoutineSteps
   }
 ];
 
