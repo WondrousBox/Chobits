@@ -8,7 +8,7 @@
 	</p>
 	<p>
 		<a href="https://madewithlove.org.in"><img alt="Made with Love" src="https://img.shields.io/badge/Made%20with-Love-ff69b4.svg"></a>
-		<a href="https://github.com/WondrousBox/Chobits"><img alt="GitHub" src="https://img.shields.io/badge/GitHub-Chobits-181717?logo=github"></a>
+		<a href="https://github.com/chenxin199305/Chobits-Chi-Mascot"><img alt="GitHub" src="https://img.shields.io/badge/GitHub-Chobits-181717?logo=github"></a>
 		<a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-green.svg"></a>
 	</p>
 	<p>
@@ -19,7 +19,7 @@
 	</p>
 </div>
 
-> 💖 如果这个项目对你有帮助，欢迎在 [GitHub](https://github.com/WondrousBox/Chobits) 点个 Star —— 你的支持能让更多人发现小叽！
+> 💖 如果这个项目对你有帮助，欢迎在 [GitHub](https://github.com/chenxin199305/Chobits-Chi-Mascot) 点个 Star —— 你的支持能让更多人发现小叽！
 
 ## ✨ 功能特性
 
@@ -147,11 +147,6 @@ Linux 特别提示：精灵是透明无边框窗口，需要桌面混成器（GN
 ## 📸 截图
 
 可在 `test/screenshots/` 放置或更新应用截图以展示关键功能。
-
-## 声明
-
-本项目为个人开发的非官方开源软件，与原作《Chobits（人形电脑天使心）》及其权利人无任何从属或合作关系。
-项目中涉及的名称或元素仅为个人兴趣的引用，如权利人认为有不当之处，请联系作者（`yuqu.2233@gmail.com`），我会及时调整或移除相关内容。
 
 ## 📄 许可证
 

@@ -8,7 +8,7 @@
 	</p>
 	<p>
 		<a href="https://madewithlove.org.in"><img alt="Made with Love" src="https://img.shields.io/badge/Made%20with-Love-ff69b4.svg"></a>
-		<a href="https://github.com/WondrousBox/Chobits"><img alt="GitHub" src="https://img.shields.io/badge/GitHub-Chobits-181717?logo=github"></a>
+		<a href="https://github.com/chenxin199305/Chobits-Chi-Mascot"><img alt="GitHub" src="https://img.shields.io/badge/GitHub-Chobits-181717?logo=github"></a>
 		<a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-green.svg"></a>
 	</p>
 	<p>
@@ -19,7 +19,7 @@
 	</p>
 </div>
 
-> 💖 このプロジェクトがお役に立ったら、ぜひ [GitHub](https://github.com/WondrousBox/Chobits) で Star をお願いします —— あなたの応援が、ちぃをもっと多くの人に届けます！
+> 💖 このプロジェクトがお役に立ったら、ぜひ [GitHub](https://github.com/chenxin199305/Chobits-Chi-Mascot) で Star をお願いします —— あなたの応援が、ちぃをもっと多くの人に届けます！
 
 ## ✨ 機能一覧
 
@@ -34,6 +34,8 @@
 
 - **音声機能**
   - Edge TTS 読み上げ：ちぃが返信を声に出して読みます。
+  - AI Provider TTS：MiniMax `speechSynthesis` による合成とリアルタイム PCM ストリーミング読み上げに対応（AI の返信を生成しながら再生）。
+  - 長押し話しかけ：マイクボタンを押している間話し、離すと自動で認識・送信。キャンセルボタンへスライドするとキャンセルできます。
   - 録音・文字起こし（ASR）：ローカルの sherpa-onnx によるオフライン認識、またはクラウド transcribe。
   - リアルタイム字幕と翻訳。
 
@@ -123,7 +125,7 @@ Chobits/
 
 - **データベース変更**：まず schema 定義を変更し、`pnpm db:generate` でマイグレーションを生成します。SQL マイグレーションファイルを手書きしないでください。
 - **UI コンポーネント**：shadcn の利用規約（Button アイコン、tooltip など）は [AGENTS.md](./AGENTS.md) を参照。
-- **ロックファイル**：リポジトリに lockfile をコミットしません（`pnpm-lock.yaml` などは gitignore 済み、upstream の CI も受け付けません）。
+- **ロックファイル**：リポジトリは `pnpm-lock.yaml` をコミットして依存バージョンを固定します。npm/yarn の `package-lock.json` / `yarn.lock` のみ gitignore 対象です（`.gitignore` のコメント参照）。
 
 ## 🐧 プラットフォーム説明
 
@@ -146,11 +148,6 @@ Linux 特記：妖精は透明なボーダーレスウィンドウのため、�
 ## 📸 スクリーンショット
 
 `test/screenshots/` にアプリのスクリーンショットを配置・更新して、主要機能を紹介できます。
-
-## 免責事項
-
-本プロジェクトは個人が開発した非公式のオープンソースソフトウェアであり、原作《Chobits（ちょびっツ）》およびその権利者とは一切の所属・提携関係がありません。
-プロジェクト内の名称や要素は個人の趣味による引用です。権利者から不適切とのご指摘があった場合は、作者（`yuqu.2233@gmail.com`）までご連絡ください。速やかに調整・削除いたします。
 
 ## 📄 ライセンス
 
