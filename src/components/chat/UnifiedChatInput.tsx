@@ -229,8 +229,8 @@ const UnifiedChatInput = React.forwardRef<UnifiedChatInputHandle, UnifiedChatInp
         </div>
       )}
 
-      {/* 底部工具栏 */}
-      <div className="absolute bottom-2 flex items-center gap-2 overflow-x-auto w-[calc(100%-1rem)] px-2 no-drag pointer-events-auto">
+      {/* 底部工具栏（py-1 给悬停放大的按钮留出纵向空间，overflow-x-auto 会把 overflow-y 连带裁剪） */}
+      <div className="absolute bottom-2 flex items-center gap-2 overflow-x-auto w-[calc(100%-1rem)] px-2 py-1 no-drag pointer-events-auto">
         {/* 左侧额外内容 */}
         {footerLeft}
 

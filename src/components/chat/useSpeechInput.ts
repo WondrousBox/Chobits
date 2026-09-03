@@ -369,13 +369,33 @@ export function useSpeechInput({ onTranscriptFinal, onTranscriptInterim, onStopp
     cloudSegmentArrivedRef.current = false;
 
     try {
-      const [asrStatus, asrConfig, deviceResult] = await Promise.all([
-        window.chobits.sherpa.getStatus(),
-        window.chobits.sherpa.getASRConfig(),
-        window.chobits.preferences['preferences:get-web-recorder-device-id']()
-      ]);
+      const asrStatusPromise = window.chobits.sherpa.getStatus();
+      const asrConfigPromise = window.chobits.sherpa.getASRConfig();
+      // getUserMedia 是启动链路最慢的一步：拿到设备 ID 后立即并行启动录音，避免吞掉开头语音
+      const recorderPromise = window.chobits.preferences['preferences:get-web-recorder-device-id']().then(async (deviceResult) => {
+        const preferredDeviceId = deviceResult.ok ? deviceResult.deviceId : undefined;
+        let recorder = buildRecorder(preferredDeviceId);
+
+        try {
+          await recorder.start();
+        } catch (error: any) {
+          await recorder.destroy();
+
+          if (!preferredDeviceId || !['NotFoundError', 'OverconstrainedError'].includes(error?.name || '')) {
+            throw error;
+          }
+
+          recorder = buildRecorder();
+          await recorder.start();
+        }
+
+        return recorder;
+      });
+
+      const [asrStatus, asrConfig, recorder] = await Promise.all([asrStatusPromise, asrConfigPromise, recorderPromise]);
 
       if (!asrStatus.running) {
+        await recorder.destroy();
         toast.error('请先启动语音识别服务');
         window.chobits.window['window:open']('asrConfig');
         setStatus('idle');
@@ -383,6 +403,7 @@ export function useSpeechInput({ onTranscriptFinal, onTranscriptInterim, onStopp
       }
 
       if (asrConfig.backend === 'cloud' && (!asrConfig.cloud?.providerId || !asrConfig.cloud?.providerPresetId)) {
+        await recorder.destroy();
         toast.error('云端语音识别配置不完整');
         window.chobits.window['window:open']('asrConfig');
         setStatus('idle');
@@ -392,22 +413,6 @@ export function useSpeechInput({ onTranscriptFinal, onTranscriptInterim, onStopp
       asrConfigRef.current = asrConfig as SpeechInputASRConfig;
       isActiveRef.current = true;
       attachMessageHandler();
-
-      const preferredDeviceId = deviceResult.ok ? deviceResult.deviceId : undefined;
-      let recorder = buildRecorder(preferredDeviceId);
-
-      try {
-        await recorder.start();
-      } catch (error: any) {
-        await recorder.destroy();
-
-        if (!preferredDeviceId || !['NotFoundError', 'OverconstrainedError'].includes(error?.name || '')) {
-          throw error;
-        }
-
-        recorder = buildRecorder();
-        await recorder.start();
-      }
 
       recorderRef.current = recorder;
       sessionStartedAtRef.current = Date.now();
