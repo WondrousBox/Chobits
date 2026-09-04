@@ -23,8 +23,12 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      # Windows 上 standalone 安装 pnpm.exe：app-builder（electron-builder）会直接 exec pnpm 二进制，
+      # 非 standalone 的 pnpm.mjs 无法直接执行（%1 is not a valid Win32 application）
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
+        with:
+          standalone: ${{ runner.os == 'Windows' }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
