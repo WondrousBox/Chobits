@@ -1,9 +1,12 @@
 import type { BackupInfo } from '@packages/common/db';
 import { ipcRenderer } from 'electron';
 
-import type { IpcParams } from '../types';
+import type { IpcParams } from '../type';
 
-export type SystemIpcParams = {
+/** 与 electron/main/updater.ts 的 UpdateCheckStatus 保持一致 */
+export type UpdateCheckStatus = 'disabled' | 'idle' | 'checking' | 'available' | 'not-available' | 'downloaded' | 'error';
+
+export type SystemBridgeParams = {
   // Database
   'database:get-path': IpcParams<[], { ok: boolean; path?: string; dir?: string; error?: string }>;
   'database:open-location': IpcParams<[], { ok: boolean; error?: string }>;
@@ -15,7 +18,8 @@ export type SystemIpcParams = {
 
   // App
   'app:relaunch': IpcParams<[], { ok: boolean; error?: string }>;
-  'app:open-external-url': IpcParams<[url: string], { ok: boolean; error?: string }>;
+  'app:renderer-ready': IpcParams<[], void>;
+  'app:update:check': IpcParams<[], { ok: boolean; status?: UpdateCheckStatus; version?: string; error?: string }>;
 
   // Logs
   'logs:get-path': IpcParams<[], { ok: boolean; dir?: string; error?: string }>;
@@ -26,7 +30,7 @@ export type SystemIpcParams = {
   'system:microphone:request-access': IpcParams<[], { ok: boolean; isGranted?: boolean; error?: string }>;
 };
 
-const methods: Array<keyof SystemIpcParams> = [
+const methods: Array<keyof SystemBridgeParams> = [
   'database:get-path',
   'database:open-location',
   'database:backup',
@@ -35,15 +39,16 @@ const methods: Array<keyof SystemIpcParams> = [
   'database:restore-backup',
   'database:import-backup',
   'app:relaunch',
-  'app:open-external-url',
+  'app:renderer-ready',
+  'app:update:check',
   'logs:get-path',
   'logs:open-location',
   'system:microphone:get-status',
   'system:microphone:request-access'
 ];
 
-export type SystemIpcType = {
-  [K in keyof SystemIpcParams]: (...args: SystemIpcParams[K]['request']) => Promise<SystemIpcParams[K]['response']>;
+export type SystemBridgeType = {
+  [K in keyof SystemBridgeParams]: (...args: SystemBridgeParams[K]['request']) => Promise<SystemBridgeParams[K]['response']>;
 };
 
 const newIpc: Record<string, any> = {};
@@ -51,4 +56,4 @@ methods.forEach((m) => {
   newIpc[m] = (...args: any[]) => ipcRenderer.invoke(m as string, ...args);
 });
 
-export const systemIpcRenderer = newIpc as SystemIpcType;
+export const systemBridge = newIpc as SystemBridgeType;

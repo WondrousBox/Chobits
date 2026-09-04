@@ -70,11 +70,11 @@ export default function CharacterPackEditorWindow(): JSX.Element {
   }, []);
 
   useEffect(() => {
-    const handler = (_event: Electron.IpcRendererEvent | null, payload?: CharacterPackEditorWindowPayload): void => {
+    const handler = (payload?: CharacterPackEditorWindowPayload): void => {
       void loadEditor(payload);
     };
 
-    window.ipcRenderer?.on('on:window:open:ready', handler);
+    const unsubscribeOpenReady = window.chobits.window.onOpenReady(handler);
 
     const bootstrap = async (): Promise<void> => {
       try {
@@ -95,7 +95,7 @@ export default function CharacterPackEditorWindow(): JSX.Element {
     void bootstrap();
 
     return () => {
-      window.ipcRenderer?.off('on:window:open:ready', handler);
+      unsubscribeOpenReady();
     };
   }, [loadEditor]);
 

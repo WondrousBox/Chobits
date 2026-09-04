@@ -134,8 +134,6 @@ export interface SpriteManagerOptions {
   purposeRoutinePlanner?: SpritePurposeRoutinePlanner;
   /** Shared main-process scheduler for autonomous sprite behaviors. */
   behaviorScheduler?: SpriteBehaviorScheduler;
-  /** Suppresses autonomous chatter while a blocking onboarding flow needs focus. */
-  shouldSuppressAmbientMessages?: (context: SpriteAmbientMessageContext) => boolean;
   /** 额外接收 `app:message:bridge` 广播的窗口，主要用于独立气泡窗口同步气泡消息。 */
   getMessageRecipients?: () => Array<SpriteWindow | null | undefined>;
   /** 发送消息前可异步确保目标消息窗口已创建并完成基础初始化。 */
@@ -146,8 +144,6 @@ export interface SpriteManagerOptions {
    */
   getConfigRecipients?: () => Array<SpriteWindow | null | undefined>;
 }
-
-export type SpriteAmbientMessageContext = 'behavior' | 'welcome' | 'interaction';
 
 export interface SpriteSpontaneousUtteranceRequest {
   behaviorId: string;
@@ -178,7 +174,6 @@ export interface SpriteSpontaneousUtterancePreferences {
 }
 
 export interface SpriteSpontaneousUtteranceHistoryQuery {
-  workspaceId?: string;
   limit?: number;
   query?: string;
   status?: SpriteSpontaneousUtteranceHistoryStatus | 'all';
@@ -188,7 +183,6 @@ export interface SpriteSpontaneousUtteranceHistoryQuery {
 export interface SpriteSpontaneousUtteranceHistoryItem {
   utteranceId?: string;
   timestamp: number;
-  workspaceId?: string;
   conversationId?: string;
   behaviorId?: string;
   status: SpriteSpontaneousUtteranceHistoryStatus;

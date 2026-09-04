@@ -411,7 +411,7 @@ describe('SpriteRoutineRunner', () => {
         id: 'wait-inventory-open',
         type: 'waitForEvent',
         source: 'app-event',
-        event: 'SPRITE_MENU_ITEM_SELECTED',
+        event: 'APP_WINDOW_OPENED',
         match: {
           itemId: 'inventory',
           windowKey: 'inventory',
@@ -424,7 +424,7 @@ describe('SpriteRoutineRunner', () => {
 
     waiter.emit({
       source: 'app-event',
-      event: 'SPRITE_MENU_ITEM_SELECTED',
+      event: 'APP_WINDOW_OPENED',
       payload: {
         itemId: 'inventory',
         windowKey: 'inventory',
@@ -2016,47 +2016,47 @@ describe('SpritePurposeHistoryStore', () => {
       await store.append({
         timestamp: base,
         eventType: 'purpose:created',
-        purposeId: 'purpose-file',
-        purposeKind: 'file.drop.intake',
+        purposeId: 'purpose-demo',
+        purposeKind: 'custom.demo',
         priority: 100,
         source: 'user-event',
         status: 'queued',
-        summary: '用户把文件拖给角色处理'
+        summary: '用户触发了一个演示目的'
       });
       await store.append({
         timestamp: base + 10,
         eventType: 'purpose:started',
-        purposeId: 'purpose-file',
-        purposeKind: 'file.drop.intake',
+        purposeId: 'purpose-demo',
+        purposeKind: 'custom.demo',
         priority: 100,
         source: 'user-event',
         status: 'active',
-        summary: '用户把文件拖给角色处理'
+        summary: '用户触发了一个演示目的'
       });
       await store.append({
         timestamp: base + 20,
         eventType: 'routine:started',
-        purposeId: 'purpose-file',
-        routineId: 'routine-file',
-        purposeKind: 'file.drop.intake',
+        purposeId: 'purpose-demo',
+        routineId: 'routine-demo',
+        purposeKind: 'custom.demo',
         source: 'preset',
         status: 'running'
       });
       await store.append({
         timestamp: base + 30,
         eventType: 'step:completed',
-        purposeId: 'purpose-file',
-        routineId: 'routine-file',
+        purposeId: 'purpose-demo',
+        routineId: 'routine-demo',
         stepId: 'wait-menu-result',
-        purposeKind: 'file.drop.intake',
+        purposeKind: 'custom.demo',
         status: 'completed'
       });
       await store.append({
         timestamp: base + 40,
         eventType: 'routine:completed',
-        purposeId: 'purpose-file',
-        routineId: 'routine-file',
-        purposeKind: 'file.drop.intake',
+        purposeId: 'purpose-demo',
+        routineId: 'routine-demo',
+        purposeKind: 'custom.demo',
         source: 'preset',
         status: 'completed',
         result: { elapsedMs: 40, stepCount: 6 }
@@ -2064,13 +2064,13 @@ describe('SpritePurposeHistoryStore', () => {
       await store.append({
         timestamp: base + 50,
         eventType: 'purpose:completed',
-        purposeId: 'purpose-file',
-        purposeKind: 'file.drop.intake',
+        purposeId: 'purpose-demo',
+        purposeKind: 'custom.demo',
         priority: 100,
         source: 'user-event',
         status: 'completed',
-        summary: '用户把文件拖给角色处理',
-        contextDigest: { fileCount: 1, fileNames: ['notes.docx'] },
+        summary: '用户触发了一个演示目的',
+        contextDigest: { itemCount: 1, itemNames: ['demo-item'] },
         result: { durationMs: 50 }
       });
       await store.append({
@@ -2092,21 +2092,21 @@ describe('SpritePurposeHistoryStore', () => {
         terminalPurposeCount: 2,
         completedCount: 2,
         kindCounts: {
-          'file.drop.intake': 1,
+          'custom.demo': 1,
           'idle.presence': 1
         },
         memoryCandidateCount: 1
       });
       expect(retrospective.items).toHaveLength(1);
       expect(retrospective.items[0]).toMatchObject({
-        purposeId: 'purpose-file',
-        purposeKind: 'file.drop.intake',
+        purposeId: 'purpose-demo',
+        purposeKind: 'custom.demo',
         status: 'completed',
         stepCount: 6,
         memoryCandidate: true,
         completedStepIds: ['wait-menu-result']
       });
-      expect(retrospective.recallCues[0]).toContain('Sprite purpose file.drop.intake completed');
+      expect(retrospective.recallCues[0]).toContain('Sprite purpose custom.demo completed');
 
       const empty = await store.getDailyRetrospective({ date: '2026-05-04' });
       expect(empty.totalPurposeCount).toBe(0);

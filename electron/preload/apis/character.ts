@@ -36,7 +36,6 @@ import type {
   CharacterPackSource,
   CharacterPackSummary
 } from '../../../packages/sprite-core/character-pack-manager';
-import type { CharacterPromptBuildOptions } from '../../../packages/sprite-core/character-service';
 import type { CharacterSnapshot, SpriteCharacterStateResult, SpriteStateSnapshot } from '../../../packages/sprite-core/types';
 
 export interface CharacterGalleryListResult {
@@ -50,13 +49,6 @@ export interface CharacterGalleryListResult {
   };
   indexPath: string;
   items: CharacterGalleryItem[];
-}
-
-export interface CharacterGalleryCanvasLayoutResult {
-  layout: CharacterGalleryCanvasLayout;
-  ok: true;
-  path: string;
-  isWritable: boolean;
 }
 
 export interface CharacterGalleryImportPayload {
@@ -97,7 +89,7 @@ export type {
   CharacterGalleryViewAngle
 };
 
-export const characterApi = {
+export const characterBridge = {
   /** 获取完整角色状态 */
   getState: (): Promise<SpriteCharacterStateResult> => ipcRenderer.invoke('sprite:character:get-state'),
 
@@ -126,9 +118,6 @@ export const characterApi = {
 
   /** 获取当前角色基础信息 (id, name, tagline) */
   getCharacterInfo: () => ipcRenderer.invoke('sprite:character:get-info'),
-
-  /** 获取基于当前好感度/心情动态生成的角色人格系统提示词 */
-  getCharacterPrompt: (options?: CharacterPromptBuildOptions) => ipcRenderer.invoke('sprite:character:get-prompt', options),
 
   /** 获取当前可用角色包列表 */
   listCharacterPacks: (): Promise<CharacterPackSummary[]> => ipcRenderer.invoke('sprite:character:list-packs'),
@@ -200,14 +189,6 @@ export const characterApi = {
   listCharacterGallery: (payload?: { packId?: string; source?: CharacterPackSource; query?: string }): Promise<CharacterGalleryListResult | null> =>
     ipcRenderer.invoke('sprite:character:gallery:list', payload ?? {}),
 
-  /** 获取角色图集画布布局。只读包可能返回自动布局空壳。 */
-  getCharacterGalleryCanvasLayout: (payload?: { packId?: string; source?: CharacterPackSource }): Promise<CharacterGalleryCanvasLayoutResult | null> =>
-    ipcRenderer.invoke('sprite:character:gallery:canvas:get', payload ?? {}),
-
-  /** 保存角色图集画布布局。只允许写入本地 installed 角色包。 */
-  saveCharacterGalleryCanvasLayout: (payload: { packId?: string; source?: CharacterPackSource; layout: CharacterGalleryCanvasLayout }): Promise<CharacterGalleryCanvasLayoutResult | null> =>
-    ipcRenderer.invoke('sprite:character:gallery:canvas:save', payload),
-
   /** 导入图片到角色包图集。只允许写入本地 installed 角色包。 */
   importCharacterGalleryItem: (payload: CharacterGalleryImportPayload): Promise<{ ok: true; item: CharacterGalleryItem }> => ipcRenderer.invoke('sprite:character:gallery:import', payload),
 
@@ -221,13 +202,6 @@ export const characterApi = {
   /** 删除角色图集条目。默认同时清理不再被引用的包内图片文件。 */
   removeCharacterGalleryItem: (payload: { packId?: string; source?: CharacterPackSource; itemId: string; deleteFile?: boolean }): Promise<{ ok: boolean }> =>
     ipcRenderer.invoke('sprite:character:gallery:remove', payload),
-
-  /** 构建发送给 AI 图片编辑/分镜生成的图集引用上下文。 */
-  buildCharacterGalleryAIEditContext: (payload: { packId?: string; source?: CharacterPackSource; draft: CharacterGalleryAIEditDraft }): Promise<CharacterGalleryAIEditContext> =>
-    ipcRenderer.invoke('sprite:character:gallery:build-ai-edit-context', payload),
-
-  /** 重新加载当前角色定义并同步 runtime */
-  reloadCharacter: () => ipcRenderer.invoke('sprite:character:reload'),
 
   /** 订阅角色切换事件 */
   onCharacterSwitched: (
@@ -254,4 +228,4 @@ export const characterApi = {
   }
 };
 
-export type CharacterApiBridgeType = typeof characterApi;
+export type CharacterApiBridgeType = typeof characterBridge;

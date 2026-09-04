@@ -146,16 +146,12 @@ Renderer（示例约定，实际路径视实现为准）：
   - `listModels(providerId, presetId?)`
   - `getProviderSecrets(providerId)`
   - `setProviderSecrets(providerId, secrets)`
-  - `clearProviderSecrets(providerId)`
-- Chat & Embedding：
+- Chat：
   - `chat(payload)`
-  - `chatEphemeral(payload)`
   - `chatStream(payload, onEvent)`
-  - `embed({ texts, providerId?, model?, normalize? })`
 - 预设（Preset）管理：
   - `listPresets(providerId?)`
   - `createPreset({ providerId, name, model?, systemPrompt?, overrides?, config? })`
-  - `updatePreset(id, patch)`
   - `deletePreset(id)`
   - `getPresetSecrets(presetId)`
   - `setPresetSecrets(presetId, secrets)`
@@ -169,25 +165,20 @@ Renderer（示例约定，实际路径视实现为准）：
   - `listConversations({ includeDeleted?, limit?, offset? }?)`
   - `listMessages(conversationId, limit?, offset?)`
   - `renameConversation(id, title)`
-  - `deleteConversation(id)`
-  - `restoreConversation(id)`
+  - `hardDeleteConversation(id)`
 
 ## 4. IPC 接口与通道
 
-### 4.1 Chat & Embedding 相关 IPC（由 `ChatService` 注册）
+### 4.1 Chat 相关 IPC（由 `ChatService` 注册）
 
 Renderer → Preload → Main：
 
 - **`ai:chat`** `(ChatRequest)` → `ChatResponse`
   - 有会话持久化：会根据 `conversationId` 在 `ChatRepo` 中 `ensureConversation`，并写入最后一条 user 消息和 assistant 回复。
-- **`ai:chat-ephemeral`** `(ChatRequest)` → `ChatResponse`
-  - 无会话持久化：仍会合并预设 overrides / secrets，但不写入 `ChatRepo`。
 - **`ai:chat-stream`** `(ChatRequest & { requestId? })` → `{ requestId, eventsChannel }`
   - 流式、有持久化：在首条 user 消息后写入历史，结束时写入 assistant 最终消息，并通过 metadata 附带 `conversationId`。
 - **`ai:cancel`** `({ requestId })` → `{ ok: true }`
   - 使用内部 `AbortController` 取消指定请求。
-- **`ai:embed`** `(EmbeddingRequest)` → `EmbeddingResponse`
-  - 直接调用当前 Provider 的 `embed` 能力。
 
 事件通道：
 
@@ -204,8 +195,6 @@ Renderer → Preload → Main：
   - 使用 `ProviderService` 提供的 schema field key 列表 + `getAllSecrets(providerId, keys)` 读取。
 - **`ai:set-provider-secrets`** `({ providerId, secrets })` → `{ ok: true }`
   - 写入 keytar/回退 JSON，并调用 Provider 的 `setSecrets`。
-- **`ai:clear-provider-secrets`** `({ providerId })` → `{ ok: true }`
-  - 清除 keytar 与回退 JSON 中该 Provider 的所有秘钥，并调用 `clearSecrets()` 清空 adapter 内存中的秘钥（未实现的外部插件 adapter 退化为 `setSecrets({})`）。
 - **`ai:get-agents`** → `[{ id, label, description }]`
 - **`ai:list-models`** `({ providerId, presetId? })` → `Array<{ id, label? }>`
   - builtin/compat 模型优先来自 `ProviderService`；
@@ -215,7 +204,6 @@ Renderer → Preload → Main：
 
 - **`ai:list-presets`** `({ providerId? })` → `PresetService.listPresets(providerId?)`
 - **`ai:create-preset`** `({ providerId, name, model?, systemPrompt?, overrides?, config? })` → 新建预设记录（`config` 仅保留兼容 alias）
-- **`ai:update-preset`** `({ id, patch })` → 更新预设
 - **`ai:delete-preset`** `({ id })` → `{ ok: boolean }`
   - 通过 `PresetService` 删除预设记录，并同步清理该 preset 的 secret 存储。
 - **`ai:get-preset-secrets`** `({ presetId })` → `{ [field]: value }`
@@ -234,8 +222,7 @@ Renderer → Preload → Main：
   - **`ai:list-conversations`** `({ includeDeleted?, limit?, offset? }?)`
   - **`ai:list-messages`** `({ conversationId, limit?, offset? })`
   - **`ai:rename-conversation`** `({ id, title })` → `{ ok, row? }`
-  - **`ai:delete-conversation`** `({ id })` → `{ ok }`（软删除）
-  - **`ai:restore-conversation`** `({ id })` → `{ ok }`
+  - **`ai:hard-delete-conversation`** `({ id })` → `{ ok }`（物理删除）
 
 ## 5. 流式对话设计
 
@@ -265,7 +252,7 @@ Renderer → Preload → Main：
 - forked skill 子 session prompt
 - `createPiTaskChatRuntime()` 生成的后台任务 chatFn
 
-默认关闭，避免把用户对话、记忆、persona、系统提示词写入日志。需要完整查看实际发送内容时，直接修改 `packages/ai/runtime/pi/prompt-inspector-settings.ts`：
+默认关闭，避免把用户对话、记忆、用户画像、系统提示词写入日志。需要完整查看实际发送内容时，直接修改 `packages/ai/runtime/pi/prompt-inspector-settings.ts`：
 
 ```ts
 export const AI_PROMPT_INSPECTOR_SETTINGS = {
@@ -331,7 +318,7 @@ Provider 适配要点：
     - `instances: Record<presetId, Record<key, value>>`（字段名保留历史兼容）
 - **Provider 配置**：
   - 前端通过 `getProviders` 获取 schema，并动态渲染配置表单；
-  - 通过 `settings-store.ts` 暴露的 `setProviderSecrets`/`clearProviderSecrets` 读写秘钥。
+  - 通过 `settings-store.ts` 暴露的 `setProviderSecrets` 读写秘钥。
 - **预设配置**：
   - `PresetService` 是业务侧唯一的预设读写入口；
   - `presets-store.ts` 仅保存预设的基础信息（名称、系统提示词、自定义 overrides 等）；

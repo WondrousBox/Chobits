@@ -65,15 +65,4 @@ export function initPreferencesHandlers(): void {
       return { ok: false, error: error.message || String(error) };
     }
   });
-
-  // 设置 WebRecorder 麦克风设备ID
-  ipcMain.handle('preferences:set-web-recorder-device-id', async (_event, payload: { deviceId: string | undefined }) => {
-    try {
-      const config = PreferencesStore.setWebRecorderDeviceId(payload.deviceId);
-      return { ok: true, config };
-    } catch (error: any) {
-      console.error('[Preferences] 设置 WebRecorder 麦克风设备ID失败:', error);
-      return { ok: false, error: error.message || String(error) };
-    }
-  });
 }

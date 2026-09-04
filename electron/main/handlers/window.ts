@@ -411,25 +411,6 @@ export function initWindowHandlers(win: BrowserWindow): void {
       return { x, y, width, height };
     }
   });
-  ipcMain.removeHandler('window:bounds:set');
-  ipcMain.handle('window:bounds:set', (event, windowKey: string | undefined, bounds: { x: number; y: number; width: number; height: number }) => {
-    try {
-      const targetWindow = windowKey ? windowManager.get(windowKey as any) : BrowserWindow.fromWebContents(event.sender);
-      if (!targetWindow || targetWindow.isDestroyed()) {
-        return { ok: false, error: 'Window not found' };
-      }
-      const nextBounds = {
-        x: Math.round(bounds.x),
-        y: Math.round(bounds.y),
-        width: Math.max(1, Math.round(bounds.width)),
-        height: Math.max(1, Math.round(bounds.height))
-      };
-      targetWindow.setBounds(nextBounds);
-      return { ok: true, bounds: targetWindow.getBounds() };
-    } catch (error) {
-      return { ok: false, error: String(error) };
-    }
-  });
 
   // ---------------- Sprite Bubble Window IPC --------------------
   // 调整气泡独立窗口的尺寸，并触发对应的跟随定位刷新。

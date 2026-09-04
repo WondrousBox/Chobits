@@ -21,7 +21,6 @@ const PURPOSE_PLANNER_MAX_RAW_PREVIEW_CHARS = 600;
 export interface SpritePurposePlannerRuntimeContext {
   providerId: string;
   providerPresetId?: string;
-  workspaceId?: string;
   model?: string;
 }
 
@@ -52,7 +51,6 @@ export const PURPOSE_PLANNER_TIMEOUTS: TaskChatTimeoutConfig = {
 export function buildSpritePurposePlannerRuntimeRequest(context: SpritePurposePlannerRuntimeContext): CreatePiTaskRuntimeRequest {
   return buildNonReasoningTaskRuntimeRequest({
     agentId: 'chat',
-    ...(context.workspaceId ? { extras: { workspaceId: context.workspaceId } } : {}),
     maxTokens: PURPOSE_PLANNER_MAX_TOKENS,
     ...(context.model ? { model: context.model } : {}),
     providerId: context.providerId,

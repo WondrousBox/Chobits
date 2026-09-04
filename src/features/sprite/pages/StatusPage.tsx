@@ -25,7 +25,7 @@ export const StatusPage: React.FC = () => {
             console.warn('[StatusPage] failed to load character info', error);
             return null;
           }),
-          window.chobits.status['character:get-profile']().catch((error) => {
+          window.chobits.status['sprite:character:get-profile']().catch((error) => {
             console.warn('[StatusPage] failed to load character profile', error);
             return null;
           }),

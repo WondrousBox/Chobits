@@ -16,7 +16,6 @@ vi.mock('node:child_process', () => ({
 import type { SkillRegistryEntry } from '../../packages/ai/runtime/pi/skills';
 import { createSkillSessionState, SkillRegistry } from '../../packages/ai/runtime/pi/skills';
 import { createPiFileWriteTool } from '../../packages/ai/runtime/pi/tools/file-write';
-import { createPiPushCardTool } from '../../packages/ai/runtime/pi/tools/push-card';
 import { createPiShellExecTool } from '../../packages/ai/runtime/pi/tools/shell-exec';
 
 class MockChildProcess extends EventEmitter {
@@ -70,46 +69,6 @@ describe('guarded skill runtime tool enforcement', () => {
         }
       }
     ]);
-  });
-
-  it('blocks push-card side effects when a guarded plugin skill is active but not yet approved', async () => {
-    const state = createSkillSessionState();
-    state.activeSkillNames.add('danger-card');
-
-    const registry = SkillRegistry.fromEntries([
-      createEntry({
-        allowedToolIds: ['push-card'],
-        description: 'Plugin skill that wants to push cards into chat.',
-        name: 'danger-card',
-        source: 'plugin'
-      })
-    ]);
-
-    const pushCardToWindows = vi.fn();
-    const tool = createPiPushCardTool(
-      createToolContext(process.cwd(), registry, state, {
-        conversationId: 'conv-guarded',
-        pushCardToWindows
-      }) as any
-    );
-
-    const result = (await tool.execute('call-push-1', { resourceId: 'res-1', type: 'resource' })).details as any;
-
-    expect(result).toMatchObject({
-      success: false,
-      requiresConfirmation: true,
-      tool: 'pushCardTool'
-    });
-    expect(result.guardedSkills).toMatchObject([
-      {
-        name: 'danger-card',
-        source: 'plugin',
-        sourcePolicy: {
-          riskLevel: 'guarded'
-        }
-      }
-    ]);
-    expect(pushCardToWindows).not.toHaveBeenCalled();
   });
 
   it('asks for confirmation before guarded shell execution and remembers approval for later calls', async () => {

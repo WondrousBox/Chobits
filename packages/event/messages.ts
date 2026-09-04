@@ -45,7 +45,6 @@ export type MessageCategory =
   | 'update'
   | 'install'
   | 'remove'
-  | 'configure'
   | 'settings'
   | 'profile'
   | 'message'
@@ -144,24 +143,6 @@ export interface MessageIPCPayload {
 export type MessageBridgeSource = 'app' | 'sprite';
 export type MessageBridgeTarget = 'all' | 'sprite';
 
-export interface SpriteConfirmNoticeRequest {
-  id?: string;
-  content: string;
-  level?: MessageLevel;
-  confirmLabel?: string;
-  cancelLabel?: string;
-  timeoutMs?: number;
-  shouldSpeak?: boolean;
-}
-
-export interface SpriteConfirmNoticeResult {
-  confirmed: boolean;
-  messageId: string;
-  actionId?: string;
-  action?: string;
-  reason?: 'confirm' | 'cancel' | 'dismissed' | 'timeout' | 'error';
-}
-
 export interface MessageBridgeClearPayload {
   id?: string;
   type?: MessageType | 'all';
@@ -182,13 +163,7 @@ export type MessageBridgePayload =
     };
 
 export const MESSAGE_IPC_CHANNELS = {
-  BRIDGE: 'app:message:bridge',
-  MESSAGE: 'app:message',
-  MESSAGE_CLEAR: 'app:message:clear',
-  LEGACY_NOTICE: 'app:notice',
-  LEGACY_BUSY_START: 'app:busy:start',
-  LEGACY_BUSY_END: 'app:busy:end',
-  LEGACY_BUSY_PROGRESS: 'app:busy:progress'
+  BRIDGE: 'app:message:bridge'
 } as const;
 
 export const DEFAULT_DURATION: Record<MessageType, number> = {

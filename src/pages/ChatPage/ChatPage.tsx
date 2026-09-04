@@ -14,10 +14,10 @@ import {
   appendTextPart,
   appendThinkingPart,
   appendToolPart,
-  AssistantMessageTimeline,
   ChatInputWithService,
   type ChatMessageDisplayPart,
   ChatMessageRenderer,
+  ChatMessageTimeline,
   ChatTokenUsage,
   finalizeTimelineMessage,
   hasRenderableRichContent,
@@ -182,15 +182,12 @@ export default function ChatPage(): JSX.Element {
   }, [presetId, providerId]);
 
   useEffect(() => {
-    const handleVisibilityChange = (_event: any, data: { visible: boolean; key: string }): void => {
+    const handleVisibilityChange = (data: { visible: boolean; key: string }): void => {
       if (!data.visible || data.key !== payloadWindowKey) return;
       void guideChatApiConfigIfNeeded({ providerId, preferredPresetId: presetId, trigger: 'chat-window-focus' });
     };
 
-    window.ipcRenderer?.on('window:visibility-changed', handleVisibilityChange);
-    return () => {
-      window.ipcRenderer?.off('window:visibility-changed', handleVisibilityChange);
-    };
+    return window.chobits.window.onVisibilityChanged(handleVisibilityChange);
   }, [payloadWindowKey, presetId, providerId]);
 
   // Select conversation and load its messages
@@ -364,13 +361,13 @@ export default function ChatPage(): JSX.Element {
     [setAgentId, setCharacterPromptEnabled, setCodingWorkspace, setModelId, setPresetId, setProviderId, setWebSearchEnabled]
   );
 
-  // Listen for initial message or mode switch payload from assistant/chat windows.
+  // Listen for initial message or mode switch payload delivered when the chat window is opened (e.g. by the sprite).
   useEffect(() => {
     const handlePayload = (payload: ChatWindowPayload | null | undefined): void => {
       if (!payload?.initialMessage && !payload?.conversationId) return;
       const payloadKey = getChatWindowPayloadKey(payload);
       // 清除缓存 payload，防止关闭后再次打开时重复触发
-      window.ipcRenderer?.invoke('window:payload:clear', payloadWindowKey).catch(() => {});
+      window.chobits.window['window:payload:clear'](payloadWindowKey).catch(() => {});
       if (!markPayloadHandled(payloadKey)) {
         return;
       }
@@ -407,8 +404,7 @@ export default function ChatPage(): JSX.Element {
       }, 50);
     };
 
-    const ipcHandler = (_event: any, data: any): void => handlePayload(data);
-    window.ipcRenderer?.on('on:window:open:ready', ipcHandler);
+    const unsubscribeOpenReady = window.chobits.window.onOpenReady(handlePayload);
 
     // Fallback: 主动拉取缓存 payload（避免 race condition，仅首次加载执行）
     let fallbackDone = false;
@@ -425,7 +421,7 @@ export default function ChatPage(): JSX.Element {
     }, 120);
 
     return () => {
-      window.ipcRenderer?.off('on:window:open:ready', ipcHandler);
+      unsubscribeOpenReady();
       clearTimeout(timer);
       clearPendingPayloadStartTimer();
     };
@@ -913,7 +909,7 @@ export default function ChatPage(): JSX.Element {
                         >
                           {m.role === 'assistant' ? (
                             <>
-                              <AssistantMessageTimeline message={m} onUserChoiceSubmit={handleUserChoiceSubmit} />
+                              <ChatMessageTimeline message={m} onUserChoiceSubmit={handleUserChoiceSubmit} />
                               {m.usage && <ChatTokenUsage usage={m.usage} label="本轮" className="mt-2" />}
                               {!hasTimelineContent(m) && isLoading && i === messages.length - 1 && (
                                 <span className="inline-flex items-center gap-2 text-muted-foreground">

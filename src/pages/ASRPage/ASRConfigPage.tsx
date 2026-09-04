@@ -256,10 +256,11 @@ const ASRConfigPage: React.FC = () => {
     let mounted = true;
     (async () => {
       try {
-        const [status, savedConfig] = await Promise.all([window.chobits.sherpa.getStatus(), window.chobits.sherpa.getASRConfig()]);
+        const [status, savedConfigResult] = await Promise.all([window.chobits.sherpa.getStatus(), window.chobits.sherpa.getASRConfig()]);
         if (!mounted) return;
-        setIsASRRunning(status.running);
+        setIsASRRunning(!!(status.ok && status.running));
         // 用保存的配置作为默认值
+        const savedConfig = savedConfigResult.ok ? savedConfigResult.config : undefined;
         if (savedConfig) {
           if (savedConfig.backend) setActiveTab(savedConfig.backend);
           if (savedConfig.local?.scene) setSelectedScene(savedConfig.local.scene);
@@ -578,8 +579,10 @@ const ASRConfigPage: React.FC = () => {
   const handleStopASR = async (): Promise<void> => {
     setIsLoading(true);
     try {
-      await window.chobits.sherpa.destroyInstance();
-      await window.chobits.sherpa.saveASRConfig({ enabled: false });
+      const destroyResult = await window.chobits.sherpa.destroyInstance();
+      if (!destroyResult.ok) throw new Error(destroyResult.error);
+      const saveResult = await window.chobits.sherpa.saveASRConfig({ enabled: false });
+      if (!saveResult.ok) throw new Error(saveResult.error);
       setIsASRRunning(false);
     } catch (error) {
       console.error('停止 ASR 失败:', error);
@@ -634,17 +637,21 @@ const ASRConfigPage: React.FC = () => {
         const commonConfig = sceneConfig?.commonConfig;
 
         // 启动 ASR 服务
-        success = await window.chobits.sherpa.createInstance({
+        const createResult = await window.chobits.sherpa.createInstance({
           model: selectedModel as SherpaModelId,
           language: language,
           punctuationModel: selectedPunctuationModel || undefined,
           commonConfig: commonConfig
         });
+        success = createResult.ok;
+        if (!success) console.error('启动 ASR 失败:', createResult.error);
       } else {
         // 启动 VAD 服务
-        success = await window.chobits.sherpa.createInstance({
+        const createResult = await window.chobits.sherpa.createInstance({
           type: 'vad'
         });
+        success = createResult.ok;
+        if (!success) console.error('启动 VAD 失败:', createResult.error);
       }
 
       if (!success) {
@@ -654,7 +661,7 @@ const ASRConfigPage: React.FC = () => {
 
       // 启动成功后保存配置并更新状态
       if (activeTab === 'local') {
-        await window.chobits.sherpa.saveASRConfig({
+        const saveResult = await window.chobits.sherpa.saveASRConfig({
           enabled: true,
           backend: 'local',
           local: {
@@ -664,12 +671,13 @@ const ASRConfigPage: React.FC = () => {
             punctuationModel: selectedPunctuationModel
           }
         });
+        if (!saveResult.ok) throw new Error(saveResult.error);
 
         // 打开识别测试窗口并关闭配置页面（与 TTS 流程一致）
         window.chobits.window['window:open']('asrTest' as any, { model: selectedModel, language });
         window.chobits.window['window:close']('asrConfig');
       } else {
-        await window.chobits.sherpa.saveASRConfig({
+        const saveResult = await window.chobits.sherpa.saveASRConfig({
           enabled: true,
           backend: 'cloud',
           cloud: {
@@ -678,6 +686,7 @@ const ASRConfigPage: React.FC = () => {
             modelId: resolvedCloudSelection?.modelId || cloudModelId
           }
         });
+        if (!saveResult.ok) throw new Error(saveResult.error);
       }
       setIsASRRunning(true);
     } catch (error) {

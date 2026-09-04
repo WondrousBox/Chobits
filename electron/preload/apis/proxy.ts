@@ -3,9 +3,9 @@ import { ipcRenderer } from 'electron';
 
 export type { CustomProxy, ProxyAgentType, ProxyConfig, ProxyType } from '@packages/common/types/proxy';
 
-export type ProxyIpcType = typeof proxyIpcRenderer;
+export type ProxyBridgeType = typeof proxyBridge;
 
-export const proxyIpcRenderer = {
+export const proxyBridge = {
   'proxy:get-config': async (): Promise<ProxyConfig> => {
     return await ipcRenderer.invoke('proxy:get-config');
   },

@@ -33,7 +33,3 @@ export function listPiAgentProfiles(): PiAgentProfile[] {
     toolInjectionMode: descriptor.toolInjectionMode
   }));
 }
-
-export function getPiProfileInstructions(profileId: string = DEFAULT_PI_PROFILE_ID): string {
-  return getPiAgentProfile(profileId).instructions || '';
-}

@@ -184,13 +184,13 @@ describe('Purpose arbitration', () => {
   });
 
   it('coalesces duplicate queued purposes instead of adding another queue item', async () => {
-    const { manager } = createManager([holdPreset('file.drop.intake', 'file.drop.intake', 100), holdPreset('daily.rest-reminder', 'daily.rest-reminder', 60)]);
+    const { manager } = createManager([holdPreset('custom.demo', 'custom.demo', 100), holdPreset('daily.rest-reminder', 'daily.rest-reminder', 60)]);
 
     const active = await manager.start({
-      kind: 'file.drop.intake',
-      reason: '用户拖入文件',
+      kind: 'custom.demo',
+      reason: '演示目的触发',
       source: 'user-event',
-      correlationId: 'drop-1'
+      correlationId: 'demo-1'
     });
     const queued = await manager.start({
       kind: 'daily.rest-reminder',
@@ -214,13 +214,13 @@ describe('Purpose arbitration', () => {
   });
 
   it('rejects low-priority purposes instead of queueing ambient work indefinitely', async () => {
-    const { manager, history } = createManager([holdPreset('file.drop.intake', 'file.drop.intake', 100)]);
+    const { manager, history } = createManager([holdPreset('custom.demo', 'custom.demo', 100)]);
 
     const active = await manager.start({
-      kind: 'file.drop.intake',
-      reason: 'active file drop',
+      kind: 'custom.demo',
+      reason: 'active demo purpose',
       source: 'user-event',
-      correlationId: 'drop-low-priority'
+      correlationId: 'demo-low-priority'
     });
     const lowPriority = await manager.start({
       kind: 'ambient.observation',
@@ -249,7 +249,7 @@ describe('Purpose arbitration', () => {
   });
 
   it('caps the queue and lets higher-priority queued work replace the lowest queued purpose', async () => {
-    const { manager, history } = createManager([holdPreset('file.drop.intake', 'file.drop.intake', 100)], {
+    const { manager, history } = createManager([holdPreset('custom.demo', 'custom.demo', 100)], {
       queuePolicy: {
         maxQueueSize: 2,
         minQueuedPriority: 0
@@ -257,10 +257,10 @@ describe('Purpose arbitration', () => {
     });
 
     const active = await manager.start({
-      kind: 'file.drop.intake',
-      reason: 'active file drop',
+      kind: 'custom.demo',
+      reason: 'active demo purpose',
       source: 'user-event',
-      correlationId: 'drop-queue-limit'
+      correlationId: 'demo-queue-limit'
     });
     const medium = await manager.start({
       kind: 'queued.medium',
@@ -313,33 +313,33 @@ describe('Purpose arbitration', () => {
     await manager.cancel();
   });
 
-  it('lets file drop intake interrupt an active rest reminder', async () => {
-    const { manager, history } = createManager([holdPreset('daily.rest-reminder', 'daily.rest-reminder', 60), holdPreset('file.drop.intake', 'file.drop.intake', 100)]);
+  it('lets a high-priority custom purpose interrupt an active rest reminder', async () => {
+    const { manager, history } = createManager([holdPreset('daily.rest-reminder', 'daily.rest-reminder', 60), holdPreset('custom.demo', 'custom.demo', 100)]);
 
     const rest = await manager.start({
       kind: 'daily.rest-reminder',
       reason: '到了休息时间',
       source: 'behavior'
     });
-    const fileDrop = await manager.start({
-      kind: 'file.drop.intake',
-      reason: '用户拖入文件',
+    const demoPurpose = await manager.start({
+      kind: 'custom.demo',
+      reason: '演示目的触发',
       source: 'user-event',
-      correlationId: 'drop-2'
+      correlationId: 'demo-2'
     });
 
     expect(rest.status).toBe('started');
-    expect(fileDrop.status).toBe('started');
+    expect(demoPurpose.status).toBe('started');
     expect(manager.getSnapshot().current).toMatchObject({
-      id: fileDrop.purpose.id,
-      kind: 'file.drop.intake'
+      id: demoPurpose.purpose.id,
+      kind: 'custom.demo'
     });
     expect(history).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           eventType: 'purpose:superseded',
           purposeId: rest.purpose.id,
-          result: { supersededBy: fileDrop.purpose.id }
+          result: { supersededBy: demoPurpose.purpose.id }
         })
       ])
     );
@@ -365,11 +365,11 @@ describe('Purpose arbitration', () => {
           ]
         },
         {
-          id: 'file.drop.intake',
-          title: '文件投递',
-          purposeKind: 'file.drop.intake',
+          id: 'custom.demo',
+          title: '演示目的',
+          purposeKind: 'custom.demo',
           defaultPriority: 100,
-          steps: [{ id: 'hold-file', type: 'waitForEvent', event: 'file-done' }]
+          steps: [{ id: 'hold-demo', type: 'waitForEvent', event: 'demo-done' }]
         }
       ]),
       history: {
@@ -388,35 +388,35 @@ describe('Purpose arbitration', () => {
     });
     await waitFor(() => eventRunner.hasWaiter('critical-done'));
 
-    const fileDrop = await manager.start({
-      kind: 'file.drop.intake',
-      reason: '用户拖入文件',
+    const demoPurpose = await manager.start({
+      kind: 'custom.demo',
+      reason: '演示目的触发',
       source: 'user-event',
-      correlationId: 'drop-critical'
+      correlationId: 'demo-critical'
     });
 
-    expect(fileDrop.status).toBe('queued');
-    expect(fileDrop.reason).toBe('current-purpose-step-is-critical');
+    expect(demoPurpose.status).toBe('queued');
+    expect(demoPurpose.reason).toBe('current-purpose-step-is-critical');
     expect(manager.getSnapshot().current).toMatchObject({
       id: rest.purpose.id,
       kind: 'daily.rest-reminder'
     });
-    expect(manager.getSnapshot().queue.map((purpose) => purpose.id)).toEqual([fileDrop.purpose.id]);
+    expect(manager.getSnapshot().queue.map((purpose) => purpose.id)).toEqual([demoPurpose.purpose.id]);
 
     eventRunner.resolveEvent('critical-done');
-    await waitFor(() => manager.getSnapshot().current?.id === fileDrop.purpose.id);
+    await waitFor(() => manager.getSnapshot().current?.id === demoPurpose.purpose.id);
 
     expect(manager.getSnapshot().queue).toHaveLength(0);
     expect(manager.getSnapshot().current).toMatchObject({
-      id: fileDrop.purpose.id,
-      kind: 'file.drop.intake'
+      id: demoPurpose.purpose.id,
+      kind: 'custom.demo'
     });
     expect(history).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           eventType: 'purpose:superseded',
           purposeId: rest.purpose.id,
-          result: { supersededBy: fileDrop.purpose.id }
+          result: { supersededBy: demoPurpose.purpose.id }
         })
       ])
     );

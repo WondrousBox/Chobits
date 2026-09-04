@@ -34,14 +34,11 @@ import {
   type SpritePurposeDailyRetrospective,
   type SpritePurposeEventType,
   SpritePurposeEventWaiter,
-  type SpritePurposeHistoryEntry,
-  type SpritePurposeHistoryQuery,
   SpritePurposeHistoryStore,
   SpritePurposeManager,
   type SpritePurposeRetrospectiveQuery,
   type SpritePurposeRuntimeEvent,
   type SpritePurposeRuntimeEventInput,
-  type SpritePurposeSnapshot,
   type SpritePurposeStartResult,
   type SpriteRoutine,
   SpriteRoutineRunner,
@@ -49,15 +46,7 @@ import {
   type StartSpritePurposeRequest
 } from '../purpose';
 import { SpeakService, type SpriteRealtimeSpeechSession } from '../speak/speak-service';
-import type {
-  SpeakResult,
-  SpriteRealtimeSpeechAvailabilityRequest,
-  SpriteRealtimeSpeechEvent,
-  SpriteRealtimeSpeechSessionRequest,
-  SpriteSpeakConfig,
-  SpriteSpeakPayload,
-  SpriteSpeakPlaybackContext
-} from '../speak/types';
+import type { SpeakResult, SpriteRealtimeSpeechEvent, SpriteRealtimeSpeechSessionRequest, SpriteSpeakConfig, SpriteSpeakPayload, SpriteSpeakPlaybackContext } from '../speak/types';
 import type { SpriteReactionState, SpriteState } from '../state-machine';
 import { SpriteStateMachine } from '../state-machine';
 import {
@@ -79,23 +68,18 @@ import {
   type SpriteAnimationTrigger,
   type SpriteBubbleMode,
   type SpriteConfig,
-  type SpriteFeedbackRequest,
-  type SpriteFeedbackResult,
   type SpriteInitialState,
   type SpriteMovementConfig,
-  type SpriteMovementPreviewConfig,
   type SpritePlayCommand,
   type SpriteStateSnapshot,
   type SpriteTriggerOptions
 } from '../types';
-import type { WindowControllerAvoidRegion } from '../window-controller-model';
 import { registerDefaultBehaviors } from './default-behaviors';
 import { MovementCoordinator } from './movement-coordinator';
 import { BubbleModeConfig, CharacterStatePersistence } from './persistence';
-import { mapStateToEventType } from './state-mapping';
+import { mapStateToTrigger } from './state-mapping';
 import type {
   CharacterStatePersistenceRow,
-  SpriteAmbientMessageContext,
   SpriteBehaviorScheduler,
   SpriteManagerOptions,
   SpriteProactiveSpeechGate,
@@ -182,7 +166,6 @@ export class SpriteManager {
   private interactionTracker: InteractionTracker;
   private behaviorEngine: BehaviorEngine;
   private behaviorScheduler?: SpriteBehaviorScheduler;
-  private shouldSuppressAmbientMessages?: SpriteManagerOptions['shouldSuppressAmbientMessages'];
   private behaviorSchedulerStarted = false;
   private behaviorSchedulerJobIds = new Set<string>();
   private unbindBehaviorSchedulerHandler: (() => void) | null = null;
@@ -278,7 +261,6 @@ export class SpriteManager {
       tickIntervalMs: 1000
     });
     this.behaviorScheduler = options.behaviorScheduler;
-    this.shouldSuppressAmbientMessages = options.shouldSuppressAmbientMessages;
     this.animationRegistry = new AnimationRegistry();
     this.purposeEventWaiter = new SpritePurposeEventWaiter();
     this.purposeHistory = new SpritePurposeHistoryStore(options.dataDir);
@@ -299,12 +281,7 @@ export class SpriteManager {
       getPosition: () => this.getPosition(),
       getSpriteConfig: () => this.getSpriteConfig(),
       getAvoidRegions: () => this.windowController?.getAvoidRegions?.() ?? [],
-      setSpriteMetrics: (metrics) => this.setSpriteMetrics(metrics),
-      setWindowSize: (width, height, padding) => {
-        this.windowController?.setSize?.(width, height, padding);
-      },
       walkTo: (x, y, speed) => this.walkTo(x, y, speed),
-      stopWalk: () => this.stopWalk(),
       startAutoMove: (movement) => {
         this.windowController?.startAutoMove?.(movement);
       },
@@ -314,7 +291,6 @@ export class SpriteManager {
       isAutoMoving: () => this.windowController?.isAutoMoving?.() ?? false,
       getAutoMoveDirection: () => this.windowController?.getAutoMoveDirection?.() ?? null,
       emitWalkState: (payload) => this.sendToRenderer('sprite:walk', payload),
-      emitConfigChanged: () => this.emitConfigChanged(),
       playWindowAnimation: (movement, playbackSize) =>
         this.windowAnimationAdapter?.playPreset({
           presetId: movement.windowAnimationPresetId,
@@ -385,8 +361,7 @@ export class SpriteManager {
       idlePresence: { enabled: true },
       routinePlanner: options.purposeRoutinePlanner,
       onRoutineStart: (purpose, routine) => this.acquireRoutinePresentationLock(purpose, routine),
-      onRoutineFinish: (purpose) => this.releaseRoutinePresentationLock(purpose.id),
-      onSnapshot: (snapshot) => this.sendToRenderer('sprite:purpose:state', snapshot)
+      onRoutineFinish: (purpose) => this.releaseRoutinePresentationLock(purpose.id)
     });
 
     // 持久化
@@ -402,7 +377,7 @@ export class SpriteManager {
     this.speakService = new SpeakService(options.dataDir, options.speechSynthesisExecutor, options.textTranslator, options.characterSpeechLanguageResolver);
     this.speakService.setPlayAudioCallback((payload: SpriteSpeakPayload, context?: SpriteSpeakPlaybackContext) => {
       this.triggerTalkForSpeech(payload, context);
-      this.sendToRenderer('sprite:speak', payload);
+      this.sendToRenderer('sprite:speak-started', payload);
     });
     this.speakService.setRealtimeSpeechEventCallback((sessionId, event) => {
       if (event.type === 'audio_delta' && !this.realtimeSpeechTalkSessions.has(sessionId)) {
@@ -823,7 +798,7 @@ export class SpriteManager {
    * 如果 AnimationRegistry 中没有匹配动画，则仅显示气泡文字。
    * 这是为所有 SpriteEventType 提供统一触发入口的核心方法。
    */
-  trigger(trigger: SpriteAnimationTrigger, options?: SpriteTriggerOptions & { ambientContext?: SpriteAmbientMessageContext }): void {
+  trigger(trigger: SpriteAnimationTrigger, options?: SpriteTriggerOptions): void {
     // 1. Try to find and play a matching animation.
     let resolvedTrigger = trigger;
     let candidates = this.animationRegistry.findCandidatesByTrigger({
@@ -910,7 +885,7 @@ export class SpriteManager {
     }
 
     // 2. 显示气泡文案（除非 silent）
-    if (!options?.silent && !this.shouldSuppressAmbientMessage(options?.ambientContext)) {
+    if (!options?.silent) {
       const text = options?.message || getCharacterSpriteEventText(trigger, options?.ctx);
       if (text) {
         this.showToast(text, { duration: options?.duration });
@@ -947,44 +922,6 @@ export class SpriteManager {
     }
 
     return true;
-  }
-
-  playFeedbackAnimation(request?: SpriteFeedbackRequest | null): SpriteFeedbackResult {
-    const feedbackRequest = request ?? {};
-    const trigger = typeof feedbackRequest.trigger === 'string' ? (feedbackRequest.trigger.trim() as SpriteAnimationTrigger) : undefined;
-    const kind = typeof feedbackRequest.kind === 'string' ? feedbackRequest.kind.trim() : undefined;
-    if (!trigger || !kind) {
-      return {
-        ok: false,
-        played: false,
-        reason: 'invalid-request',
-        error: 'Feedback trigger and kind are required'
-      };
-    }
-
-    const candidates = this.animationRegistry.findCandidatesByTrigger({
-      trigger,
-      characterState: this.characterState.getState()
-    });
-    if (candidates.length === 0) {
-      return { ok: true, played: false, reason: 'missing-animation' };
-    }
-
-    const lock = this.presentationLock.getSnapshot();
-    const owner = lock ? this.resolveCurrentPresentationOwner(lock.ownerId) : null;
-    if (lock && !owner) {
-      return { ok: true, played: false, reason: 'blocked-by-lock' };
-    }
-
-    this.trigger(trigger, {
-      silent: feedbackRequest.silent,
-      durationMs: feedbackRequest.durationMs,
-      message: feedbackRequest.message,
-      ctx: feedbackRequest.ctx,
-      ...(owner ? this.toPresentationOptions(owner) : {})
-    });
-
-    return owner ? { ok: true, played: true, ownerPurposeId: owner.ownerId } : { ok: true, played: true };
   }
 
   private resolveCurrentPresentationOwner(lockOwnerId: string): SpritePresentationOwnerContext | null {
@@ -1094,16 +1031,11 @@ export class SpriteManager {
       level?: string;
       ctx?: any;
       speak?: boolean;
-      ambientContext?: SpriteAmbientMessageContext;
       ownerPurposeId?: string;
       priority?: number;
       shouldIgnorePresentationLock?: boolean;
     }
   ): void {
-    if (this.shouldSuppressAmbientMessage(options?.ambientContext)) {
-      return;
-    }
-
     // 如果只传了 category 没有 content，先获取文本以确保显示和朗读一致
     const resolvedContent = content ?? (options?.category ? getCharacterCategoryText(options.category, options?.ctx) : undefined);
 
@@ -1141,16 +1073,11 @@ export class SpriteManager {
       routineId?: string;
       level?: string;
       speak?: boolean;
-      ambientContext?: SpriteAmbientMessageContext;
       ownerPurposeId?: string;
       priority?: number;
       shouldIgnorePresentationLock?: boolean;
     }
   ): boolean {
-    if (this.shouldSuppressAmbientMessage(options?.ambientContext)) {
-      return false;
-    }
-
     const payload: MessageIPCPayload = {
       type: 'notice',
       id: options?.id,
@@ -1240,16 +1167,11 @@ export class SpriteManager {
     options?: {
       bubbleEnabled?: boolean;
       bubbleDuration?: number;
-      ambientContext?: SpriteAmbientMessageContext;
       ownerPurposeId?: string;
       priority?: number;
       shouldIgnorePresentationLock?: boolean;
     }
   ): Promise<SpeakResult> {
-    if (this.shouldSuppressAmbientMessage(options?.ambientContext)) {
-      return { ok: false, error: 'suppressed-by-onboarding' };
-    }
-
     const bubbleEnabled = options?.bubbleEnabled ?? true;
 
     this._speakGuard = true;
@@ -1327,17 +1249,8 @@ export class SpriteManager {
     return this.getState() === 'idle' && this.getSubState() == null && (!this.currentAnimation || this.currentAnimation.sessionMode === 'state-bound' || this.currentAnimation.trigger === 'idle');
   }
 
-  /** 仅合成语音（不播放） */
-  async synthesizeSpeech(text: string): Promise<SpeakResult> {
-    return this.speakService.synthesize(text);
-  }
-
   async startRealtimeSpeechSession(request: SpriteRealtimeSpeechSessionRequest, onEvent?: (event: SpriteRealtimeSpeechEvent) => void): Promise<SpriteRealtimeSpeechSession> {
     return this.speakService.startRealtimeSession(request, onEvent);
-  }
-
-  isRealtimeSpeechEnabled(request: SpriteRealtimeSpeechAvailabilityRequest): boolean {
-    return this.speakService.isRealtimeSpeechEnabled(request);
   }
 
   async appendRealtimeSpeechText(sessionId: string, text: string): Promise<void> {
@@ -1364,11 +1277,6 @@ export class SpriteManager {
   /** 更新语音合成配置 */
   setSpeakConfig(partial: Partial<SpriteSpeakConfig>): SpriteSpeakConfig {
     return this.speakService.setConfig(partial);
-  }
-
-  /** 重置语音合成配置 */
-  resetSpeakConfig(): SpriteSpeakConfig {
-    return this.speakService.resetConfig();
   }
 
   /** 获取语音缓存统计 */
@@ -1786,16 +1694,6 @@ export class SpriteManager {
     return nextMode;
   }
 
-  /** 预览窗口移动效果（临时应用尺寸和移动配置） */
-  previewMovement(config: SpriteMovementPreviewConfig): void {
-    this.movementCoordinator.previewMovement(config);
-  }
-
-  /** 停止移动预览 */
-  stopMovementPreview(): void {
-    this.movementCoordinator.stopMovementPreview();
-  }
-
   /** 获取初始全量状态 */
   getInitialState(): SpriteInitialState {
     return {
@@ -1938,7 +1836,7 @@ export class SpriteManager {
     if (!this._welcomeSent) {
       this._welcomeSent = true;
       setTimeout(() => {
-        this.trigger('welcome', { ambientContext: 'welcome' });
+        this.trigger('welcome');
       }, 500);
     }
   }
@@ -2068,33 +1966,10 @@ export class SpriteManager {
     return this.purposeManager.start(request);
   }
 
-  /** 取消当前或指定目的。 */
-  cancelPurpose(purposeId?: string, reason?: string): Promise<boolean> {
-    return this.purposeManager.cancel(purposeId, reason);
-  }
-
-  /** 获取当前目的与 routine 快照。 */
-  getPurposeSnapshot(): SpritePurposeSnapshot {
-    return this.purposeManager.getSnapshot();
-  }
-
-  setSuppressAmbientMessagesHandler(handler?: SpriteManagerOptions['shouldSuppressAmbientMessages']): void {
-    this.shouldSuppressAmbientMessages = handler;
-  }
-
-  getSuppressAmbientMessagesHandler(): SpriteManagerOptions['shouldSuppressAmbientMessages'] | undefined {
-    return this.shouldSuppressAmbientMessages;
-  }
-
   /** 上报供 Routine 等待的 purpose event。 */
   emitPurposeEvent(input: SpritePurposeRuntimeEventInput): { matched: number } {
     const matched = this.purposeEventWaiter.emit(input);
     return { matched };
-  }
-
-  /** 查询 Purpose/Routine 历史记录。 */
-  listPurposeHistory(query?: SpritePurposeHistoryQuery): Promise<SpritePurposeHistoryEntry[]> {
-    return this.purposeHistory.list(query);
   }
 
   /** 生成指定日期的 Purpose/Routine 复盘摘要。 */
@@ -2123,10 +1998,6 @@ export class SpriteManager {
   /** 注入 WindowController 实例 */
   setWindowController(controller: any): void {
     this.windowController = controller;
-  }
-
-  setMovementAvoidRegions(regions: WindowControllerAvoidRegion[]): void {
-    this.windowController?.setAvoidRegions?.(regions);
   }
 
   /** 统一 behavior movement 入口 */
@@ -2290,7 +2161,7 @@ export class SpriteManager {
 
   /** 根据当前状态解析并发送动画指令到渲染进程 */
   private resolveAndSendAnimation(state: SpriteState, subState: SpriteReactionState | null, options?: SpriteTriggerOptions): void {
-    const trigger = mapStateToEventType(state, subState);
+    const trigger = mapStateToTrigger(state, subState);
     const playlistMode = this.resolveAnimationPlaylistMode(trigger);
     const candidates = this.animationRegistry.findCandidatesByTrigger({
       trigger,
@@ -2885,14 +2756,5 @@ export class SpriteManager {
       createdAt: now,
       updatedAt: now
     };
-  }
-
-  private shouldSuppressAmbientMessage(context?: SpriteAmbientMessageContext): boolean {
-    if (!context) return false;
-    try {
-      return this.shouldSuppressAmbientMessages?.(context) === true;
-    } catch {
-      return false;
-    }
   }
 }

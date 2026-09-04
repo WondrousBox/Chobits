@@ -114,11 +114,11 @@ describe('SkillRegistry', () => {
 
     expect(issues).toEqual([]);
 
-    const cardPush = entries.find((entry) => entry.record.name === '卡片推送');
-    expect(cardPush?.record).toMatchObject({
-      activationToolIds: ['push-card'],
-      allowedToolIds: ['push-card'],
-      aliases: ['给我看看', '推送卡片', '推荐', '分享链接'],
+    const webSearch = entries.find((entry) => entry.record.name === '网络搜索与网页读取');
+    expect(webSearch?.record).toMatchObject({
+      activationToolIds: ['web-search', 'web-read'],
+      allowedToolIds: ['web-search', 'web-read'],
+      aliases: ['搜索', '查一下', '搜一下', '最新', '新闻', '网页', '总结一下这个链接', 'search', 'web'],
       source: 'synthetic-toolbox',
       userInvocable: true
     });

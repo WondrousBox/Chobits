@@ -1,3 +1,4 @@
+import type { ASRResultPayload } from '@packages/sherpa/ipc-renderer';
 import { ScrollArea } from '@radix-ui/react-scroll-area';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { TbLoader2, TbMicrophone, TbPlayerStop, TbSettings } from 'react-icons/tb';
@@ -48,7 +49,7 @@ const ASRTestPage: React.FC = () => {
         if (payload?.model) setModel(payload.model);
 
         const status = await window.chobits.sherpa.getStatus();
-        if (mounted) setIsEngineReady(status.running);
+        if (mounted) setIsEngineReady(!!(status.ok && status.running));
       } catch (error) {
         console.error('[ASR测试] 初始化失败:', error);
         if (mounted) setIsEngineReady(false);
@@ -85,23 +86,22 @@ const ASRTestPage: React.FC = () => {
 
   // 监听 ASR 识别结果（主进程广播到所有窗口）
   useEffect(() => {
-    const handleASRMessage = (_event: any, d: { type: string; data: any }): void => {
-      if (d.type !== 'sherpa:message') return;
+    const handleASRResult = (data: ASRResultPayload): void => {
       if (!isTestingRef.current) return;
-      const data = d.data;
-      if (!data?.text) return;
+      const text = data?.text;
+      if (!text) return;
 
       if (data.isEndpoint) {
-        setResults((prev) => [...prev, data.text]);
+        setResults((prev) => [...prev, text]);
         setPartialText('');
       } else {
-        setPartialText(data.text);
+        setPartialText(text);
       }
     };
 
-    window.chobits.handleMessage(handleASRMessage, 'sherpa:message');
+    const unsubscribe = window.chobits.sherpa.onASRResult(handleASRResult);
     return () => {
-      window.chobits.removeMessageHandler('sherpa:message');
+      unsubscribe();
     };
   }, []);
 

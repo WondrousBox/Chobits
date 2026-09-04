@@ -181,7 +181,7 @@ const PluginPage: React.FC = () => {
       }
     })();
 
-    const listener = (_: any, info: any): void => {
+    const listener = (info: any): void => {
       if (!info || !info.id) return;
 
       setInstalled((prev) => {
@@ -224,10 +224,10 @@ const PluginPage: React.FC = () => {
         return next;
       });
     };
-    window.ipcRenderer.on('plugin-resource:progress', listener);
+    const unsubscribeProgress = window.chobits.pluginResource.onProgress(listener);
     return () => {
       mounted = false;
-      window.ipcRenderer.off('plugin-resource:progress', listener);
+      unsubscribeProgress();
     };
   }, []);
 

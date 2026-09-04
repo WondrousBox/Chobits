@@ -32,13 +32,13 @@ function DraggableTitle({ title, icon, center, actions, shouldShowBack = false, 
       window.chobits.window['window:capabilities:get']().then((c) => {
         if (mounted) setWindowCapabilities(c);
       });
-      const listener = (_: any, state: boolean): void => {
+      const listener = (state: boolean): void => {
         if (mounted) setIsMaximized(state);
       };
-      window.ipcRenderer.on('window-maximize-changed', listener);
+      const unsubscribe = window.chobits.window.onMaximizeChanged(listener);
       return () => {
         mounted = false;
-        window.ipcRenderer.off('window-maximize-changed', listener);
+        unsubscribe();
       };
     }
     return () => {

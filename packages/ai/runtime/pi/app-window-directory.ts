@@ -26,7 +26,7 @@ export interface AppWindowSummary {
   title: string;
 }
 
-const SETTINGS_CATEGORIES = new Set(['preferences', 'workspace', 'ai', 'user-profile', 'prompt', 'glossary', 'selected-text-learning', 'plugins', 'shortcuts', 'proxy']);
+const SETTINGS_CATEGORIES = new Set(['preferences', 'ai', 'prompt', 'features', 'plugins', 'shortcuts', 'proxy']);
 const CHAT_AGENT_IDS = new Set(['assistant', 'chat', 'coder', 'assistant-skills']);
 const CJK_SEARCH_TERMS = ['设置', '打开', '聊天', '助手', '插件', '窗口', '动画'].sort((a, b) => b.length - a.length);
 
@@ -88,19 +88,6 @@ function sanitizeAiProviderConfigPayload(payload: unknown): Payload | undefined 
   return emptyToUndefined(next);
 }
 
-function sanitizeAsrPayload(payload: unknown): Payload | undefined {
-  if (!isRecord(payload)) return undefined;
-  const next: Payload = {};
-  const mode = readString(payload, 'mode', { maxLength: 16 });
-  if (mode === 'local' || mode === 'cloud') next.mode = mode;
-  const audioSource = readString(payload, 'audioSource', { maxLength: 32 });
-  if (audioSource === 'microphone' || audioSource === 'system-audio') next.audioSource = audioSource;
-  pickString(payload, next, 'cloudProviderId', { maxLength: 120 });
-  pickString(payload, next, 'cloudProviderPresetId', { maxLength: 160 });
-  pickString(payload, next, 'cloudModelId', { maxLength: 160 });
-  return emptyToUndefined(next);
-}
-
 function sanitizeChatPayload(payload: unknown): Payload | undefined {
   if (!isRecord(payload)) return undefined;
   const next: Payload = {};
@@ -131,10 +118,10 @@ export const APP_WINDOW_TOOL_DIRECTORY: AppWindowToolEntry[] = [
   {
     key: 'settings',
     title: '设置',
-    description: '打开应用设置页，可跳转到偏好、工作空间、AI、用户画像、提示词、术语、划词学习、插件、快捷键、代理等分类。',
-    aliases: ['设置', '偏好设置', 'AI 设置', '划词学习设置', '插件设置', '快捷键', '代理设置', 'settings'],
+    description: '打开应用设置页，可跳转到偏好、AI、提示词、功能、插件、快捷键、代理等分类。',
+    aliases: ['设置', '偏好设置', 'AI 设置', '插件设置', '快捷键', '代理设置', 'settings'],
     payloadFields: [
-      { name: 'category', type: 'preferences | workspace | ai | user-profile | prompt | glossary | selected-text-learning | plugins | shortcuts | proxy', description: '设置分类' },
+      { name: 'category', type: 'preferences | ai | prompt | features | plugins | shortcuts | proxy', description: '设置分类' },
       { name: 'tab', type: 'provider', description: '打开 AI 设置时切到提供商配置入口' },
       { name: 'aiProviderId', type: 'string', description: '打开 AI 设置时聚焦的提供商 ID' },
       { name: 'aiPresetId', type: 'string', description: '打开 AI 设置时展开的提供商预设 ID' }
@@ -182,20 +169,6 @@ export const APP_WINDOW_TOOL_DIRECTORY: AppWindowToolEntry[] = [
     title: '语音识别配置',
     description: '打开 ASR 配置窗口。',
     aliases: ['语音识别配置', 'ASR 设置', 'asr config']
-  },
-  {
-    key: 'asr',
-    title: '语音识别',
-    description: '打开语音识别/录音窗口。',
-    aliases: ['语音识别', '录音', '转写', 'asr'],
-    payloadFields: [
-      { name: 'mode', type: 'local | cloud', description: '识别模式' },
-      { name: 'audioSource', type: 'microphone | system-audio', description: '音频来源' },
-      { name: 'cloudProviderId', type: 'string', description: '云端提供商 ID' },
-      { name: 'cloudProviderPresetId', type: 'string', description: '云端预设 ID' },
-      { name: 'cloudModelId', type: 'string', description: '云端模型 ID' }
-    ],
-    sanitizePayload: sanitizeAsrPayload
   },
   {
     key: 'ttsConfig',

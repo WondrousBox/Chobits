@@ -11,7 +11,7 @@ const GUIDE_COOLDOWN_MS = 30_000;
 const lastGuideStartedAtByKey = new Map<string, number>();
 const inflightEnsures = new Map<string, Promise<GuideGoalEnsureResult>>();
 
-export type GuideGoalTrigger = 'sprite-double-click' | 'sprite-menu-chat' | 'sprite-window-open' | 'chat-window-open' | 'chat-window-focus' | 'chat-send' | 'sidebar-open' | 'sidebar-send';
+export type GuideGoalTrigger = 'sprite-double-click' | 'sprite-menu-chat' | 'sprite-window-open' | 'chat-window-open' | 'chat-window-focus' | 'chat-send';
 
 export interface GuideGoalEnsureOptions {
   goal: SpriteRoutineGuideGoalDefinition;
@@ -27,7 +27,7 @@ export interface GuideGoalEvaluationResult {
   providerId?: string;
   presetId?: string;
   achievementId?: string;
-  reason?: 'achieved' | 'missing-provider' | 'missing-api' | 'missing-workspace' | 'missing-achievement' | 'unsupported-goal' | 'check-failed';
+  reason?: 'achieved' | 'missing-provider' | 'missing-api' | 'missing-achievement' | 'unsupported-goal' | 'check-failed';
 }
 
 export interface GuideGoalEnsureResult {

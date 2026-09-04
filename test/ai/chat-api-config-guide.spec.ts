@@ -8,15 +8,12 @@ function installGuideHarness(options: { providers?: any[]; presets?: any[]; usab
   listPresets: ReturnType<typeof vi.fn>;
   resolveUsablePreset: ReturnType<typeof vi.fn>;
   startPurpose: ReturnType<typeof vi.fn>;
-  startQuest: ReturnType<typeof vi.fn>;
-  listWorkspaces: ReturnType<typeof vi.fn>;
   getCharacterState: ReturnType<typeof vi.fn>;
 } {
   const env = installMiniDom();
   const getProviders = vi.fn(async () => options.providers ?? []);
   const listPresets = vi.fn(async () => options.presets ?? []);
   const resolveUsablePreset = vi.fn(async () => options.usablePreset ?? null);
-  const listWorkspaces = vi.fn(async () => []);
   const startPurpose = vi.fn(async (request: any) => ({
     accepted: true,
     status: 'started',
@@ -31,7 +28,6 @@ function installGuideHarness(options: { providers?: any[]; presets?: any[]; usab
       interruptPolicy: request.interruptPolicy
     }
   }));
-  const startQuest = vi.fn(async () => ({ ok: true, startResult: { accepted: true, status: 'started' } }));
   const getCharacterState = vi.fn(async () => ({ ok: true, characterState: { achievements: [] } }));
 
   (env.window as any).chobits = {
@@ -39,12 +35,6 @@ function installGuideHarness(options: { providers?: any[]; presets?: any[]; usab
       getProviders,
       listPresets,
       resolveUsablePreset
-    },
-    workspace: {
-      'workspace:list': listWorkspaces
-    },
-    quest: {
-      'quest:start': startQuest
     },
     character: {
       getState: getCharacterState
@@ -54,7 +44,7 @@ function installGuideHarness(options: { providers?: any[]; presets?: any[]; usab
     }
   };
 
-  return { env, getProviders, listPresets, resolveUsablePreset, startPurpose, startQuest, listWorkspaces, getCharacterState };
+  return { env, getProviders, listPresets, resolveUsablePreset, startPurpose, getCharacterState };
 }
 
 describe('guideChatApiConfigIfNeeded', () => {
@@ -181,11 +171,10 @@ describe('guideChatApiConfigIfNeeded', () => {
     resetGuideGoalStateForTest();
 
     const goal = createAchievementUnlockedGuideGoal({ achievementId: 'first-import' });
-    const result = await ensureGuideGoal({ goal, trigger: 'sidebar-open', forceGuide: true });
+    const result = await ensureGuideGoal({ goal, trigger: 'chat-window-open', forceGuide: true });
 
     expect(result).toMatchObject({ achieved: true, guided: false, blocked: false, achievementId: 'first-import', reason: 'achieved' });
     expect(harness.getCharacterState).toHaveBeenCalledTimes(1);
-    expect(harness.startQuest).not.toHaveBeenCalled();
     expect(harness.startPurpose).not.toHaveBeenCalled();
     harness.env.cleanup();
   });

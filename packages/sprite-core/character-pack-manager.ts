@@ -2063,10 +2063,6 @@ export class CharacterPackManager {
     };
   }
 
-  async resolveActivePackRootDir(): Promise<string | null> {
-    return (await this.getActivePack())?.rootDir ?? null;
-  }
-
   getImportPreviewCacheRootDir(): string {
     return this.importPreviewCacheDir;
   }
@@ -2366,10 +2362,6 @@ export async function getCharacterPackEditorDraft(packId: string, options?: { so
 
 export async function saveCharacterPackEditorDraft(draft: CharacterPackEditorDraft, options?: CharacterPackEditorSaveOptions): Promise<CharacterPackEditorSaveResult> {
   return getManager().saveEditorDraft(draft, options);
-}
-
-export async function getActiveCharacterPackRootDir(): Promise<string | null> {
-  return getManager().resolveActivePackRootDir();
 }
 
 export function getCharacterPackImportPreviewCacheRootDir(): string {

@@ -6,7 +6,7 @@ type PurposeHistoryGroup = {
 };
 
 const TERMINAL_PURPOSE_EVENTS = new Set<SpritePurposeHistoryEntry['eventType']>(['purpose:completed', 'purpose:cancelled', 'purpose:failed', 'purpose:superseded']);
-const MEMORY_KIND_HINTS = ['file.', 'workflow.', 'resource.', 'daily.', 'ai.'];
+const MEMORY_KIND_HINTS = ['daily.', 'ai.'];
 
 function clamp01(value: number): number {
   return Math.max(0, Math.min(1, Number(value.toFixed(2))));

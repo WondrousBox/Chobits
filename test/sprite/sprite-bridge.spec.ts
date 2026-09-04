@@ -40,43 +40,20 @@ vi.mock('electron', () => ({
 }));
 
 import { spriteBridge } from '../../packages/sprite-core/preload/sprite-bridge';
-import { MESSAGE_IPC_CHANNELS } from '../../packages/sprite-core/types';
 
 describe('sprite preload bridge', () => {
   afterEach(() => {
     electronHarness.reset();
   });
 
-  it('forwards previewMovement and trigger payloads through ipcRenderer.invoke', async () => {
-    const previewConfig = {
-      width: 320,
-      height: 240,
-      padding: 24,
-      movement: {
-        enabled: true,
-        mode: 'direction' as const,
-        direction: 'left' as const,
-        speed: 64
-      }
-    };
-
-    await spriteBridge.previewMovement(previewConfig);
+  it('forwards trigger payloads through ipcRenderer.invoke', async () => {
     await spriteBridge.trigger('celebrate', { durationMs: 1500, silent: true });
 
-    expect(electronHarness.invoke).toHaveBeenNthCalledWith(1, 'sprite:preview-movement', previewConfig);
-    expect(electronHarness.invoke).toHaveBeenNthCalledWith(2, 'sprite:trigger', {
+    expect(electronHarness.invoke).toHaveBeenCalledTimes(1);
+    expect(electronHarness.invoke).toHaveBeenNthCalledWith(1, 'sprite:trigger', {
       trigger: 'celebrate',
       durationMs: 1500,
       silent: true
-    });
-  });
-
-  it('forwards listByTrigger queries through the trigger-named IPC contract', async () => {
-    await spriteBridge.listByTrigger('celebrate');
-
-    expect(electronHarness.invoke).toHaveBeenCalledTimes(1);
-    expect(electronHarness.invoke).toHaveBeenNthCalledWith(1, 'sprite:list-by-trigger', {
-      trigger: 'celebrate'
     });
   });
 
@@ -110,15 +87,6 @@ describe('sprite preload bridge', () => {
     });
   });
 
-  it('forwards movement avoid regions through the movement IPC contract', async () => {
-    const regions = [{ x: 720, y: 0, width: 560, height: 720 }];
-
-    await spriteBridge.setMovementAvoidRegions(regions);
-
-    expect(electronHarness.invoke).toHaveBeenCalledTimes(1);
-    expect(electronHarness.invoke).toHaveBeenNthCalledWith(1, 'sprite:movement:set-avoid-regions', { regions });
-  });
-
   it('forwards animation playlist mode config calls', async () => {
     await spriteBridge.getAnimationPlaylistMode();
     await spriteBridge.setAnimationPlaylistMode('list-loop');
@@ -142,14 +110,13 @@ describe('sprite preload bridge', () => {
     });
   });
 
-  it('forwards purpose events and history queries', async () => {
+  it('forwards purpose events and retrospective queries', async () => {
     await spriteBridge.emitPurposeEvent({
       source: 'purpose-event',
       event: 'fileAction:selected',
       correlationId: 'drop-1',
       payload: { actionId: 'summarize' }
     });
-    await spriteBridge.listPurposeHistory({ kind: 'file.drop.intake', limit: 20 });
     await spriteBridge.getPurposeDailyRetrospective({ date: '2026-05-03', limit: 5 });
 
     expect(electronHarness.invoke).toHaveBeenNthCalledWith(1, 'sprite:purpose:event', {
@@ -158,27 +125,10 @@ describe('sprite preload bridge', () => {
       correlationId: 'drop-1',
       payload: { actionId: 'summarize' }
     });
-    expect(electronHarness.invoke).toHaveBeenNthCalledWith(2, 'sprite:purpose:list-history', {
-      kind: 'file.drop.intake',
-      limit: 20
-    });
-    expect(electronHarness.invoke).toHaveBeenNthCalledWith(3, 'sprite:purpose:get-daily-retrospective', {
+    expect(electronHarness.invoke).toHaveBeenNthCalledWith(2, 'sprite:purpose:get-daily-retrospective', {
       date: '2026-05-03',
       limit: 5
     });
-  });
-
-  it('forwards purpose planner preferences and status IPC calls', async () => {
-    await spriteBridge.getPurposePlannerPreferences();
-    await spriteBridge.updatePurposePlannerPreferences({ enabled: true, historyLimit: 12 });
-    await spriteBridge.getPurposePlannerStatus();
-
-    expect(electronHarness.invoke).toHaveBeenNthCalledWith(1, 'sprite:purpose-planner:get-preferences');
-    expect(electronHarness.invoke).toHaveBeenNthCalledWith(2, 'sprite:purpose-planner:update-preferences', {
-      enabled: true,
-      historyLimit: 12
-    });
-    expect(electronHarness.invoke).toHaveBeenNthCalledWith(3, 'sprite:purpose-planner:get-status');
   });
 
   it('subscribes to sprite:config and removes the same listener on cleanup', () => {
@@ -193,66 +143,5 @@ describe('sprite preload bridge', () => {
 
     cleanup();
     expect(electronHarness.off).toHaveBeenCalledWith('sprite:config', handler);
-  });
-
-  it('only relays sprite show bridge messages to onMessage subscribers', () => {
-    const callback = vi.fn();
-    const cleanup = spriteBridge.onMessage(callback);
-
-    electronHarness.emit(MESSAGE_IPC_CHANNELS.BRIDGE, {
-      kind: 'show',
-      source: 'app',
-      payload: { type: 'toast', content: 'ignore app source' }
-    });
-    electronHarness.emit(MESSAGE_IPC_CHANNELS.BRIDGE, {
-      kind: 'clear',
-      source: 'sprite',
-      payload: { type: 'toast' }
-    });
-    electronHarness.emit(MESSAGE_IPC_CHANNELS.BRIDGE, {
-      kind: 'show',
-      source: 'sprite',
-      payload: { type: 'toast', content: 'keep me' }
-    });
-
-    expect(callback).toHaveBeenCalledTimes(1);
-    expect(callback).toHaveBeenCalledWith({ type: 'toast', content: 'keep me' });
-
-    cleanup();
-  });
-
-  it('only clears busy subscribers for busy-like clear events', () => {
-    const callback = vi.fn();
-    const cleanup = spriteBridge.onBusyClear(callback);
-
-    electronHarness.emit(MESSAGE_IPC_CHANNELS.BRIDGE, {
-      kind: 'show',
-      source: 'sprite',
-      payload: { type: 'busy', content: 'loading' }
-    });
-    electronHarness.emit(MESSAGE_IPC_CHANNELS.BRIDGE, {
-      kind: 'clear',
-      source: 'app',
-      payload: { type: 'busy' }
-    });
-    electronHarness.emit(MESSAGE_IPC_CHANNELS.BRIDGE, {
-      kind: 'clear',
-      source: 'sprite',
-      payload: { type: 'toast' }
-    });
-    electronHarness.emit(MESSAGE_IPC_CHANNELS.BRIDGE, {
-      kind: 'clear',
-      source: 'sprite',
-      payload: { type: 'busy' }
-    });
-    electronHarness.emit(MESSAGE_IPC_CHANNELS.BRIDGE, {
-      kind: 'clear',
-      source: 'sprite',
-      payload: { type: 'all' }
-    });
-
-    expect(callback).toHaveBeenCalledTimes(2);
-
-    cleanup();
   });
 });

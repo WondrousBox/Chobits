@@ -14,14 +14,8 @@ const mockedAppEvent = vi.hoisted(
       SPRITE_DOWNLOAD_FAILED: 'SPRITE_DOWNLOAD_FAILED',
       SPRITE_PLUGIN_INSTALLED: 'SPRITE_PLUGIN_INSTALLED',
       SPRITE_PLUGIN_REMOVED: 'SPRITE_PLUGIN_REMOVED',
-      SPRITE_PLUGIN_UPDATE: 'SPRITE_PLUGIN_UPDATE',
       SPRITE_SYSTEM_READY: 'SPRITE_SYSTEM_READY',
-      SPRITE_SYSTEM_QUIT: 'SPRITE_SYSTEM_QUIT',
-      SPRITE_SYSTEM_FOCUS: 'SPRITE_SYSTEM_FOCUS',
-      SPRITE_SYSTEM_BLUR: 'SPRITE_SYSTEM_BLUR',
-      SPRITE_NETWORK_CONNECT: 'SPRITE_NETWORK_CONNECT',
-      SPRITE_NETWORK_DISCONNECT: 'SPRITE_NETWORK_DISCONNECT',
-      SPRITE_NETWORK_TIMEOUT: 'SPRITE_NETWORK_TIMEOUT'
+      SPRITE_SYSTEM_QUIT: 'SPRITE_SYSTEM_QUIT'
     }) as const
 );
 
@@ -82,8 +76,6 @@ function createManagerStub(): {
   playOnce: ReturnType<typeof vi.fn>;
   emitPurposeEvent: ReturnType<typeof vi.fn>;
   startPurpose: ReturnType<typeof vi.fn>;
-  getPurposeSnapshot: ReturnType<typeof vi.fn>;
-  isRealtimeSpeechEnabled: ReturnType<typeof vi.fn>;
 } {
   return {
     showToast: vi.fn(),
@@ -94,9 +86,7 @@ function createManagerStub(): {
     speak: vi.fn(async () => ({ ok: true })),
     playOnce: vi.fn(),
     emitPurposeEvent: vi.fn(() => ({ matched: 0 })),
-    startPurpose: vi.fn(async () => ({ accepted: true, status: 'started' })),
-    getPurposeSnapshot: vi.fn(() => ({ current: null, routine: null, queue: [] })),
-    isRealtimeSpeechEnabled: vi.fn(() => false)
+    startPurpose: vi.fn(async () => ({ accepted: true, status: 'started' }))
   };
 }
 
@@ -138,7 +128,6 @@ describe('sprite event listener', () => {
     const mgr = createManagerStub();
     // 「AI 说话」开启时实时朗读会读回复，状态 toast 静音避免重复；
     // 关闭时用户已明确静音聊天语音，状态 toast 同样不读
-    mgr.isRealtimeSpeechEnabled.mockReturnValue(false);
     const cleanup = initSpriteEventListener(mgr as any);
 
     eventHarness.emit(AppEvent.SPRITE_AI_START, {

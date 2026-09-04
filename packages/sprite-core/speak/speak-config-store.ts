@@ -93,8 +93,7 @@ function normalizeRealtimeSpeechConfig(raw: unknown): SpriteSpeakRealtimeSpeechC
       volume: typeof playback.volume === 'number' && Number.isFinite(playback.volume) ? Math.max(0, Math.min(1, playback.volume)) : undefined
     },
     scopes: {
-      mainChat: typeof scopes.mainChat === 'boolean' ? scopes.mainChat : DEFAULT_REALTIME_SPEECH_CONFIG.scopes.mainChat,
-      resourceChatSidebar: typeof scopes.resourceChatSidebar === 'boolean' ? scopes.resourceChatSidebar : DEFAULT_REALTIME_SPEECH_CONFIG.scopes.resourceChatSidebar
+      mainChat: typeof scopes.mainChat === 'boolean' ? scopes.mainChat : DEFAULT_REALTIME_SPEECH_CONFIG.scopes.mainChat
     },
     shouldWriteFinalCache: typeof source.shouldWriteFinalCache === 'boolean' ? source.shouldWriteFinalCache : DEFAULT_REALTIME_SPEECH_CONFIG.shouldWriteFinalCache
   };

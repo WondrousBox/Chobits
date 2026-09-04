@@ -416,8 +416,7 @@ interface ToolResult<T = unknown> {
 ```typescript
 // packages/ai/runtime/pi/tools/index.ts
 export const PI_CUSTOM_TOOL_FACTORIES: Record<string, ToolFactory> = {
-  'query-resources': createResourceQueryTool,
-  'push-card': createPushCardTool
+  'web-search': createWebSearchTool
   // ...
 };
 ```
@@ -1526,8 +1525,6 @@ packages/ai/
 │   ├── pi-loop.ts                  # Pi 包装的 Agent 循环
 │   ├── pi-bridge.ts                # Pi ↔ ToolDefinition 桥接
 │   └── tools/                      # 自研格式的工具定义
-│       ├── resource-query.ts
-│       ├── push-card.ts
 │       ├── web-search.ts
 │       └── ...
 ├── runtime/pi/                     ← 现有：Pi runtime（保持不变）

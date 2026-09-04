@@ -28,7 +28,7 @@ const SpriteMenuPage: React.FC = () => {
   const checkASRStatus = useCallback(async () => {
     try {
       const status = await window.chobits.sherpa.getStatus();
-      setIsASRRunning(status.running);
+      setIsASRRunning(!!(status.ok && status.running));
     } catch (error) {
       console.error('查询 ASR 状态失败:', error);
       setIsASRRunning(false);
@@ -66,19 +66,6 @@ const SpriteMenuPage: React.FC = () => {
     [checkBubbleMode]
   );
 
-  const emitSpriteMenuItemSelected = useCallback((itemId: string, windowKey?: string, payload?: Record<string, unknown>) => {
-    void window.chobits.sprite.emitPurposeEvent({
-      source: 'app-event',
-      event: 'SPRITE_MENU_ITEM_SELECTED',
-      payload: {
-        itemId,
-        windowKey,
-        source: 'sprite-context-menu',
-        ...payload
-      }
-    });
-  }, []);
-
   const toggleDebugOverlay = useCallback(async () => {
     const next = !isDebugOverlayEnabled;
     setIsDebugOverlayEnabled(next);
@@ -99,7 +86,7 @@ const SpriteMenuPage: React.FC = () => {
         label: '退出',
         icon: '❌',
         shortcut: 'q',
-        action: () => window.ipcRenderer?.send('window:command', { type: 'quit-app' })
+        action: () => window.chobits.window['window:command:send']({ type: 'quit-app' })
       },
       {
         id: 'status',
@@ -124,15 +111,14 @@ const SpriteMenuPage: React.FC = () => {
             action: async () => {
               if (isASRRunning) {
                 // 服务已运行：直接打开测试窗口
-                const savedConfig = await window.chobits.sherpa.getASRConfig();
-                emitSpriteMenuItemSelected('asr-test', 'asrTest');
+                const configResult = await window.chobits.sherpa.getASRConfig();
+                const savedConfig = configResult.ok ? configResult.config : undefined;
                 window.chobits.window['window:open']('asrTest' as any, {
                   model: savedConfig?.local?.model,
                   language: savedConfig?.local?.language
                 });
               } else {
                 // 服务未运行：先打开配置页选择模型并启动（启动成功后会自动进入测试窗口）
-                emitSpriteMenuItemSelected('asr-test', 'asrConfig', { action: 'start' });
                 window.chobits.window['window:open']('asrConfig');
               }
             }
@@ -143,7 +129,6 @@ const SpriteMenuPage: React.FC = () => {
             icon: '🔊',
             shortcut: 'v',
             action: () => {
-              emitSpriteMenuItemSelected('tts-config', 'ttsConfig');
               window.chobits.window['window:open']('ttsConfig');
             }
           }
@@ -164,18 +149,10 @@ const SpriteMenuPage: React.FC = () => {
             if (!guide.configured) {
               return;
             }
-            emitSpriteMenuItemSelected('chat', 'chat');
             window.chobits.window['window:open']('chat');
           })();
         }
       },
-      // {
-      //   id: 'recycle',
-      //   label: '回收站',
-      //   icon: '🗑️',
-      //   shortcut: 'b',
-      //   action: () => window.chobits.window['window:open']('recycle')
-      // },
       {
         id: 'debug-test',
         label: '调试测试',
@@ -207,7 +184,7 @@ const SpriteMenuPage: React.FC = () => {
         }
       }
     ],
-    [bubbleMode, isDebugOverlayEnabled, emitSpriteMenuItemSelected, isASRRunning, isEnabled, setSpriteBubbleMode, toggleDebugOverlay]
+    [bubbleMode, isDebugOverlayEnabled, isASRRunning, isEnabled, setSpriteBubbleMode, toggleDebugOverlay]
   );
 
   // 处理菜单关闭请求（播放退出动画后关闭窗口）
@@ -230,7 +207,7 @@ const SpriteMenuPage: React.FC = () => {
 
   // 监听窗口可见性变化事件
   useEffect(() => {
-    const handleVisibilityChange = (_event: any, data: { visible: boolean; key: string }): void => {
+    const handleVisibilityChange = (data: { visible: boolean; key: string }): void => {
       // 只处理当前窗口 (menu) 的事件
       if (data.key !== 'menu') return;
 
@@ -249,10 +226,7 @@ const SpriteMenuPage: React.FC = () => {
       // 关闭动画通过 onClose 回调触发
     };
 
-    window.ipcRenderer?.on('window:visibility-changed', handleVisibilityChange);
-    return () => {
-      window.ipcRenderer?.off('window:visibility-changed', handleVisibilityChange);
-    };
+    return window.chobits.window.onVisibilityChanged(handleVisibilityChange);
   }, [checkASRStatus, checkBubbleMode, checkDebugOverlay]);
 
   useEffect(() => {

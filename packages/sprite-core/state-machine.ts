@@ -28,9 +28,6 @@ export type SpriteState =
 /** 精灵反应子状态（reacting 的细分，仅保留真实 runtime reaction） */
 export type SpriteReactionState = 'click' | 'hold' | 'sleepy' | 'custom';
 
-/** @deprecated 向后兼容别名，新代码请优先使用 SpriteReactionState。 */
-export type SpriteSubState = SpriteReactionState;
-
 /** 状态转换配置 */
 export interface StateTransition {
   from: SpriteState | SpriteState[] | '*';

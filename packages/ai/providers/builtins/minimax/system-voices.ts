@@ -13,8 +13,6 @@ export interface MiniMaxSystemVoiceGroup {
   voices: MiniMaxSystemVoice[];
 }
 
-export const MINIMAX_SYSTEM_VOICE_SOURCE_URL = 'https://platform.minimaxi.com/docs/faq/system-voice-id';
-
 export const MINIMAX_SYSTEM_VOICES = [
   { value: 'male-qn-qingse', label: '青涩青年音色', lang: '中文 (普通话)' },
   { value: 'male-qn-jingying', label: '精英青年音色', lang: '中文 (普通话)' },

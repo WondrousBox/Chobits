@@ -172,7 +172,7 @@ describe('resolvePiRequest', () => {
       executionMode: 'session',
       supportsToolCalls: true,
       instructions: 'assistant profile',
-      defaultToolIds: ['query-resources', 'push-card']
+      defaultToolIds: ['skill-search', 'web-search']
     });
     isPiRuntimeRequestedMock.mockReturnValue(false);
 
@@ -191,8 +191,8 @@ describe('resolvePiRequest', () => {
         content: 'hi'
       }
     ]);
-    expect(resolved.enabledToolIds).toEqual(['query-resources', 'push-card']);
-    expect(normalizePiToolIdsMock).toHaveBeenCalledWith(['query-resources', 'push-card']);
+    expect(resolved.enabledToolIds).toEqual(['skill-search', 'web-search']);
+    expect(normalizePiToolIdsMock).toHaveBeenCalledWith(['skill-search', 'web-search']);
     expect(resolved.model.modelId).toBe('gpt-default');
     expect(resolved.model.source).toBe('provider');
   });

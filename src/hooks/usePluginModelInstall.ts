@@ -38,7 +38,7 @@ export function usePluginModelInstall(
   useEffect(() => {
     if (!resourceId) return undefined;
 
-    const listener = (_: any, info: any): void => {
+    const listener = (info: any): void => {
       if (!info || info.resourceId !== resourceId) return;
       if (info.id) recordIdRef.current = info.id;
 
@@ -63,10 +63,7 @@ export function usePluginModelInstall(
       }
     };
 
-    window.ipcRenderer.on('plugin-resource:progress', listener);
-    return () => {
-      window.ipcRenderer.off('plugin-resource:progress', listener);
-    };
+    return window.chobits.pluginResource.onProgress(listener);
   }, [resourceId]);
 
   const install = useCallback(async (): Promise<void> => {

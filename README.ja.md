@@ -37,7 +37,7 @@
   - AI Provider TTS：MiniMax `speechSynthesis` による合成とリアルタイム PCM ストリーミング読み上げに対応（AI の返信を生成しながら再生）。
   - 長押し話しかけ：マイクボタンを押している間話し、離すと自動で認識・送信。キャンセルボタンへスライドするとキャンセルできます。
   - 録音・文字起こし（ASR）：ローカルの sherpa-onnx によるオフライン認識、またはクラウド transcribe。
-  - リアルタイム字幕と翻訳。
+  - リアルタイム音声認識と翻訳（ASR シーンで翻訳先の言語を設定可能）。
 
 - **キャラクターパック編集**
   - キャラクターパックマネージャー / エディター（CharacterPackManager / CharacterPackEditor）、キャラクターギャラリー（CharacterGallery）を内蔵。
@@ -68,7 +68,7 @@
 
 ```bash
 # 1. クローン
-git clone <your-repo-url> && cd Chobits
+git clone <your-repo-url> && cd Chobits-Chi-Mascot
 
 # 2. 依存関係のインストール（postinstall で Electron 用ネイティブモジュールを自動リビルド）
 pnpm install

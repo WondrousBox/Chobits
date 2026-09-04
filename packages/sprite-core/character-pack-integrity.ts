@@ -150,16 +150,3 @@ export async function calculateCharacterPackPayloadDigest(rootDir: string): Prom
 
   return hash.digest('hex');
 }
-
-export async function verifyCharacterPackDigest(rootDir: string, signature: CharacterPackSignature | undefined): Promise<CharacterPackDigestVerification> {
-  try {
-    const actual = await calculateCharacterPackPayloadDigest(rootDir);
-    return assessCharacterPackDigest(signature, {
-      actualDigest: actual
-    });
-  } catch (error) {
-    return assessCharacterPackDigest(signature, {
-      error
-    });
-  }
-}

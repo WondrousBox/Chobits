@@ -1,9 +1,8 @@
-import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 
 import type { CharacterProfile } from '@packages/common/types/status';
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, ipcMain } from 'electron';
 
 import pkg from '../../../package.json';
 import { getCharacterInfo, getCharacterPackDefinition } from '../../../packages/sprite-core/character-service';
@@ -57,10 +56,6 @@ function applyCurrentCharacterInfo(profile: CharacterProfile): CharacterProfile 
   };
 }
 
-function ensureDirSync(dir: string): void {
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-}
-
 async function readJson<T>(file: string, fallback: T): Promise<T> {
   try {
     const raw = await fsp.readFile(file, 'utf-8');
@@ -70,27 +65,13 @@ async function readJson<T>(file: string, fallback: T): Promise<T> {
   }
 }
 
-async function writeJson(file: string, data: any): Promise<void> {
-  ensureDirSync(path.dirname(file));
-  await fsp.writeFile(file, JSON.stringify(data, null, 2), 'utf-8');
-}
-
 export async function getStoredCharacterProfile(): Promise<CharacterProfile> {
   return applyCurrentCharacterInfo(await readJson<CharacterProfile>(CHARACTER_PROFILE_FILE, getDefaultCharacterProfile()));
 }
 
-export function initStatusHandlers(win: BrowserWindow): void {
-  void win;
-
-  ipcMain.handle('character:get-profile', async () => {
+export function initStatusHandlers(): void {
+  ipcMain.handle('sprite:character:get-profile', async () => {
     const profile = await getStoredCharacterProfile();
     return { ok: true, profile };
-  });
-
-  ipcMain.handle('character:update-profile', async (_event, payload: { patch: Partial<CharacterProfile> }) => {
-    const current = await readJson<CharacterProfile>(CHARACTER_PROFILE_FILE, getDefaultCharacterProfile());
-    const next = { ...current, ...payload?.patch };
-    await writeJson(CHARACTER_PROFILE_FILE, next);
-    return { ok: true, profile: applyCurrentCharacterInfo(next) };
   });
 }

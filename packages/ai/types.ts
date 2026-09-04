@@ -64,9 +64,8 @@ export type ChatRequestExtras = Record<string, any> & {
   codingWorkspaceRoot?: string;
   codingWorkspaceLabel?: string;
   codingMode?: 'safe';
-  workspaceId?: string;
   explicitSkillInvocation?: ExplicitSkillInvocationInput;
-  realtimeSpeechScope?: 'mainChat' | 'resourceChatSidebar';
+  realtimeSpeechScope?: 'mainChat';
   realtimeSpeech?: {
     enabled?: boolean;
     providerId?: string;
@@ -205,26 +204,12 @@ export type ImageGenerationRequest = ProviderScopedRequest & {
   sessionId?: string;
   extras?: Record<string, any>;
 };
-export type ImageEditRequest = ImageGenerationRequest & {
-  imagePaths: string[];
-  maskPath?: string;
-};
 export type GeneratedImageArtifact = {
   filePath?: string;
   imageUrl?: string;
   mimeType?: string;
   revisedPrompt?: string;
   sizeBytes?: number;
-};
-export type ImageGenerationResponse = {
-  imageUrl: string;
-  filePath?: string;
-  artifacts?: GeneratedImageArtifact[];
-  model?: string;
-  providerId?: string;
-  revisedPrompt?: string;
-  usage?: TokenUsage;
-  rawUsage?: unknown;
 };
 export type GeneratedAudioArtifact = {
   audioUrl?: string;
@@ -391,14 +376,6 @@ export type LyricsGenerationResponse = {
   rawUsage?: unknown;
   rawResponse?: unknown;
 };
-export type ActiveAITaskSnapshot = {
-  requestId: string;
-  providerId: string;
-  model: string;
-  startTime: number;
-  taskLabel?: string;
-  metadata?: Record<string, any>;
-};
 export type ProviderPresetOverrides = Record<string, any>;
 export type ProviderPresetCreatePayload = {
   providerId: string;
@@ -409,14 +386,6 @@ export type ProviderPresetCreatePayload = {
   config?: ProviderPresetOverrides;
   enabledTools?: string[];
 };
-export type ProviderPresetUpdatePatch = Partial<{
-  providerId: string;
-  name: string;
-  systemPrompt: string;
-  overrides: ProviderPresetOverrides;
-  config: ProviderPresetOverrides;
-  enabledTools: string[];
-}>;
 export type ProviderPresetRecord = {
   id: string;
   providerId: string;
@@ -432,7 +401,6 @@ export type ProviderPresetRecord = {
 export type ConversationRecord = {
   id: string;
   title?: string | null;
-  workspaceId?: string | null;
   agentId?: string | null;
   providerId?: string | null;
   providerPresetId?: string | null;
@@ -527,14 +495,6 @@ export interface ProviderAdapter {
 
 // Agent contracts are now represented by Pi profiles and provider adapters.
 
-export type StartStreamPayload = { requestId: string; eventsChannel: string } & ChatRequest;
-
-export type ToolInfo = {
-  id: string;
-  name: string;
-  description: string;
-};
-
 export type SkillInfo = {
   name: string;
   description: string;
@@ -548,57 +508,25 @@ export type SkillInfo = {
   trustLevel?: 'trusted' | 'workspace' | 'plugin' | 'compatibility';
 };
 
-// ==================== 卡片推送类型 ====================
-
-/** 卡片类型 */
-export type ChatCardType = 'resource' | 'video' | 'audio' | 'image' | 'document' | 'link' | 'file';
-
-/** 推送的卡片数据 */
-export interface PushedCard {
-  /** 卡片类型 */
-  type: ChatCardType;
-  /** 资源 ID（用于从数据库加载完整资源信息） */
-  resourceId?: string;
-  /** 内嵌的资源数据（用于临时卡片，无需从数据库加载） */
-  data?: Record<string, any> & { id: string };
-  /** 关联的会话 ID（可选，用于定向推送到特定会话） */
-  conversationId?: string;
-  /** 可选的文本说明 */
-  text?: string;
-  /** 时间戳 */
-  timestamp: number;
-}
-
 export type AIApi = {
   getProviders(): Promise<ProviderRecord[]>;
   getAgents(): Promise<any[]>;
-  listTools(): Promise<ToolInfo[]>;
   listSkills(payload?: { agentId?: string; workspaceRoot?: string }): Promise<SkillInfo[]>;
   listModels(providerId: string, presetId?: string): Promise<Array<{ id: string; label?: string; [k: string]: any }>>;
   getProviderSecrets(providerId: string): Promise<Record<string, string>>;
   setProviderSecrets(providerId: string, secrets: Record<string, string>): Promise<{ ok: boolean }>;
-  clearProviderSecrets(providerId: string): Promise<{ ok: boolean }>;
   // Multiple API Keys Management
   getProviderApiKeys(providerId: string, key: string): Promise<Array<{ name: string; value: string; isDefault?: boolean }>>;
-  setProviderApiKeys(providerId: string, key: string, keys: Array<{ name: string; value: string; isDefault?: boolean }>): Promise<{ ok: boolean }>;
-  addProviderApiKey(providerId: string, key: string, apiKey: { name: string; value: string }): Promise<{ ok: boolean }>;
-  updateProviderApiKey(providerId: string, key: string, apiKeyName: string, updates: Partial<{ name: string; value: string; isDefault?: boolean }>): Promise<{ ok: boolean }>;
-  removeProviderApiKey(providerId: string, key: string, apiKeyName: string): Promise<{ ok: boolean }>;
-  setDefaultProviderApiKey(providerId: string, key: string, apiKeyName: string): Promise<{ ok: boolean }>;
   clearAllSecrets(): Promise<{ ok: boolean }>;
   chat(payload: any): Promise<{ message: { role: string; content: string } }>;
-  // Stateless chat (no history persistence)
-  chatEphemeral(payload: ChatRequest): Promise<{ message: { role: string; content: string } }>;
   chatStream(payload: ChatRequest, onEvent: (ev: { type: string; data?: any }) => void): Promise<{ requestId: string; dispose: () => void; cancel: () => Promise<any> }>;
   transcribe(payload: TranscriptionRequest): Promise<TranscriptionResponse>;
   synthesizeSpeech(payload: SpeechSynthesisRequest): Promise<SpeechSynthesisResponse>;
   streamSpeechSynthesis(payload: SpeechSynthesisRequest, onEvent: (ev: SpeechSynthesisStreamEvent) => void): Promise<SpeechSynthesisStreamHandle>;
-  embed(payload: EmbeddingRequest): Promise<{ vectors: number[][]; dim: number }>;
   // Presets
   listPresets(providerId?: string): Promise<ProviderPresetRecord[]>;
   resolveUsablePreset(providerId: string, preferredPresetId?: string): Promise<ProviderPresetRecord | null>;
   createPreset(payload: ProviderPresetCreatePayload): Promise<ProviderPresetRecord>;
-  updatePreset(id: string, patch: ProviderPresetUpdatePatch): Promise<ProviderPresetRecord | undefined>;
   deletePreset(id: string): Promise<{ ok: boolean }>;
   getPresetSecrets(presetId: string): Promise<Record<string, string>>;
   setPresetSecrets(presetId: string, secrets: Record<string, string>): Promise<{ ok: boolean }>;
@@ -611,13 +539,9 @@ export type AIApi = {
   listConversations(payload?: { includeDeleted?: boolean; limit?: number; offset?: number }): Promise<ConversationRecord[]>;
   listMessages(conversationId: string, limit?: number, offset?: number): Promise<any[]>;
   renameConversation(id: string, title: string): Promise<{ ok: boolean; row?: ConversationRecord }>;
-  deleteConversation(id: string): Promise<{ ok: boolean }>;
-  restoreConversation(id: string): Promise<{ ok: boolean }>;
   hardDeleteConversation(id: string): Promise<{ ok: boolean }>;
   /** Subscribe to conversation title updates pushed from main process */
   onConversationTitleUpdated(callback: (data: { conversationId: string; title: string | null; status: 'generating' | 'done' | 'error' }) => void): () => void;
-  /** Subscribe to card push events from main process */
-  onCardPushed(callback: (card: PushedCard) => void): () => void;
   /** Send user's choice response back to main process (for ask-user tool) */
   sendUserChoiceResponse(response: UserChoiceResponse): Promise<{ ok: boolean; error?: string }>;
 };

@@ -28,15 +28,7 @@ describe('SettingsPage payload handling', () => {
       removeEventListener: vi.fn()
     }));
 
-    const ipcListeners = new Map<string, any>();
-    (env.window as any).ipcRenderer = {
-      on: vi.fn((event: string, listener: any) => {
-        ipcListeners.set(event, listener);
-      }),
-      off: vi.fn((event: string, listener: any) => {
-        if (ipcListeners.get(event) === listener) ipcListeners.delete(event);
-      })
-    };
+    let openReadyCallback: ((payload: any) => void) | undefined;
     (env.window as any).chobits = {
       ai: {
         getProviders: vi.fn(async () => [
@@ -47,7 +39,13 @@ describe('SettingsPage payload handling', () => {
         getPresetSecrets: vi.fn(async () => ({}))
       },
       window: {
-        'window:payload:get': vi.fn(async () => ({ category: 'preferences' }))
+        'window:payload:get': vi.fn(async () => ({ category: 'preferences' })),
+        onOpenReady: vi.fn((callback: (payload: any) => void) => {
+          openReadyCallback = callback;
+          return () => {
+            openReadyCallback = undefined;
+          };
+        })
       }
     };
 
@@ -61,7 +59,7 @@ describe('SettingsPage payload handling', () => {
     expect(env.container.textContent).toContain('偏好设置');
 
     await act(async () => {
-      ipcListeners.get('on:window:open:ready')?.(null, { category: 'ai', tab: 'provider', aiProviderId: 'openai', aiPresetId: 'preset-openai', fields: ['apiKey'] });
+      openReadyCallback?.({ category: 'ai', tab: 'provider', aiProviderId: 'openai', aiPresetId: 'preset-openai', fields: ['apiKey'] });
       await flushPromises();
     });
 

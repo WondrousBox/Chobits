@@ -4,9 +4,8 @@ import path from 'node:path';
 
 import type { ProxyAgent } from '@aim-packages/downloader';
 import { createDownloader } from '@aim-packages/downloader';
-import { windowManager } from '@aim-packages/window-manager';
 import { AppEvent, eventManager } from '@packages/event';
-import { BrowserWindow, ipcMain, net, screen } from 'electron';
+import { BrowserWindow, ipcMain, net } from 'electron';
 
 import { DownloadProgress, PluginResource, pluginResourceManager } from '.';
 import { PluginConfigStore } from './plugin-config-store';
@@ -102,69 +101,6 @@ export function initPluginResourceHandlers(win: BrowserWindow, options?: InitOpt
     return loadPluginDefinitions(getPluginDefinitionsPathFn());
   });
 
-  // 列出“已安装的引擎”资源
-  ipcMain.handle('plugin-resource:list-installed-engines', async () => {
-    if (!getPluginDefinitionsPathFn) {
-      throw new Error('Plugin definitions path not configured');
-    }
-    const definitions = await loadPluginDefinitions(getPluginDefinitionsPathFn());
-    const systemPresetEngines = definitions.filter((d) => d.type === 'engine' && isSystemPresetPlugin(d));
-
-    const all = PluginResourceStore.list();
-    const installedEngines = all.filter((r) => r.type === 'engine' && r.status === 'installed' && pluginResourceManager.isInstalled(r));
-    const installedIds = new Set(installedEngines.map((engine) => engine.id));
-    const hydratedEngines = definitions
-      .filter((definition) => definition.type === 'engine' && !isSystemPresetPlugin(definition))
-      .map((definition) => {
-        const platformInfo = getPluginForCurrentPlatform(definition);
-        return platformInfo ? hydrateResourceFromDefinition(definition, platformInfo) : null;
-      })
-      .filter((resource): resource is PluginResource => resource !== null && !installedIds.has(resource.id) && pluginResourceManager.isInstalled(resource))
-      .map((resource) => {
-        PluginResourceStore.upsert(resource);
-        return resource;
-      });
-
-    // 合并系统预设引擎和已安装的引擎
-    return [
-      ...systemPresetEngines.map((d) => ({
-        id: `${d.pluginId}_${d.type}_${d.id}_${d.version}`,
-        pluginId: d.pluginId,
-        resourceId: d.id,
-        type: d.type,
-        name: d.name,
-        displayName: d.displayName,
-        version: d.version,
-        binaryName: d.binaryName,
-        archiveType: d.archiveType,
-        status: 'installed' as const
-      })),
-      ...installedEngines,
-      ...hydratedEngines
-    ];
-  });
-
-  // 列出“支持的模型”，仅针对已安装的引擎
-  ipcMain.handle('plugin-resource:list-supported-models', async () => {
-    if (!getPluginDefinitionsPathFn) {
-      throw new Error('Plugin definitions path not configured');
-    }
-    const definitions = await loadPluginDefinitions(getPluginDefinitionsPathFn());
-
-    // 获取系统预设引擎
-    const systemPresetEngines = definitions.filter((d) => d.type === 'engine' && isSystemPresetPlugin(d));
-    const systemPresetPluginIds = new Set(systemPresetEngines.map((e) => e.pluginId));
-
-    // 获取已安装的引擎
-    const installedEngines = PluginResourceStore.list().filter((r) => r.type === 'engine' && r.status === 'installed' && pluginResourceManager.isInstalled(r));
-    const installedPluginIds = new Set(installedEngines.map((e) => e.pluginId));
-
-    // 合并系统预设和已安装的插件ID
-    const allPluginIds = new Set([...systemPresetPluginIds, ...installedPluginIds]);
-
-    return definitions.filter((d) => d.type === 'model' && allPluginIds.has(d.pluginId));
-  });
-
   // 列出所有资源
   ipcMain.handle('plugin-resource:list', async (_event, payload?: { pluginId?: string; type?: 'engine' | 'model' }) => {
     let definitions: PluginDefinition[] = [];
@@ -245,7 +181,7 @@ export function initPluginResourceHandlers(win: BrowserWindow, options?: InitOpt
   });
 
   // 安装资源（Engine或模型）
-  ipcMain.handle('plugin-resource:install', async (event, payload: { pluginId: string; resourceId: string; deleteAfterInstall?: boolean }) => {
+  ipcMain.handle('plugin-resource:install', async (_event, payload: { pluginId: string; resourceId: string; deleteAfterInstall?: boolean }) => {
     const requestKey = `${payload.pluginId}:${payload.resourceId}`;
     const pending = pendingInstallRequests.get(requestKey);
     if (pending) {
@@ -332,19 +268,6 @@ export function initPluginResourceHandlers(win: BrowserWindow, options?: InitOpt
       const proxyAgent = getHttpProxyFn ? getHttpProxyFn() : undefined;
       const queuedResource = pluginResourceManager.enqueue(resource, payload.deleteAfterInstall ?? false, { proxyAgent });
 
-      // 自动打开插件下载窗口
-      try {
-        const requester = BrowserWindow.fromWebContents(event.sender);
-        const display = requester ? screen.getDisplayMatching(requester.getBounds()) : null;
-        if (display) {
-          await windowManager.createOrShowOnDisplay('pluginDownload', display);
-        } else {
-          await windowManager.createOrShow('pluginDownload');
-        }
-      } catch (error) {
-        console.warn('[pluginResource] open download window failed', error);
-      }
-
       const resourceLabel = queuedResource.displayName || queuedResource.name || queuedResource.id;
       eventManager.emit(AppEvent.SPRITE_DOWNLOAD_START, {
         name: queuedResource.name || queuedResource.id,
@@ -368,44 +291,6 @@ export function initPluginResourceHandlers(win: BrowserWindow, options?: InitOpt
   ipcMain.handle('plugin-resource:cancel', async (_event, payload: { id: string }) => {
     pluginResourceManager.cancel(payload.id);
     return { ok: true };
-  });
-
-  // 检查资源是否已安装
-  ipcMain.handle('plugin-resource:is-installed', async (_event, payload: { id: string }) => {
-    // 先检查是否是系统预设插件
-    if (getPluginDefinitionsPathFn) {
-      const definitions = await loadPluginDefinitions(getPluginDefinitionsPathFn());
-      // 从 id 中提取信息：格式为 pluginId_type_id_version[_sha256]
-      const parts = payload.id.split('_');
-      if (parts.length >= 4) {
-        const pluginId = parts[0];
-        const type = parts[1] as 'engine' | 'model';
-        const resourceId = parts.slice(2, -1).join('_'); // 处理 id 中可能包含下划线的情况
-        const pluginDef = definitions.find((p) => p.pluginId === pluginId && p.id === resourceId && p.type === type);
-        if (pluginDef && isSystemPresetPlugin(pluginDef)) {
-          return { ok: true, installed: true };
-        }
-      }
-    }
-
-    const resource = PluginResourceStore.get(payload.id);
-    if (!resource) {
-      return { ok: false, error: 'Resource not found' };
-    }
-    const installed = pluginResourceManager.isInstalled(resource);
-    return { ok: true, installed };
-  });
-
-  // 获取Engine路径
-  ipcMain.handle('plugin-resource:get-engine-path', async (_event, payload: { pluginId: string; binaryName: string }) => {
-    const enginePath = pluginResourceManager.getEnginePath(payload.pluginId, payload.binaryName);
-    return { ok: true, path: enginePath };
-  });
-
-  // 获取模型路径
-  ipcMain.handle('plugin-resource:get-model-path', async (_event, payload: { pluginId: string; modelName: string }) => {
-    const modelPath = pluginResourceManager.getModelPath(payload.pluginId, payload.modelName);
-    return { ok: true, path: modelPath };
   });
 
   // 删除资源。默认只移除记录；deleteFiles=true 时同时删除受管理的安装文件。
@@ -441,12 +326,6 @@ export function initPluginResourceHandlers(win: BrowserWindow, options?: InitOpt
   ipcMain.handle('plugin-resource:get-download-dir', async () => {
     const downloadDir = pluginResourceManager.getDownloadDir();
     return { ok: true, path: downloadDir };
-  });
-
-  // 设置下载目录
-  ipcMain.handle('plugin-resource:set-download-dir', async (_event, payload: { dir: string }) => {
-    pluginResourceManager.setDownloadDir(payload.dir);
-    return { ok: true };
   });
 
   // 获取插件目录
@@ -512,18 +391,6 @@ export function initPluginResourceHandlers(win: BrowserWindow, options?: InitOpt
       pluginResourceManager.setPluginsDir(newDir);
       return { ok: true };
     }
-  });
-
-  // 获取并发数
-  ipcMain.handle('plugin-resource:get-concurrency', async () => {
-    const config = PluginConfigStore.getConfig();
-    return { ok: true, concurrency: config.concurrency ?? 2 };
-  });
-
-  // 设置并发数
-  ipcMain.handle('plugin-resource:set-concurrency', async (_event, payload: { concurrency: number }) => {
-    pluginResourceManager.setConcurrency(payload.concurrency);
-    return { ok: true };
   });
 
   // 获取插件下载配置

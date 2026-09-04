@@ -7,8 +7,6 @@ import { getProvider } from '../../registry';
 import type {
   ChatRequest,
   ChatResponse,
-  EmbeddingRequest,
-  EmbeddingResponse,
   SpeechSynthesisRequest,
   SpeechSynthesisResponse,
   SpeechSynthesisStreamEvent,
@@ -103,26 +101,6 @@ export class PiExecutionService {
     }
 
     return completedText || accumulatedText;
-  }
-
-  async embed(payload: EmbeddingRequest): Promise<EmbeddingResponse> {
-    const providerPresetId = resolveProviderPresetId(payload);
-    const resolved = await this.resolveProviderCapability(payload.providerId || 'openai', providerPresetId);
-
-    if (!supportsProviderCapability(resolved.provider.id, 'embeddings', resolved.provider) || !resolved.provider.embed) {
-      throw new Error(`Provider ${resolved.provider.id} has no embeddings`);
-    }
-
-    const request = {
-      ...normalizeProviderPreset(payload),
-      providerId: resolved.provider.id,
-      extras: {
-        ...(payload.extras || {}),
-        secrets: resolved.model.secrets
-      }
-    };
-
-    return resolved.provider.embed(request);
   }
 
   async transcribe(payload: TranscriptionRequest): Promise<TranscriptionResponse> {
@@ -263,8 +241,4 @@ export class PiExecutionService {
       provider
     };
   }
-}
-
-export function createPiExecutionRequest(req: ChatRequest): ChatRequest {
-  return forcePiRuntimeRequest(req);
 }

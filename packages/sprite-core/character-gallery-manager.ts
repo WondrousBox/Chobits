@@ -6,7 +6,6 @@ import path from 'node:path';
 import {
   type CharacterGalleryAIEditContext,
   type CharacterGalleryAIEditDraft,
-  type CharacterGalleryCanvasLayout,
   type CharacterGalleryImageRef,
   type CharacterGalleryIndex,
   type CharacterGalleryItem,
@@ -16,7 +15,6 @@ import {
   getCharacterGalleryImageMimeFromPath,
   isSupportedCharacterGalleryImagePath,
   MAX_CHARACTER_GALLERY_AI_EDIT_REFERENCES,
-  normalizeCharacterGalleryCanvasLayout,
   normalizeCharacterGalleryIndex,
   normalizeCharacterGalleryItemDraft,
   normalizeCharacterGalleryItemId,
@@ -57,13 +55,6 @@ export interface CharacterGalleryRemoveResult {
   ok: boolean;
 }
 
-export interface CharacterGalleryCanvasLayoutResult {
-  layout: CharacterGalleryCanvasLayout;
-  ok: true;
-  path: string;
-  isWritable: boolean;
-}
-
 export interface CharacterGalleryReplaceImageOptions {
   filePath: string;
   origin?: CharacterGalleryItemPatch['origin'];
@@ -91,10 +82,6 @@ function toForwardSlashPath(value: string): string {
   return value.split(path.sep).join('/');
 }
 
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
 function getPackGalleryIndexPath(pack: { rootDir: string; assets?: { gallery?: string } }): string {
   const declared = typeof pack.assets?.gallery === 'string' ? pack.assets.gallery : DEFAULT_CHARACTER_GALLERY_INDEX_PATH;
   const resolved = resolvePackRelativeAssetPath(pack.rootDir, declared);
@@ -110,10 +97,6 @@ function getGalleryFilesDir(indexPath: string): string {
 
 function getGalleryThumbsDir(indexPath: string): string {
   return path.join(path.dirname(indexPath), 'thumbs');
-}
-
-function getGalleryCanvasPath(indexPath: string): string {
-  return path.join(path.dirname(indexPath), 'canvas.json');
 }
 
 function isGalleryManagedFile(indexPath: string, filePath: string): boolean {
@@ -206,25 +189,6 @@ function serializeIndexForPack(rootDir: string, index: CharacterGalleryIndex): C
 async function writeIndex(indexPath: string, rootDir: string, index: CharacterGalleryIndex): Promise<void> {
   await fsp.mkdir(path.dirname(indexPath), { recursive: true });
   await fsp.writeFile(indexPath, `${JSON.stringify(serializeIndexForPack(rootDir, index), null, 2)}\n`, 'utf-8');
-}
-
-async function readCanvasLayout(canvasPath: string): Promise<CharacterGalleryCanvasLayout> {
-  try {
-    return normalizeCharacterGalleryCanvasLayout(JSON.parse(await fsp.readFile(canvasPath, 'utf-8')));
-  } catch {
-    return { version: 1, nodes: [] };
-  }
-}
-
-async function writeCanvasLayout(canvasPath: string, layout: CharacterGalleryCanvasLayout): Promise<CharacterGalleryCanvasLayout> {
-  const normalized = normalizeCharacterGalleryCanvasLayout(layout);
-  const next: CharacterGalleryCanvasLayout = {
-    ...normalized,
-    updatedAt: new Date().toISOString()
-  };
-  await fsp.mkdir(path.dirname(canvasPath), { recursive: true });
-  await fsp.writeFile(canvasPath, `${JSON.stringify(next, null, 2)}\n`, 'utf-8');
-  return next;
 }
 
 async function sha256File(filePath: string): Promise<string> {
@@ -439,38 +403,6 @@ export async function listCharacterGalleryItems(options?: { packId?: string; sou
     },
     indexPath,
     items: query ? index.items.filter((item) => itemMatchesQuery(item, query)) : index.items
-  };
-}
-
-export async function getCharacterGalleryCanvasLayout(options?: { packId?: string; source?: CharacterPackSource }): Promise<CharacterGalleryCanvasLayoutResult | null> {
-  const pack = await getTargetPack(options);
-  if (!pack) return null;
-  const indexPath = getPackGalleryIndexPath(pack);
-  const canvasPath = getGalleryCanvasPath(indexPath);
-  const layout = await readCanvasLayout(canvasPath);
-  return {
-    ok: true,
-    path: canvasPath,
-    isWritable: pack.source === 'installed',
-    layout
-  };
-}
-
-export async function saveCharacterGalleryCanvasLayout(
-  layout: CharacterGalleryCanvasLayout,
-  options?: { packId?: string; source?: CharacterPackSource }
-): Promise<CharacterGalleryCanvasLayoutResult | null> {
-  const pack = await getTargetPack(options);
-  if (!pack) return null;
-  ensureWritablePack(pack);
-  const indexPath = getPackGalleryIndexPath(pack);
-  const canvasPath = getGalleryCanvasPath(indexPath);
-  const next = await writeCanvasLayout(canvasPath, layout);
-  return {
-    ok: true,
-    path: canvasPath,
-    isWritable: true,
-    layout: next
   };
 }
 
@@ -720,8 +652,4 @@ export async function buildCharacterGalleryAIEditContext(draft: CharacterGallery
     },
     referencesSummary
   };
-}
-
-export function hasCharacterGalleryDeclaration(value: unknown): boolean {
-  return isPlainObject(value) && isPlainObject(value.assets) && typeof value.assets.gallery === 'string' && value.assets.gallery.trim().length > 0;
 }

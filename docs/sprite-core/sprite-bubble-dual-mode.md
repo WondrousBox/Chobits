@@ -169,7 +169,7 @@ const effectivePadding = isBubbleWindowMode(bubbleMode) ? 0 : padding;
 
 ## 注意事项
 
-- **TTS 不受影响**：`speak()` 在主进程内一次调用 `speakService.speak()`，语音合成通过 `sprite:speak` 单播到主窗口，气泡窗口的 `MessageProvider` 不触发 TTS
+- **TTS 不受影响**：`speak()` 在主进程内一次调用 `speakService.speak()`，语音合成通过 `sprite:speak-started` 单播到主窗口，气泡窗口的 `MessageProvider` 不触发 TTS
 - **焦点抢夺**：气泡窗口配置 `focusable: false` + `preferShowInactive: true`，show 时走 `showInactive` 路径
 - **空消息闪烁**：`SpriteBubblePage` 中隐藏延迟 220ms 大于淡出动画时长，避免消息队列快速切换时的闪烁
 - **调试 overlay**：`PaddingDebugOverlay` 仅在 inline 模式渲染，独立窗口模式下无 padding 区域可参考

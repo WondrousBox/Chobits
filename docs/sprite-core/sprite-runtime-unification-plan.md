@@ -2,6 +2,7 @@
 
 > **日期**: 2026-04-08 → 2026-04-24
 > **状态**: 主线收口已完成，本轮收尾冻结；剩余项仅作为后续 Backlog 记录
+> **更正**: 文中 `PersonaSnapshot` 现已统一更名为 `CharacterSnapshot`（见 `packages/sprite-core/types.ts`），正文保留历史表述，不再逐段改写。
 
 ---
 

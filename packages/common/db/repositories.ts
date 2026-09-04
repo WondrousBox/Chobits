@@ -1,116 +1,9 @@
 import { randomUUID } from 'node:crypto';
 
-import { and, desc, eq, gt, inArray, isNotNull, isNull } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNull } from 'drizzle-orm';
 
 import { getDB, getOrm } from '.';
-import { chat_messages, type ChatMessageRow, type ConversationRow, conversations, type NewChatMessage, type NewConversation, type NewWorkspace, type WorkspaceRow, workspaces } from './schema';
-
-function omitId<T extends { id?: any }>(obj: T): Omit<T, 'id'> {
-  const { id, ...rest } = obj || ({} as any);
-  return rest as any;
-}
-
-/**
- * 工作空间表操作空间
- */
-export const WorkspacesRepo = {
-  /** 新增或更新工作空间 */
-  async upsert(ws: NewWorkspace): Promise<WorkspaceRow | undefined> {
-    const db = getOrm();
-    const rows = await db
-      .insert(workspaces)
-      .values(ws as any)
-      .onConflictDoUpdate({ target: workspaces.id, set: omitId(ws as any) })
-      .returning()
-      .all();
-    return rows[0];
-  },
-  /** 按ID获取 */
-  async getById(id: string): Promise<WorkspaceRow | undefined> {
-    const db = getOrm();
-    const rows = await db.select().from(workspaces).where(eq(workspaces.id, id)).limit(1);
-    return rows[0];
-  },
-  /** 获取默认工作空间 */
-  async getDefault(): Promise<WorkspaceRow | undefined> {
-    const db = getOrm();
-    const rows = await db
-      .select()
-      .from(workspaces)
-      .where(and(eq(workspaces.isDefault as any, 1), isNull(workspaces.deletedAt)) as any)
-      .limit(1);
-    return rows[0];
-  },
-  /** 设置默认空间（应用层确保唯一） */
-  async setDefault(id: string): Promise<WorkspaceRow | undefined> {
-    const db = getOrm();
-    const now = Date.now();
-    // Drizzle (better-sqlite3) transactions must be synchronous. The callback
-    // cannot be async or return a Promise, otherwise you'll see:
-    // "Transaction function cannot return a promise".
-    (db as any).transaction((tx: any) => {
-      // 1) 清除旧默认（只更新当前为默认的行，避免全表无谓写放大）
-      tx.update(workspaces)
-        .set({ isDefault: 0 as any, updatedAt: now })
-        .where(eq(workspaces.isDefault as any, 1))
-        .run?.();
-      // 2) 设定新默认
-      tx.update(workspaces)
-        .set({ isDefault: 1 as any, updatedAt: now })
-        .where(eq(workspaces.id, id))
-        .run?.();
-    });
-    const rows = await db.select().from(workspaces).where(eq(workspaces.id, id)).limit(1);
-    return rows[0];
-  },
-  /** 列表（支持按软删过滤） */
-  async list(filter: Partial<WorkspaceRow> = {}, limit = 100, offset = 0): Promise<WorkspaceRow[]> {
-    const db = getOrm();
-    let query = db.select().from(workspaces);
-    const wheres: any[] = [];
-    if ((filter as any).status) wheres.push(eq(workspaces.status as any, (filter as any).status));
-    if ((filter as any).deletedAt === 0) wheres.push(isNull(workspaces.deletedAt));
-    if ((filter as any).deletedAt === 1) wheres.push(isNotNull(workspaces.deletedAt));
-    if (wheres.length) query = query.where(and(...wheres));
-    return query.limit(limit).offset(offset);
-  },
-  async count(filter: Partial<WorkspaceRow> = {}): Promise<number> {
-    const db = getOrm();
-    let query = db.select({ count: workspaces.id }).from(workspaces);
-    const wheres: any[] = [];
-    if ((filter as any).status) wheres.push(eq(workspaces.status as any, (filter as any).status));
-    if ((filter as any).deletedAt === 0) wheres.push(isNull(workspaces.deletedAt));
-    if ((filter as any).deletedAt === 1) wheres.push(isNotNull(workspaces.deletedAt));
-    if (wheres.length) query = query.where(and(...wheres));
-    const rows = await query;
-    return rows[0]?.count ?? 0;
-  },
-  /** 更新 */
-  async update(id: string, patch: Partial<NewWorkspace>): Promise<WorkspaceRow | undefined> {
-    const db = getOrm();
-    await db
-      .update(workspaces)
-      .set({ ...patch, updatedAt: Date.now() } as any)
-      .where(eq(workspaces.id, id))
-      .run();
-    const rows = await db.select().from(workspaces).where(eq(workspaces.id, id)).limit(1);
-    return rows[0];
-  },
-  /** 软删 */
-  async softDelete(ids: string[]): Promise<WorkspaceRow[]> {
-    if (!ids.length) return [];
-    const db = getOrm();
-    await db.update(workspaces).set({ deletedAt: Date.now() }).where(inArray(workspaces.id, ids)).run();
-    return await db.select().from(workspaces).where(inArray(workspaces.id, ids));
-  },
-  /** 物理删除 */
-  async deleteByIds(ids: string[]): Promise<number> {
-    if (!ids.length) return 0;
-    const db = getOrm();
-    const res = await db.delete(workspaces).where(inArray(workspaces.id, ids)).run();
-    return (res as any).changes ?? 0;
-  }
-};
+import { chat_messages, type ChatMessageRow, type ConversationRow, conversations, type NewChatMessage, type NewConversation } from './schema';
 
 /**
  * 会话与消息表操作空间
@@ -132,13 +25,6 @@ export const ChatRepo = {
         if (payload.providerId && (existing.providerId !== payload.providerId || existing.providerPresetId !== (payload.providerPresetId ?? null))) {
           patch.providerId = payload.providerId;
           patch.providerPresetId = payload.providerPresetId ?? null;
-        }
-
-        // 对已有旧会话做 workspace 回填，避免后续记忆链路退回默认 workspace。
-        if (!existing.workspaceId && payload.workspaceId) {
-          patch.workspaceId = payload.workspaceId;
-        } else if (existing.workspaceId && payload.workspaceId && existing.workspaceId !== payload.workspaceId) {
-          console.warn(`[ChatRepo] ensureConversation workspace mismatch: existing=${existing.workspaceId}, requested=${payload.workspaceId}, conversation=${id}`);
         }
 
         // 仅当旧会话还没有标题时，回填首条用户消息生成的占位标题。
@@ -163,7 +49,6 @@ export const ChatRepo = {
     const now = Date.now();
     const values: any = {
       title: payload.title ?? null,
-      workspaceId: payload.workspaceId ?? null,
       agentId: payload.agentId ?? null,
       providerId: payload.providerId ?? null,
       providerPresetId: payload.providerPresetId ?? null,
@@ -308,31 +193,6 @@ export const ChatRepo = {
     await db
       .update(conversations)
       .set({ title, updatedAt: now } as any)
-      .where(eq(conversations.id, id))
-      .run();
-    const rows = await db.select().from(conversations).where(eq(conversations.id, id)).limit(1);
-    return rows[0];
-  },
-
-  async softDeleteConversation(id: string): Promise<ConversationRow | undefined> {
-    const db = getOrm();
-    const now = Date.now();
-    await db
-      .update(conversations)
-      .set({ deletedAt: now, updatedAt: now } as any)
-      .where(eq(conversations.id, id))
-      .run();
-    const rows = await db.select().from(conversations).where(eq(conversations.id, id)).limit(1);
-    return rows[0];
-  },
-
-  /** 恢复会话（清空 deletedAt） */
-  async restoreConversation(id: string): Promise<ConversationRow | undefined> {
-    const db = getOrm();
-    const now = Date.now();
-    await db
-      .update(conversations)
-      .set({ deletedAt: null, updatedAt: now } as any)
       .where(eq(conversations.id, id))
       .run();
     const rows = await db.select().from(conversations).where(eq(conversations.id, id)).limit(1);

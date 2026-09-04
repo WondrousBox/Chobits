@@ -1,7 +1,7 @@
-import { ChatRepo, WorkspacesRepo } from '@packages/common/db/repositories';
+import { ChatRepo } from '@packages/common/db/repositories';
 
 import { getPreset } from '../../../../packages/ai/preset-service';
-import type { AgentLoopCompletePayload } from '../../../../packages/ai/services/memory-types';
+import type { AgentLoopCompletePayload } from '../../../../packages/ai/services/agent-loop-types';
 import { eventManager } from '../../../../packages/event';
 import { AppEvent } from '../../../../packages/event/events';
 import type { SpritePurposePlannerRuntimeContext } from './purpose-planner-runtime';
@@ -52,11 +52,9 @@ export class SpritePurposePlannerRuntimeContextTracker {
       return null;
     }
 
-    const workspaceId = chosenConversation?.workspaceId || (await WorkspacesRepo.getDefault())?.id || undefined;
     return {
       providerId,
-      ...(providerPresetId ? { providerPresetId } : {}),
-      ...(workspaceId ? { workspaceId } : {})
+      ...(providerPresetId ? { providerPresetId } : {})
     };
   }
 }

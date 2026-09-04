@@ -1,5 +1,5 @@
 /**
- * Types for AI Assistant — re-exported from @packages/sprite-core/types
+ * Types for sprite/character — re-exported from @packages/sprite-core/types
  * 保持向后兼容，所有类型定义已迁移至 packages/sprite-core/types.ts
  */
 export type {
@@ -55,9 +55,6 @@ export type {
   SpriteAnimationTrigger,
   SpriteAnimationTriggerMetadata,
   SpriteEventType,
-  SpriteFeedbackKind,
-  SpriteFeedbackRequest,
-  SpriteFeedbackResult,
   SpriteTriggerOptions
 } from '@packages/sprite-core/types';
 export {

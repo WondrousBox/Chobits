@@ -80,13 +80,6 @@ const DEFAULT_TOOL_METADATA: Record<string, ToolSeed> = {
     name: 'skillUseTool',
     status: 'ready-for-pi-runtime'
   },
-  'push-card': {
-    category: 'ui-side-effect',
-    description: '在聊天中推送资源卡片',
-    compatName: 'pushCardTool',
-    name: 'pushCardTool',
-    status: 'ready-for-pi-runtime'
-  },
   'toolbox-lookup': {
     category: 'meta',
     description: '万能工具箱：搜索技能、了解工具用法、执行工具',
@@ -111,12 +104,8 @@ const DEFAULT_TOOL_METADATA: Record<string, ToolSeed> = {
 };
 
 const TOOL_NAME_TO_ID = buildToolNameToIdMap();
-export const DEFAULT_SKILL_TOOL_IDS = ['skill-search', 'skill-use'];
 
 export const DEFAULT_CODER_TOOL_IDS = ['file-list', 'file-read', 'file-glob', 'file-grep', 'file-write', 'file-edit', 'shell-exec', 'ask-user'];
-
-/** All tools available to the assistant profile (registered into session registry) */
-export const DEFAULT_SESSION_TOOL_IDS = ['push-card', 'app-window', 'toolbox-lookup', 'web-search', 'web-read', 'ask-user', 'skill-search', 'skill-use'];
 
 /** Initially active tools for assistant profile (others activated on-demand via toolbox) */
 export const INITIAL_ACTIVE_SESSION_TOOL_IDS = ['toolbox-lookup', 'ask-user'];

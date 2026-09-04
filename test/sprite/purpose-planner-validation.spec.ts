@@ -583,7 +583,7 @@ describe('SpritePurposePlanner validation', () => {
     }));
 
     const executor = createSpritePurposePiPlannerExecutor({
-      context: { providerId: 'zai', providerPresetId: 'preset-1', workspaceId: 'workspace-1' },
+      context: { providerId: 'zai', providerPresetId: 'preset-1' },
       createRuntime,
       timeouts: { maxTimeoutMs: 1000 }
     });

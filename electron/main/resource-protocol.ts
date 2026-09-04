@@ -33,8 +33,6 @@ const MIME_MAP: Record<string, string> = {
 
 const allowedRoots: string[] = [];
 let isProtocolHandled = false;
-// Map workspaceId -> resources root directory
-const workspaceRoots: Record<string, string> = {};
 
 export function addAllowedResourceRoot(root: string): void {
   const real = path.resolve(root);
@@ -44,42 +42,14 @@ export function addAllowedResourceRoot(root: string): void {
   }
 }
 
-export function removeAllowedResourceRoot(root: string): void {
-  const real = path.resolve(root);
-  const index = allowedRoots.findIndex((item) => item === real);
-  if (index >= 0) {
-    allowedRoots.splice(index, 1);
-  }
-}
-
-export function addWorkspaceResourceRoot(workspaceId: string, root: string): void {
-  try {
-    const real = path.resolve(root);
-    workspaceRoots[workspaceId] = real;
-    addAllowedResourceRoot(real);
-  } catch {
-    //
-  }
-}
-
 function isPathAllowed(target: string): boolean {
   return allowedRoots.some((r) => target === r || target.startsWith(r + path.sep));
 }
 
-/** 校验目标路径是否位于任一已注册资源根之内(供 IPC 入口在注册临时根前校验,防止任意目录注册) */
-export function isPathWithinAllowedRoots(target: string): boolean {
-  try {
-    return isPathAllowed(path.resolve(target));
-  } catch {
-    return false;
-  }
-}
-
 // URL Patterns:
 // 1) Absolute path:  res://local/<encodeURIComponent(C:/path/to/file.ext with forward slashes)>
-// 2) Workspace rel:  res://ws/<workspaceId>/<encodeURIComponent(relative/path.ext)>
-// 3) (Future) Hash-based: res://id/<resourceId> (not implemented yet)
-// This handler resolves to a file inside allowed roots / workspace roots and returns as a Response.
+// 2) (Future) Hash-based: res://id/<resourceId> (not implemented yet)
+// This handler resolves to a file inside allowed roots and returns as a Response.
 
 export async function setupResourceProtocol(): Promise<void> {
   if (isProtocolHandled) return;
@@ -94,7 +64,7 @@ export async function setupResourceProtocol(): Promise<void> {
     await protocol.handle('res', async (request): Promise<Response> => {
       try {
         const url = new URL(request.url);
-        const host = url.hostname; // 'local' | 'ws' | etc
+        const host = url.hostname; // 'local'
         let pathname = url.pathname; // leading '/'
         if (pathname.startsWith('/')) pathname = pathname.slice(1);
         if (!pathname) return new Response('Empty path', { status: 400 });
@@ -111,16 +81,6 @@ export async function setupResourceProtocol(): Promise<void> {
             p = path.join(bundledResourceRoot, p);
           }
           abs = path.normalize(p);
-        } else if (host === 'ws') {
-          // workspace pattern: /<workspaceId>/<encodedRel>
-          const firstSlash = pathname.indexOf('/');
-          if (firstSlash === -1) return new Response('Bad workspace path', { status: 400 });
-          const wsId = pathname.slice(0, firstSlash);
-          const relEncoded = pathname.slice(firstSlash + 1);
-          const root = workspaceRoots[wsId];
-          if (!root) return new Response('Workspace not registered', { status: 404 });
-          const relForward = decodeURIComponent(relEncoded);
-          abs = path.normalize(path.join(root, relForward));
         } else {
           return new Response('Unsupported host', { status: 400 });
         }
@@ -200,7 +160,6 @@ export async function setupResourceProtocol(): Promise<void> {
 
 // Helper for renderer (documentation): build src for a given absolute path
 // function makeResSrc(absPath: string) => 'res://local/' + encodeURIComponent(absPath.replace(/\\/g,'/'))
-// function makeWorkspaceResSrc(workspaceId: string, rel: string) => 'res://ws/' + workspaceId + '/' + encodeURIComponent(rel.replace(/\\/g,'/'))
 
 function guessMimeType(ext: string): string | undefined {
   switch (ext) {

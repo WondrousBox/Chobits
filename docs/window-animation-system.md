@@ -129,13 +129,11 @@ Renderer IPC:
 
 - `window:animation:play(windowKey, timeline)`
 - `window:animation:stop(windowKey, { complete?: boolean })`
-- `window:animation:state(windowKey?)`
 
 Main-process API:
 
 - `windowManager.playWindowAnimation(windowKey, timeline)`
 - `windowManager.stopWindowAnimation(windowKey, options)`
-- `windowManager.getWindowAnimationState(windowKey?)`
 
 Playback is isolated from existing positioning features:
 
@@ -224,6 +222,8 @@ The design rule is:
 - manual/custom keyframes keep full size serialization in `Edit width/height` mode, but may intentionally omit `width/height` through the editor's `Keep original size` mode.
 
 ### Phase 1: Sparse Serialization in Chobits
+
+> Status: implemented. `createMainWindowAnimationPresetTimeline()` in `packages/common/window-animation-presets.ts` (re-exported via `src/lib/window-animation-presets.ts`) serializes sparse per-preset playback keyframes, and the settings page (`src/pages/ExtensionSettings/WindowAnimationSettings.tsx`) plays presets directly through it instead of opening the editor.
 
 Do not change `@aim-packages/window-manager` for this phase. The manager already preserves the original size when `width` and `height` are omitted.
 

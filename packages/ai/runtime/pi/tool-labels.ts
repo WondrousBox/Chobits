@@ -58,12 +58,6 @@ const DEFAULT_TOOL_LABELS: Record<string, ToolLabelDefinition> = {
       { when: { action: 'deactivate' }, calling: '停用工具', done: '工具已停用' }
     ]
   },
-  resourceQueryTool: {
-    default: { calling: '查询资源', done: '查询资源完成' }
-  },
-  pushCardTool: {
-    default: { calling: '推送卡片', done: '推送卡片完成' }
-  },
   askUserTool: {
     default: { calling: '等待用户选择', done: '用户已选择' }
   },
@@ -169,9 +163,4 @@ export function resolveToolLabel(toolName: string, args: Record<string, any> | u
 
   // 使用默认标签
   return renderTemplate(def.default[phase], safeArgs);
-}
-
-/** 获取所有默认标签定义（供文档或调试使用） */
-export function getDefaultToolLabels(): Readonly<Record<string, ToolLabelDefinition>> {
-  return DEFAULT_TOOL_LABELS;
 }

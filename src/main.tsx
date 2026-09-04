@@ -20,6 +20,6 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
 );
 
 // Notify main process that renderer is mounted and ready
-window.ipcRenderer.invoke('app:renderer-ready').catch(() => {});
+window.chobits.system['app:renderer-ready']().catch(() => {});
 
 postMessage({ payload: 'removeLoading' }, '*');

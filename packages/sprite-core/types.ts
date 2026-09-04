@@ -35,8 +35,6 @@ export type {
   MessageType,
   NoticeInput,
   NoticeMessage,
-  SpriteConfirmNoticeRequest,
-  SpriteConfirmNoticeResult,
   SpriteMessageData,
   ToastInput,
   ToastMessage
@@ -51,7 +49,7 @@ export const SpriteEventGroups = {
   interaction: ['idle', 'hover', 'click', 'focus', 'input', 'scroll', 'drag', 'selection'],
   feedback: ['success', 'failure', 'error', 'warning', 'info', 'celebrate', 'tip', 'recommend'],
   status: ['loading', 'processing', 'waiting', 'timeout', 'retry'],
-  workflow: ['confirmation', 'cancellation', 'task', 'update', 'install', 'remove', 'configure', 'settings'],
+  workflow: ['confirmation', 'cancellation', 'task', 'update', 'install', 'remove', 'settings'],
   network: ['connect', 'disconnect', 'sync', 'upload', 'download'],
   assist: ['question', 'answer', 'search', 'navigation', 'message', 'alert', 'reminder'],
   system: ['system', 'welcome', 'event', 'profile'],
@@ -193,29 +191,9 @@ export interface SpriteTriggerOptions {
   shouldIgnorePresentationLock?: boolean;
 }
 
-export interface SpriteListByTriggerRequest {
-  trigger?: SpriteAnimationTrigger;
-}
-
 export interface SpriteTriggerRequest extends SpriteTriggerOptions {
   trigger?: SpriteAnimationTrigger;
 }
-
-export type SpriteFeedbackKind = 'quest-record' | 'purpose-link' | 'memory-record' | (string & {});
-
-export interface SpriteFeedbackRequest {
-  trigger?: SpriteAnimationTrigger;
-  kind?: SpriteFeedbackKind;
-  silent?: boolean;
-  durationMs?: number;
-  message?: string;
-  ctx?: Record<string, unknown>;
-}
-
-export type SpriteFeedbackResult =
-  | { ok: true; played: true; ownerPurposeId?: string }
-  | { ok: true; played: false; reason: 'missing-animation' | 'blocked-by-lock' | 'no-renderer' }
-  | { ok: false; played: false; reason: 'invalid-request'; error: string };
 
 export type { CharacterSnapshot };
 export type {
@@ -393,17 +371,8 @@ export interface SpriteMovementConfig {
   windowAnimationPlayPosition?: SpriteWindowAnimationPlayPosition;
 }
 
-/** movement preview 请求体 */
-export interface SpriteMovementPreviewConfig {
-  width: number;
-  height: number;
-  padding: number;
-  movement: SpriteMovementConfig;
-}
-
 // ============================================================================
-// 精灵动画定义
-// ============================================================================
+// 精灵动画定义// ============================================================================
 
 export interface SpriteAnimation {
   width?: number;
@@ -510,52 +479,6 @@ export function normalizeSpriteAnimationMetaPatch<T extends SpriteAnimationMetaI
       : {})
   } as Omit<T, 'eventType'> & Partial<SpriteAnimationMeta>;
 }
-
-// ============================================================================
-// 特效桥接类型
-// ============================================================================
-
-export interface SpriteEffectSurface {
-  width?: number;
-  height?: number;
-}
-
-export interface SpriteEffectPayload {
-  id?: string;
-  type: string;
-  variant?: string;
-  amount?: number;
-  title?: string;
-  content?: string;
-  duration?: number;
-  surface?: SpriteEffectSurface;
-  data?: Record<string, unknown>;
-}
-
-export interface SpriteEffectClearPayload {
-  id?: string;
-  type?: string | 'all';
-}
-
-export type SpriteEffectBridgeSource = 'app' | 'sprite';
-
-export type SpriteEffectBridgePayload =
-  | {
-      kind: 'show';
-      payload: SpriteEffectPayload;
-      source: SpriteEffectBridgeSource;
-    }
-  | {
-      kind: 'clear';
-      payload: SpriteEffectClearPayload;
-      source: SpriteEffectBridgeSource;
-    };
-
-export const SPRITE_EFFECT_IPC_CHANNELS = {
-  BRIDGE: 'sprite:effect:bridge',
-  SHOW: 'sprite:effect:show',
-  CLEAR: 'sprite:effect:clear'
-} as const;
 
 export interface MessageQueueState {
   current: SpriteMessageData | null;

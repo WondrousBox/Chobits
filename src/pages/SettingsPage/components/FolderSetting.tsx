@@ -99,15 +99,11 @@ function FolderSetting(): JSX.Element {
 
   // 监听移动进度事件
   useEffect(() => {
-    const handleMoveProgress = (_event: any, progress: MoveProgress): void => {
+    const handleMoveProgress = (progress: MoveProgress): void => {
       setMoveProgress(progress);
     };
 
-    window.ipcRenderer.on('plugin-resource:move-progress', handleMoveProgress);
-
-    return () => {
-      window.ipcRenderer.off('plugin-resource:move-progress', handleMoveProgress);
-    };
+    return window.chobits.pluginResource.onMoveProgress(handleMoveProgress);
   }, []);
 
   const openDatabaseLocation = async (): Promise<void> => {

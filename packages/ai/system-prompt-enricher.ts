@@ -52,11 +52,6 @@ export function registerSystemPromptEnricher(enricher: SystemPromptEnricher): vo
   enrichers.set(enricher.id, enricher);
 }
 
-/** Unregister a system prompt enricher by id. */
-export function unregisterSystemPromptEnricher(id: string): void {
-  enrichers.delete(id);
-}
-
 /**
  * Resolve all registered enrichers and return their non-empty prompt segments.
  * Enrichers are resolved in parallel for reduced latency.

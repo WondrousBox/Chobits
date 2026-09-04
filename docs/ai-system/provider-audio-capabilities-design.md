@@ -510,7 +510,7 @@ Pi agent 工具（**mini 分支注记**：已随 Pi 工具/execution 层移除�
 
 `packages/tts` 和 `packages/sprite-core/speak` 不需要被重写。它们应从“合成引擎实现者”逐步变成“业务编排层”：
 
-- `packages/tts`：字幕批量合成、缓存、去静音、时间轴写回、重试。（mini 分支：该包现仅剩 Edge 引擎与 `common`/`types`/`tts-player`，字幕批量合成相关能力已移除）
+- `packages/tts`：字幕批量合成、缓存、去静音、时间轴写回、重试。（mini 分支：该包现仅剩 Edge 引擎与 `common`/`types`/`index`，字幕批量合成相关能力已移除）
 - `packages/sprite-core/speak`：精灵说话缓存、播放控制、talk 动画触发、气泡展示。
 - AI Provider TTS：底层合成引擎，由 `speechSynthesis` capability 提供。
 

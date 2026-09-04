@@ -1,6 +1,6 @@
 # Sprite 目的与连续动作编排系统设计
 
-> **mini 分支注记**：文中引用的新手引导 / Quest 系统（原 docs/onboarding-system）已移除；`onboarding.*` preset routine 本身仍在 sprite-core 中保留。编排器主体设计仍然有效。
+> **mini 分支注记**：文中引用的新手引导 / Quest 系统（原 docs/onboarding-system）已移除；`onboarding.*` preset routine 中仅 `onboarding.chat.start` 仍在 sprite-core 中保留（`onboarding.workspace.create` 等其余 preset 已移除）。编排器主体设计仍然有效。
 >
 > 另：workflow 系统、资源库（Resource）与 FileActionsMenu 页面均已移除；`file.drop.intake` preset 已改名为 `file.drop`，`file.drop.invite` 已不存在。正文 §5 示例、§8.3、§8.4 等处保留的旧称不再逐段改写，以本注记为准。
 
@@ -54,9 +54,9 @@
 - `reacting`
 - `bored`
 
-`reacting` 有子状态：`click`、`hold`、`drop`、`file-drag-over`、`file-drop`、`sleepy`、`custom`。
+`reacting` 有子状态：`click`、`hold`、`sleepy`、`custom`。
 
-状态变化由 `SpriteManager.onStateChange()` 收口，随后用 `mapStateToEventType()` 把状态映射为动画 trigger。例如 walking 映射到 `walk`，file drag over 映射到 `fileDragOver`。
+状态变化由 `SpriteManager.onStateChange()` 收口，随后用 `mapStateToTrigger()` 把状态映射为动画 trigger。例如 walking 映射到 `walk`，file drag over 曾映射到 `fileDragOver`（该 trigger 已随 file-drop 链路移除）。
 
 ### 1.2 动画选择
 

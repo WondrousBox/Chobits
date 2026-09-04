@@ -25,13 +25,6 @@ export const SHORTCUT_SCHEMA: ShortcutAction[] = [
     label: '显示/隐藏主窗口',
     type: 'single',
     defaults: { darwin: 'CommandOrControl+Shift+K', win32: 'CommandOrControl+Shift+K', linux: 'CommandOrControl+Shift+K' }
-  },
-  {
-    id: 'screenshot',
-    label: '截图',
-    description: '触发截图功能',
-    type: 'single',
-    defaults: { darwin: 'CommandOrControl+Shift+A', win32: 'CommandOrControl+Shift+A', linux: 'CommandOrControl+Shift+A' }
   }
 ];
 
@@ -39,10 +32,8 @@ const emitter = new EventEmitter();
 let cached: ShortcutsConfig | null = null;
 let cachedEnabled: ShortcutEnabledConfig | null = null;
 
-// 默认启用状态
-const DEFAULT_ENABLED: ShortcutEnabledConfig = {
-  screenshot: false // 默认关闭截图功能
-};
+// 默认启用状态（当前没有默认关闭的快捷键）
+const DEFAULT_ENABLED: ShortcutEnabledConfig = {};
 
 function getFile(): string {
   const dir = app.getPath('userData');
@@ -186,7 +177,10 @@ export function loadShortcutEnabledConfig(): ShortcutEnabledConfig {
 
 export function saveShortcutEnabledConfig(partial: Partial<ShortcutEnabledConfig>): ShortcutEnabledConfig {
   const curr = loadShortcutEnabledConfig();
-  const next: ShortcutEnabledConfig = { ...curr, ...partial };
+  const next: ShortcutEnabledConfig = { ...curr };
+  for (const [key, value] of Object.entries(partial)) {
+    if (value !== undefined) next[key] = value;
+  }
   cachedEnabled = next;
   try {
     const file = getEnabledFile();
@@ -215,13 +209,4 @@ export function isShortcutEnabled(actionId: string): boolean {
   }
   // 其他快捷键默认启用
   return true;
-}
-
-export function notifyShortcutEnabledUpdatedTo(win?: BrowserWindow | null): void {
-  try {
-    const cfg = loadShortcutEnabledConfig();
-    win?.webContents?.send('shortcuts:enabled-updated', cfg);
-  } catch {
-    // ignore
-  }
 }

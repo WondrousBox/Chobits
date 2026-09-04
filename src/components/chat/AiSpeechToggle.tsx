@@ -6,10 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
-const CHAT_REALTIME_SCOPES: SpriteSpeakConfig['realtimeSpeech']['scopes'] = {
-  mainChat: true,
-  // mini 分支已移除资源库侧栏，该 scope 常驻关闭
-  resourceChatSidebar: false
+const CHAT_REALTIME_SCOPES: Partial<SpriteSpeakConfig['realtimeSpeech']['scopes']> = {
+  mainChat: true
 };
 
 function canShowAISpeechToggle(config: SpriteSpeakConfig | null): boolean {

@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { BrowserWindow, ipcMain, WebContents } from 'electron';
 
-import { ChatRepo, WorkspacesRepo } from '../common/db';
+import { ChatRepo } from '../common/db';
 import { eventManager } from '../event';
 import { AppEvent } from '../event/events';
 import {
@@ -24,11 +24,11 @@ import { getProviderDefinitionSchema } from './providers/service';
 import { PiExecutionService } from './runtime/pi/execution-service';
 import { PiSessionService } from './runtime/pi/session-service';
 import { generatePiConversationTitle } from './runtime/pi/tasks/title';
-import type { AgentLoopCompletePayload } from './services/memory-types';
+import type { AgentLoopCompletePayload } from './services/agent-loop-types';
 import { attachSpeechDisplayTextFilterToMessage, getRealtimeSpeechDisplayTextFilter } from './speech-display-filter';
 import { appendRealtimeSpeechPromptGuidance } from './speech-synthesis-guidance';
 import { createThinkingTagStreamParser, extractThinkingTextFromMetadata } from './thinking-content';
-import { ChatMessage, ChatMessageDisplayPart, ChatRequest, ChatResponse, EmbeddingRequest, EmbeddingResponse, StreamEvent, type ToolCallDisplay } from './types';
+import { ChatMessage, ChatMessageDisplayPart, ChatRequest, ChatResponse, StreamEvent, type ToolCallDisplay } from './types';
 
 // local UUID fallback if uuid not present
 function safeUuid(): string {
@@ -65,9 +65,6 @@ export class ChatService {
     ipcMain.handle('ai:chat', async (e, req: ChatRequest) => this.chat(BrowserWindow.fromWebContents(e.sender) || this.defaultWin, normalizeProviderPreset(req)));
     ipcMain.handle('ai:chat-stream', async (e, req: ChatRequest) => this.chatStream(e.sender, normalizeProviderPreset(req)));
     ipcMain.handle('ai:cancel', async (_event, payload: { requestId: string }) => this.cancel(payload.requestId));
-    ipcMain.handle('ai:embed', async (_event, payload: EmbeddingRequest) => this.embed(normalizeProviderPreset(payload)));
-    // Stateless chat (no history persistence)
-    ipcMain.handle('ai:chat-ephemeral', async (e, req: ChatRequest) => this.chatEphemeral(BrowserWindow.fromWebContents(e.sender) || this.defaultWin, normalizeProviderPreset(req)));
   }
 
   private async chat(win: BrowserWindow | undefined, req: ChatRequest): Promise<ChatResponse> {
@@ -150,8 +147,7 @@ ${JSON.stringify(streamReq, null, 2)}
       agentId: runtimeReq.agentId || preview.resolved.profile.id,
       providerId: preview.resolved.model.providerId,
       providerPresetId,
-      title: placeholderTitle || undefined,
-      workspaceId: await this.resolveWorkspaceId(runtimeReq)
+      title: placeholderTitle || undefined
     });
 
     if (lastUserMessage) {
@@ -210,7 +206,6 @@ ${JSON.stringify(streamReq, null, 2)}
     const shouldPersist = req.persist !== false;
     const lastUserMessage = this.getLastUserMessage(req.messages);
     const placeholderTitle = this.buildPlaceholderConversationTitle(lastUserMessage?.content);
-    const resolvedWorkspaceId = await this.resolveWorkspaceId(req);
     let conv = undefined;
 
     if (shouldPersist) {
@@ -219,8 +214,7 @@ ${JSON.stringify(streamReq, null, 2)}
         agentId: req.agentId || preview.resolved.profile.id,
         providerId: preview.resolved.model.providerId,
         providerPresetId,
-        title: placeholderTitle || undefined,
-        workspaceId: resolvedWorkspaceId
+        title: placeholderTitle || undefined
       });
     }
 
@@ -463,10 +457,6 @@ ${JSON.stringify(streamReq, null, 2)}
     return { ok: false };
   }
 
-  private async embed(payload: EmbeddingRequest): Promise<EmbeddingResponse> {
-    return this.getPiExecutionService().embed(payload);
-  }
-
   getProviderConfig(providerId: string): any {
     return getProviderDefinitionSchema(providerId);
   }
@@ -514,31 +504,16 @@ ${JSON.stringify(streamReq, null, 2)}
     providerId: string;
     providerPresetId?: string;
     title?: string;
-    workspaceId?: string;
   }): Promise<Awaited<ReturnType<typeof ChatRepo.ensureConversation>>> {
-    const { agentId, id, providerId, providerPresetId, title, workspaceId } = params;
+    const { agentId, id, providerId, providerPresetId, title } = params;
 
     return ChatRepo.ensureConversation({
       id,
       agentId,
       providerId,
       providerPresetId,
-      title,
-      workspaceId
+      title
     });
-  }
-
-  private async resolveWorkspaceId(req: ChatRequest): Promise<string | undefined> {
-    const requestedWorkspaceId = typeof req.extras?.workspaceId === 'string' && req.extras.workspaceId.trim() ? req.extras.workspaceId.trim() : undefined;
-    if (requestedWorkspaceId) return requestedWorkspaceId;
-
-    if (req.conversationId) {
-      const existing = await ChatRepo.getConversation(req.conversationId);
-      if (existing?.workspaceId) return existing.workspaceId;
-    }
-
-    const defaultWorkspace = await WorkspacesRepo.getDefault();
-    return defaultWorkspace?.id || undefined;
   }
 
   private async loadConversationContextMessages(conversationId: string): Promise<ChatMessage[] | undefined> {

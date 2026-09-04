@@ -4,7 +4,6 @@ import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { Toaster } from '@/components/ui/sonner';
 import { SpriteApp, StatusPage } from '@/features/sprite';
 import { SpriteBubblePage } from '@/features/sprite-bubble';
-import { useAIProviderConfig } from '@/hooks/useAIProviderConfig';
 import { useFeatureFlags } from '@/hooks/useFeatureFlags';
 import { ChatSelectionProvider } from '@/pages/ChatPage/context/ChatSelectionContext';
 import CharacterPackEditorWindow from '@/pages/ExtensionSettings/CharacterPackEditorWindow';
@@ -16,7 +15,6 @@ import { ThemeProvider } from '@/pages/SettingsPage/providers/ThemeProvider';
 import { TooltipProvider } from './components/ui/tooltip';
 import AIProviderConfigWindow from './pages/AIProviderConfigWindow/AIProviderConfigWindow';
 import ASRConfigPage from './pages/ASRPage/ASRConfigPage';
-import ASRPage from './pages/ASRPage/ASRPage';
 import ASRTestPage from './pages/ASRPage/ASRTestPage';
 import ChatPage from './pages/ChatPage/ChatPage';
 import ChatPanelPage from './pages/ChatPage/ChatPanelPage';
@@ -26,7 +24,6 @@ import TTSConfigPage from './pages/TTSPage/TTSConfigPage';
 import TTSPage from './pages/TTSPage/TTSPage';
 
 function StandardAppRoutes(): JSX.Element {
-  useAIProviderConfig();
   const { flags, isLoading } = useFeatureFlags();
 
   // 等待旗标加载完成再渲染路由,避免直达被开启功能的路由时因默认值闪烁而回退
@@ -41,7 +38,6 @@ function StandardAppRoutes(): JSX.Element {
           <Route path="/" element={<SpriteApp />} />
           <Route path="/status" element={<StatusPage />} />
           {flags.localAI && <Route path="/asr-config" element={<ASRConfigPage />} />}
-          {flags.localAI && <Route path="/asr" element={<ASRPage />} />}
           {flags.localAI && <Route path="/asr-test" element={<ASRTestPage />} />}
           <Route path="/tts-config" element={<TTSConfigPage />} />
           <Route path="/tts" element={<TTSPage />} />

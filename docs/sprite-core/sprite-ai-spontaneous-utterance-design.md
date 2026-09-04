@@ -29,7 +29,7 @@ BehaviorEngine idle-action 触发
 | `packages/sprite-core/manager/sprite-manager.ts`                 | 持有注入的 executor                                                                |
 | `packages/sprite-core/manager/default-behaviors.ts`              | `idle-action` 行为调用 executor                                                    |
 | `electron/main/handlers/sprite/spontaneous-utterance-service.ts` | 主进程 AI 编排服务                                                                 |
-| `packages/ai/services/persona-document.ts`                       | persona 文档解析（`parsePersonaMarkdown` / `extractSnapshot` / `extractTopFacts`） |
+| `packages/ai/services/user-profile-document.ts`                  | 用户画像文档解析（`parseUserProfileMarkdown` / `extractSnapshot` / `extractTopFacts`） |
 
 ---
 
@@ -55,7 +55,7 @@ AI 生成当前由 activity-aware timeout controller 控制，绝对最长上限
 
 | 上下文来源 | 获取方式                                                                                                     | 截取策略                                                                                  |
 | ---------- | ------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| 用户画像   | `USER_PERSONA.md` → `extractSnapshot()` + `extractTopFacts()`                                                | snapshot + 最多 6 条 topFacts                                                             |
+| 用户画像   | `USER_PROFILE.md` → `extractSnapshot()` + `extractTopFacts()`                                               | snapshot + 最多 6 条 topFacts                                                             |
 | 助手角色   | `character-profile.json` + `buildCharacterPrompt()` + preset `systemPrompt`                                  | 角色摘要                                                                                  |
 | 最近聊天   | `ChatRepo.listMessages()`                                                                                    | 最近 12-20 条，过滤工具噪音                                                               |
 | 持久记忆   | 已移除/置空（mini 分支）：硬编码为 `createEmptyMemoryContext()`（原 `MemoryRetrievalService` + `MEMORY.md`） | 轻量目标检索，3-5 条相关 note（原策略，现已不生效）                                       |
@@ -116,9 +116,9 @@ AI 生成当前由 activity-aware timeout controller 控制，绝对最长上限
 
 ## 7. 日志
 
-存储位置：`<workspace>/memory/logs/sprite-spontaneous-utterances-YYYY-MM-DD.jsonl`
+存储位置：`<userData>/data/memory/logs/sprite-spontaneous-utterances-YYYY-MM-DD.jsonl`
 
-每条日志包含：timestamp、workspaceId、behaviorId、providerId、model、latencyMs、spriteState、contextDigest、result、executedAction、wasSpoken、didUseFallback。
+每条日志包含：timestamp、behaviorId、providerId、model、latencyMs、spriteState、contextDigest、result、executedAction、wasSpoken、didUseFallback。
 
 失败时也记录（wasSkipped: true + reason）。
 

@@ -128,9 +128,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ extraCategories = EM
       if (!mounted) return;
       applyWindowPayload(payload);
     };
-    const ipcHandler = (_event: any, payload: any): void => handlePayload(payload);
 
-    window.ipcRenderer?.on('on:window:open:ready', ipcHandler);
+    const unsubscribeOpenReady = window.chobits.window.onOpenReady(handlePayload);
 
     // 读取窗口打开时传入的 payload，用于直接跳转到指定分类/AI 提供商。
     // 如果 settings 窗口已存在，后续 createOrShow 会走上面的 IPC 事件重新定位。
@@ -145,7 +144,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ extraCategories = EM
 
     return () => {
       mounted = false;
-      window.ipcRenderer?.off('on:window:open:ready', ipcHandler);
+      unsubscribeOpenReady();
     };
   }, [applyWindowPayload]);
 

@@ -92,9 +92,3 @@ export interface PiRuntimePreview {
   resolved: ResolvedPiRequest;
   tools: PiToolDescriptor[];
 }
-
-export interface PiSessionPreview {
-  kind: 'scaffold';
-  reason: string;
-  resolved: ResolvedPiRequest;
-}

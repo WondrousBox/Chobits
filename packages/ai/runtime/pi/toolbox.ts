@@ -47,7 +47,7 @@ function parseTriggersLine(line: string): string[] {
 }
 
 function parseToolsLine(line: string): string[] {
-  // "**涉及工具：** webSearchTool, pushCardTool" → ["webSearchTool", "pushCardTool"]
+  // "**涉及工具：** webSearchTool, webReadTool" → ["webSearchTool", "webReadTool"]
   const match = line.match(/\*\*涉及工具[：:]\*\*\s*(.+)/);
   if (!match) return [];
   return match[1]
@@ -130,11 +130,6 @@ export function loadToolboxIndex(): ToolboxIndex {
     catalog: catalogLines.join('\n')
   };
   return cachedIndex;
-}
-
-/** 清除缓存（开发时热更新用） */
-export function resetToolboxCache(): void {
-  cachedIndex = null;
 }
 
 // ━━ Multilingual Search Helpers ━━

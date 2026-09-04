@@ -29,7 +29,7 @@ function openEditor(): void {
 async function playMainWindowPreset(presetId: WindowAnimationPresetId): Promise<void> {
   try {
     const [boundsResult, workArea] = await Promise.all([window.chobits.window['window:size:get'](MAIN_WINDOW_KEY), window.chobits.window['screen:work-area:get'](MAIN_WINDOW_KEY)]);
-    if (!boundsResult.success || !boundsResult.bounds) {
+    if (!boundsResult.ok || !boundsResult.bounds) {
       toast.error('窗口动画播放失败', { description: boundsResult.error || '主窗口不可用' });
       return;
     }

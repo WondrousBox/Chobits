@@ -14,7 +14,7 @@
 - `session-service.ts`
   - 负责流式聊天、非流式聊天、coding session 调度，以及 Pi 事件到现有聊天输出格式的收口。
 - `execution-service.ts`
-  - 无会话持久化的 one-shot 统一执行入口：`chatEphemeral` / `completeText` / `streamText` 强制走 Pi runtime，并统一 embed / 语音转写 / 语音合成的 provider 能力解析与音频产物落盘。
+  - 无会话持久化的 one-shot 统一执行入口：`chatEphemeral` / `completeText` / `streamText` 强制走 Pi runtime，并统一语音转写 / 语音合成的 provider 能力解析与音频产物落盘。
 - `session-factory.ts`
   - 创建 `pi-coding-agent` session，并根据请求上下文决定 session 的 `cwd`。
 - `stream-adapter.ts`
@@ -35,15 +35,13 @@
   - 后台任务共用的 task chat runtime。
 - `tasks/title.ts`
   - 会话标题生成。
-- `tasks/tag.ts`
-  - 标签提取。
 
 ### 工具系统
 
 - `tool-context.ts`
   - 生成 session-scoped tool context；现在除了 conversation/window 信息，也包含 `coding` workspace 信息。
 - `tool-registry.ts`
-  - 维护 tool metadata、tool id 归一化，以及不同 profile 的默认工具集合（`DEFAULT_SESSION_TOOL_IDS` / `DEFAULT_CODER_TOOL_IDS`）。
+  - 维护 tool metadata、tool id 归一化，以及不同 profile 的默认工具集合（`DEFAULT_CODER_TOOL_IDS`）。
 - `toolbox.md` + `toolbox.ts`
   - 工具技能说明的 Markdown 真相源；`toolboxLookupTool` 按需检索。编辑 `toolbox.md` 即可调整说明（Vite `?raw` 打包进主进程）。
 - `tools/*`
@@ -95,7 +93,7 @@
 - `src/pages/ChatPage/ChatPage.tsx`
   - 真实聊天页面入口；会把 coder workspace 一起传给 `chatStream`。
 - `src/pages/ChatPage/ChatPanelPage.tsx`
-  - 聊天面板页（`/chat-panel` 与 `/chat-mini` 共用），复用 `ChatInputWithService` / `AssistantMiniInputWithService`；`coder` 模式下同样支持选择项目目录并把 workspace extras 一起传给 `chatStream`。
+  - 聊天面板页（`/chat-panel` 与 `/chat-mini` 共用），复用 `ChatInputWithService` / `ChatMiniInputWithService`；`coder` 模式下同样支持选择项目目录并把 workspace extras 一起传给 `chatStream`。
 - `packages/ai/runtime/pi/profiles.md`
   - 定义 `chat` / `assistant` / `coder` 等 profile 的系统提示与元数据（构建时由 `profile-descriptors.ts` 经 `?raw` 加载）。
 - `packages/ai/runtime/pi/session-service.ts`

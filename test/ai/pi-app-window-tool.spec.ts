@@ -21,18 +21,13 @@ function createToolContext(): any {
   return {
     chatRepo: {},
     conversationId: 'conversation-1',
-    pushCardToWindows: vi.fn(),
     reportProgress: vi.fn(),
     resolved: {
       model: {
         providerId: 'minimax',
         presetId: 'preset-minimax'
       },
-      request: {
-        extras: {
-          workspaceId: 'workspace-1'
-        }
-      }
+      request: {}
     },
     resourcesRepo: {},
     targetWindowId: 42

@@ -16,16 +16,12 @@ describe('capability registry', () => {
     });
 
     expect(snapshot.capabilities.microphone.status).toBe('active');
-    expect(snapshot.capabilities.systemAudio.status).toBe('active');
     expect(snapshot.capabilities.speechRecognition.status).toBe('unlocked');
     expect(snapshot.capabilities.spriteManage.status).toBe('locked');
     expect(snapshot.capabilities.spriteManage.missingFeatureFlags).toEqual(['character:loaded']);
     expect(snapshot.capabilities.customAppearance.status).toBe('locked');
     expect(snapshot.capabilities.customAppearance.missingPrerequisites).toEqual(['spriteManage']);
     expect(snapshot.capabilities.customAppearance.missingFeatureFlags).toEqual(['character:loaded', 'character:has-custom-appearance']);
-    expect(snapshot.capabilities.aiChat.status).toBe('unlocked');
-    expect(snapshot.capabilities.docUnderstanding.status).toBe('unlocked');
-    expect(snapshot.capabilities.smartAssistant.status).toBe('unlocked');
     expect(snapshot.capabilities.actionChoreography.status).toBe('locked');
     expect(snapshot.capabilities.actionChoreography.inactivePrerequisites).toEqual([]);
     expect(snapshot.capabilities.actionChoreography.missingPrerequisites).toEqual(['customAppearance']);
@@ -103,7 +99,6 @@ describe('capability registry', () => {
     expect(snapshot.capabilities.customAppearance.status).toBe('unlocked');
     expect(snapshot.capabilities.actionChoreography.status).toBe('unlocked');
     expect(snapshot.capabilities.emotionExpression.status).toBe('unlocked');
-    expect(snapshot.capabilities.smartAssistant.status).toBe('unlocked');
   });
 
   it('keeps action choreography locked until the active pack declares custom animations', () => {

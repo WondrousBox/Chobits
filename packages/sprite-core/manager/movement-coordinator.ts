@@ -1,4 +1,4 @@
-import type { SpriteBubbleMode, SpriteConfig, SpriteMovementConfig, SpriteMovementDirection, SpriteMovementPreviewConfig, SpriteWalkState } from '../types';
+import type { SpriteBubbleMode, SpriteConfig, SpriteMovementConfig, SpriteMovementDirection, SpriteWalkState } from '../types';
 import { isBubbleWindowMode } from '../types';
 import { clampWindowPosition, getWindowClampBounds, type WindowControllerAvoidRegion, type WindowControllerViewport } from '../window-controller-model';
 import type { SpriteWindowAnimationPlaybackSize } from './types';
@@ -29,83 +29,17 @@ export interface MovementCoordinatorDeps {
   getPosition: () => [number, number];
   getSpriteConfig: () => SpriteConfig;
   getAvoidRegions?: () => WindowControllerAvoidRegion[];
-  setSpriteMetrics: (metrics: SpriteSizeSnapshot) => void;
-  setWindowSize: (width: number, height: number, padding: number) => void;
   walkTo: (x: number, y: number, speed?: number) => Promise<void>;
-  stopWalk: () => void;
   startAutoMove: (movement: SpriteMovementConfig) => void;
   stopAutoMove: () => void;
   isAutoMoving: () => boolean;
   getAutoMoveDirection: () => SpriteWalkState['direction'] | null;
   emitWalkState: (state: SpriteWalkState) => void;
-  emitConfigChanged: () => void;
   playWindowAnimation?: (movement: SpriteMovementConfig, playbackSize?: SpriteWindowAnimationPlaybackSize) => Promise<void> | void;
 }
 
 export class MovementCoordinator {
-  private previewSnapshot: SpriteSizeSnapshot | null = null;
-
   constructor(private readonly deps: MovementCoordinatorDeps) {}
-
-  previewMovement(config: SpriteMovementPreviewConfig): void {
-    const mode = config.movement?.mode ?? 'direction';
-    if (config.movement?.enabled && mode === 'windowAnimation') {
-      this.stopAutoMove();
-      if (!this.deps.canMove() || !this.deps.canUseMovement()) {
-        return;
-      }
-      void this.deps.playWindowAnimation?.(config.movement);
-      return;
-    }
-
-    if (!this.previewSnapshot) {
-      const liveConfig = this.deps.getSpriteConfig();
-      this.previewSnapshot = {
-        width: liveConfig.width,
-        height: liveConfig.height,
-        padding: liveConfig.padding
-      };
-    }
-
-    this.deps.setSpriteMetrics({
-      width: config.width,
-      height: config.height,
-      padding: config.padding
-    });
-    this.deps.emitConfigChanged();
-    const effectivePadding = resolveEffectivePadding(config.padding, this.deps.getSpriteConfig().bubbleMode);
-    this.deps.setWindowSize(config.width, config.height, effectivePadding);
-    this.stopAutoMove();
-
-    if (!config.movement?.enabled || !this.deps.canMove() || !this.deps.canUseMovement()) {
-      return;
-    }
-
-    if (mode === 'walkTo') {
-      const target = this.computeWalkTarget(config.movement);
-      if (!target) return;
-      void this.deps.walkTo(target.targetX, target.targetY, config.movement.speed);
-      return;
-    }
-
-    this.startDirectionalAutoMove(config.movement);
-  }
-
-  stopMovementPreview(): void {
-    this.deps.stopWalk();
-    this.stopAutoMove();
-
-    if (!this.previewSnapshot) {
-      return;
-    }
-
-    const snapshot = this.previewSnapshot;
-    this.previewSnapshot = null;
-    this.deps.setSpriteMetrics(snapshot);
-    this.deps.emitConfigChanged();
-    const effectivePadding = resolveEffectivePadding(snapshot.padding, this.deps.getSpriteConfig().bubbleMode);
-    this.deps.setWindowSize(snapshot.width, snapshot.height, effectivePadding);
-  }
 
   applyAnimationMovement(movement?: SpriteMovementConfig, playbackSize?: SpriteWindowAnimationPlaybackSize): void {
     this.stopAutoMove();

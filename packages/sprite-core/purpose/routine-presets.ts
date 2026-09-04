@@ -218,7 +218,7 @@ function isPurposeContextFlagEnabled(purpose: SpritePurpose, key: string): boole
 
 function shouldLockChatApiConfigGuideProvider(purpose: SpritePurpose): boolean {
   const trigger = getPurposeContextString(purpose, 'trigger');
-  return trigger === 'chat-send' || trigger === 'sidebar-send' || isPurposeContextFlagEnabled(purpose, 'strictProviderMatch');
+  return trigger === 'chat-send' || isPurposeContextFlagEnabled(purpose, 'strictProviderMatch');
 }
 
 /**

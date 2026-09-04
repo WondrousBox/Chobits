@@ -7,13 +7,13 @@ import ThinkingActivity from './ThinkingActivity';
 import type { ToolActivity } from './ToolCallActivity';
 import ToolCallActivity from './ToolCallActivity';
 
-interface AssistantMessageTimelineProps {
+interface ChatMessageTimelineProps {
   speechDisplayTextFilter?: SpeechDisplayTextFilter;
   message: TimelineMessage;
   onUserChoiceSubmit?: (choiceId: string, answers: Record<string, string[]>) => void;
 }
 
-const AssistantMessageTimeline: FC<AssistantMessageTimelineProps> = ({ message, onUserChoiceSubmit, speechDisplayTextFilter: fallbackSpeechDisplayTextFilter }) => {
+const ChatMessageTimeline: FC<ChatMessageTimelineProps> = ({ message, onUserChoiceSubmit, speechDisplayTextFilter: fallbackSpeechDisplayTextFilter }) => {
   const speechDisplayTextFilter = message.speechDisplayTextFilter ?? fallbackSpeechDisplayTextFilter;
 
   if (message.displayParts?.length) {
@@ -49,4 +49,4 @@ const AssistantMessageTimeline: FC<AssistantMessageTimelineProps> = ({ message, 
   );
 };
 
-export default AssistantMessageTimeline;
+export default ChatMessageTimeline;

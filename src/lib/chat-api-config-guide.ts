@@ -1,6 +1,6 @@
 import { CHAT_API_CONFIGURED_GUIDE_GOAL, ensureGuideGoal, type GuideGoalEnsureResult, resetGuideGoalStateForTest } from '@/lib/guide-goals';
 
-export type ChatApiConfigGuideTrigger = 'sprite-double-click' | 'sprite-menu-chat' | 'sprite-window-open' | 'chat-window-open' | 'chat-window-focus' | 'chat-send' | 'sidebar-open' | 'sidebar-send';
+export type ChatApiConfigGuideTrigger = 'sprite-double-click' | 'sprite-menu-chat' | 'sprite-window-open' | 'chat-window-open' | 'chat-window-focus' | 'chat-send';
 
 export interface ChatApiConfigGuideOptions {
   providerId?: string;

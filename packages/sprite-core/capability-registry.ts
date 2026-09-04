@@ -59,9 +59,7 @@ export interface SpriteCapabilitySnapshot {
 }
 
 export const SPRITE_CAPABILITY_SIGNALS = {
-  dailyCareEnabled: 'dailyCare.enabled',
   recorderEnabled: 'recorder.enabled',
-  screenshotEnabled: 'shortcuts.screenshot',
   asrRunning: 'asr.running'
 } as const;
 
@@ -81,35 +79,6 @@ const DEFAULT_CAPABILITY_DEFINITIONS: SpriteCapabilityDefinition[] = [
     activationSignals: [SPRITE_CAPABILITY_SIGNALS.recorderEnabled]
   },
   {
-    id: 'systemAudio',
-    name: '系统音频',
-    description: '采集电脑系统音频输出',
-    branch: 'perception',
-    tier: 'beginner',
-    column: 0,
-    row: 1,
-    prerequisites: [],
-    settingsKey: 'recorder',
-    activationSignals: [SPRITE_CAPABILITY_SIGNALS.recorderEnabled]
-  },
-  {
-    id: 'screenshot',
-    name: '屏幕截图',
-    description: '快速截取屏幕内容',
-    branch: 'perception',
-    tier: 'beginner',
-    column: 0,
-    row: 2,
-    prerequisites: [],
-    settingsKey: 'screenshot',
-    activationSignals: [SPRITE_CAPABILITY_SIGNALS.screenshotEnabled],
-    requiredShortcut: {
-      ctrl: true,
-      shift: true,
-      key: 'A'
-    }
-  },
-  {
     id: 'speechRecognition',
     name: '语音识别',
     description: '启动实时语音识别服务，将语音转换为文字',
@@ -120,90 +89,6 @@ const DEFAULT_CAPABILITY_DEFINITIONS: SpriteCapabilityDefinition[] = [
     prerequisites: ['microphone'],
     settingsKey: 'speechRecognition',
     activationSignals: [SPRITE_CAPABILITY_SIGNALS.asrRunning]
-  },
-  {
-    id: 'screenRecord',
-    name: '屏幕录制',
-    description: '录制屏幕视频内容',
-    branch: 'perception',
-    tier: 'intermediate',
-    column: 0,
-    row: 1,
-    prerequisites: ['screenshot', 'systemAudio']
-  },
-  {
-    id: 'imageRecognition',
-    name: '图片识别',
-    description: 'AI 识别图片中的内容',
-    branch: 'perception',
-    tier: 'intermediate',
-    column: 0,
-    row: 2,
-    prerequisites: ['screenshot']
-  },
-  {
-    id: 'realtimeTranscribe',
-    name: '实时转写',
-    description: '实时将语音转换为字幕',
-    branch: 'perception',
-    tier: 'intermediate',
-    column: 1,
-    row: 0,
-    prerequisites: ['speechRecognition', 'systemAudio']
-  },
-  {
-    id: 'videoAnalysis',
-    name: '视频理解',
-    description: 'AI 分析视频内容，提取关键信息',
-    branch: 'perception',
-    tier: 'advanced',
-    column: 0,
-    row: 1,
-    prerequisites: ['screenRecord', 'imageRecognition']
-  },
-  {
-    id: 'meetingNotes',
-    name: '会议记录',
-    description: '自动记录会议内容并生成纪要',
-    branch: 'perception',
-    tier: 'advanced',
-    column: 1,
-    row: 0,
-    prerequisites: ['realtimeTranscribe']
-  },
-  {
-    id: 'dailyCare',
-    name: '日常关心',
-    description: '健康提醒、休息建议',
-    branch: 'care',
-    tier: 'beginner',
-    column: 0,
-    row: 3,
-    prerequisites: [],
-    settingsKey: 'dailyCare',
-    activationSignals: [SPRITE_CAPABILITY_SIGNALS.dailyCareEnabled]
-  },
-  {
-    id: 'scheduleReminder',
-    name: '日程提醒',
-    description: '会议、生日、纪念日提醒',
-    branch: 'care',
-    tier: 'intermediate',
-    column: 0,
-    row: 3,
-    prerequisites: ['dailyCare'],
-    settingsKey: 'dailyCare'
-  },
-  {
-    id: 'smartReminder',
-    name: '智能提醒',
-    description: '根据习惯自动调整提醒时机',
-    branch: 'care',
-    tier: 'advanced',
-    column: 0,
-    row: 3,
-    prerequisites: ['scheduleReminder'],
-    settingsKey: 'dailyCare'
   },
   {
     id: 'spriteManage',
@@ -248,66 +133,6 @@ const DEFAULT_CAPABILITY_DEFINITIONS: SpriteCapabilityDefinition[] = [
     column: 0,
     row: 5,
     prerequisites: ['actionChoreography']
-  },
-  {
-    id: 'aiChat',
-    name: 'AI 对话',
-    description: '与 AI 助手进行自然对话',
-    branch: 'intelligence',
-    tier: 'beginner',
-    column: 0,
-    row: 7,
-    prerequisites: []
-  },
-  {
-    id: 'docUnderstanding',
-    name: '文档理解',
-    description: 'AI 阅读和理解文档内容',
-    branch: 'intelligence',
-    tier: 'intermediate',
-    column: 0,
-    row: 7,
-    prerequisites: ['aiChat']
-  },
-  {
-    id: 'translation',
-    name: '翻译助手',
-    description: '多语言实时翻译',
-    branch: 'intelligence',
-    tier: 'intermediate',
-    column: 1,
-    row: 8,
-    prerequisites: ['aiChat']
-  },
-  {
-    id: 'smartAssistant',
-    name: '智能助理',
-    description: '理解上下文，主动提供帮助',
-    branch: 'intelligence',
-    tier: 'advanced',
-    column: 0,
-    row: 7,
-    prerequisites: ['docUnderstanding', 'translation']
-  },
-  {
-    id: 'autoAgent',
-    name: '自动代理',
-    description: '自动执行复杂任务流程',
-    branch: 'intelligence',
-    tier: 'professional',
-    column: 0,
-    row: 7,
-    prerequisites: ['smartAssistant']
-  },
-  {
-    id: 'masterAssistant',
-    name: '全能助手',
-    description: '融合所有能力的终极形态',
-    branch: 'intelligence',
-    tier: 'master',
-    column: 0,
-    row: 7,
-    prerequisites: ['autoAgent', 'emotionExpression', 'videoAnalysis', 'smartReminder']
   }
 ];
 

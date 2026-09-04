@@ -10,7 +10,6 @@ declare module '@aim-packages/window-manager' {
     chat: void;
     aiProviderConfig: void;
     asrConfig: void;
-    asr: void;
     asrTest: void;
     ttsConfig: void;
     tts: void;
@@ -229,25 +228,6 @@ const DEFAULT_WINDOW_CONFIGS: Record<WindowKey, WindowConfig> = {
       alwaysOnTop: false,
       skipTaskbar: true,
       show: false,
-      backgroundColor: '#00000000',
-      webPreferences: { nodeIntegration: true, contextIsolation: true }
-    }
-  },
-  asr: {
-    routeHash: 'asr',
-    autoCenterOn: 'parent-display',
-    showOnReady: true,
-    openDevTools: false,
-    options: {
-      width: 500,
-      height: 300,
-      show: false,
-      autoHideMenuBar: true,
-      frame: false,
-      transparent: true,
-      resizable: true,
-      alwaysOnTop: true,
-      skipTaskbar: true,
       backgroundColor: '#00000000',
       webPreferences: { nodeIntegration: true, contextIsolation: true }
     }

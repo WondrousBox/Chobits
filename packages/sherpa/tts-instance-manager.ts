@@ -127,10 +127,6 @@ export async function createTTSInstance(data: CreateTTSInstanceOptions): Promise
   });
 }
 
-export function getTTSInstance(uuid: string): TTSInstances[string] | undefined {
-  return Ins[uuid];
-}
-
 export function generateSpeech(options: GenerateSpeechOptions): void {
   const instance = Ins[options.uuid];
   if (!instance) {

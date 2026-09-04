@@ -128,15 +128,6 @@ export class PluginResourceManager extends EventEmitter {
   }
 
   /**
-   * 设置下载目录
-   */
-  setDownloadDir(dir: string): void {
-    this.downloadDir = dir;
-    fs.mkdirSync(this.downloadDir, { recursive: true });
-    console.log('[PluginDL] setDownloadDir', { dir: this.downloadDir });
-  }
-
-  /**
    * 获取插件资源的基础目录
    * 使用用户配置的插件目录
    */

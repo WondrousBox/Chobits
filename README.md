@@ -37,7 +37,7 @@
   - AI Provider TTS：支持 MiniMax `speechSynthesis` 合成与实时 PCM 流式朗读（AI 回复边生成边播）。
   - 长按说话：按住麦克风按钮说话，松开自动识别并发送，滑到取消按钮可取消。
   - 录音转写（ASR）：本地 sherpa-onnx 离线识别，或走云端 transcribe。
-  - 实时字幕与翻译。
+  - 实时语音识别与翻译（ASR 场景可配置翻译目标语言）。
 
 - **角色包编辑**
   - 内置角色包管理器与编辑器（CharacterPackManager / CharacterPackEditor）、角色画廊（CharacterGallery）。
@@ -68,7 +68,7 @@
 
 ```bash
 # 1. 克隆
-git clone <your-repo-url> && cd Chobits
+git clone <your-repo-url> && cd Chobits-Chi-Mascot
 
 # 2. 安装依赖（postinstall 会自动为 Electron 重建原生模块）
 pnpm install

@@ -75,7 +75,6 @@ const catalog: MessageCatalog = {
   update: ['有更新~', '更新完成！'],
   install: ['正在安装...', '安装完成！'],
   remove: ['已移除~', '删除完成。'],
-  configure: '叽~没有工作空间，请先创建。',
   settings: ['打开设置~', '来调整一下吧~'],
 
   // ── 网络类 ──

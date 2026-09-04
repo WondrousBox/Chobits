@@ -11,7 +11,7 @@ export type SpriteSpeakEngine = 'edge' | 'ai-provider';
 export type SpriteSpeechLanguage = 'auto' | 'zh' | 'ja';
 
 export type SpriteRealtimeSpeechSource = 'chat';
-export type SpriteRealtimeSpeechScope = 'mainChat' | 'resourceChatSidebar';
+export type SpriteRealtimeSpeechScope = 'mainChat';
 export type SpriteRealtimeSpeechSampleFormat = 's16le' | 'f32le' | string;
 
 export interface SpriteSpeakAIProviderConfig {
@@ -124,8 +124,7 @@ export const DEFAULT_REALTIME_SPEECH_CONFIG: SpriteSpeakRealtimeSpeechConfig = {
     fadeOutMs: 32
   },
   scopes: {
-    mainChat: true,
-    resourceChatSidebar: true
+    mainChat: true
   },
   shouldWriteFinalCache: false
 };
@@ -255,15 +254,8 @@ export type SpriteRealtimeSpeechEvent =
 export interface SpriteRealtimeSpeechSessionRequest {
   /** 发起实时朗读的业务来源（目前仅 'chat'，即 AI 对话朗读）。与 scope 分工：source 决定走哪条业务链路与开关判断，scope 表示该来源内的具体 UI 区域。 */
   source: SpriteRealtimeSpeechSource;
-  /** 来源内的具体区域（如主聊天区 mainChat、资源侧栏 resourceChatSidebar），用于按区域隔离会话（同 scope 新会话会替换旧会话）。 */
+  /** 来源内的具体区域（如主聊天区 mainChat），用于按区域隔离会话（同 scope 新会话会替换旧会话）。 */
   scope: SpriteRealtimeSpeechScope;
-}
-
-export interface SpriteRealtimeSpeechAvailabilityRequest {
-  /** 业务来源，见 SpriteRealtimeSpeechSessionRequest.source；目前仅 'chat' 会被判定为可用。 */
-  source: SpriteRealtimeSpeechSource;
-  /** 区域，见 SpriteRealtimeSpeechSessionRequest.scope；预留字段，当前可用性判断不区分 scope。 */
-  scope?: SpriteRealtimeSpeechScope;
 }
 
 export interface SpriteRealtimeSpeechSessionStartResult {

@@ -156,7 +156,7 @@ type WaitStep = BaseRoutineStep<'wait'> & {
 
 /** 等待 runtime event，常用于等待用户选择、窗口结果、导入进度或业务完成事件。 */
 type WaitForEventStep = BaseRoutineStep<'waitForEvent'> & {
-  /** 要等待的事件名，例如 `fileAction:resolved`、`WORKSPACE_CREATED`。 */
+  /** 要等待的事件名，例如 `AI_PROVIDER_CONFIG_UPDATED`、`bubble:action`。 */
   event: string;
   /** 事件来源；默认由 waiter 使用 `purpose-event`。 */
   source?: SpritePurposeRuntimeEventSource;
@@ -251,9 +251,9 @@ type UpdateBusyStep = BaseRoutineStep<'updateBusy'> & {
   content?: string;
   /** 固定进度；优先级低于 progressFrom 成功解析的值。 */
   progress?: number;
-  /** 从 runner variables 中读取文案的点路径，例如 `workflowProgress.payload.message`。 */
+  /** 从 runner variables 中读取文案的点路径，例如 `chatApiConfigResult.event.payload.message`。 */
   contentFrom?: string;
-  /** 从 runner variables 中读取进度的点路径，例如 `workflowProgress.payload.progress`。 */
+  /** 从 runner variables 中读取进度的点路径，例如 `chatApiConfigResult.event.payload.progress`。 */
   progressFrom?: string;
 };
 
@@ -314,7 +314,7 @@ type SequenceStep = BaseRoutineStep<'sequence'> & {
 
 /** 根据 runner variables 中的值选择一组子步骤执行。 */
 type BranchStep = BaseRoutineStep<'branch'> & {
-  /** 读取变量的点路径，例如 `menuResult.payload.status` 或 `workspaceCreatedEvent.event.event`。 */
+  /** 读取变量的点路径，例如 `chatApiConfigBubbleEvent.event.event` 或 `chatApiConfigResult.event.event`。 */
   by: string;
   /** caseKey 到子步骤列表的映射；读取值会被 String() 后匹配。 */
   cases: Record<string, SpriteRoutineStep[]>;

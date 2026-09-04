@@ -1,12 +1,10 @@
-import { BrowserWindow } from 'electron';
-
-import { APP_EVENT_CHANNEL, AppEvent, AppEventPayload } from './events';
+import { AppEvent } from './events';
 
 export * from './events';
 
 type EventHandler = (data: any) => void;
 
-export class EventManager {
+class EventManager {
   private static instance: EventManager;
   private listeners: Map<AppEvent, Set<EventHandler>> = new Map();
 
@@ -35,21 +33,7 @@ export class EventManager {
     }
   }
 
-  public emit<T>(type: AppEvent, data?: T, sourceWindowId?: number): void {
-    const payload: AppEventPayload<T> = {
-      type,
-      data,
-      timestamp: Date.now(),
-      sourceWindowId
-    };
-
-    const windows = BrowserWindow.getAllWindows();
-    windows.forEach((win) => {
-      if (!win.isDestroyed() && !win.webContents.isDestroyed()) {
-        win.webContents.send(APP_EVENT_CHANNEL, payload);
-      }
-    });
-
+  public emit<T>(type: AppEvent, data?: T): void {
     // Notify internal listeners
     const handlers = this.listeners.get(type);
     if (handlers) {

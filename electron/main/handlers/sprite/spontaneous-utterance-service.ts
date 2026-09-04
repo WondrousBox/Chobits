@@ -5,18 +5,18 @@ import * as fsSync from 'node:fs';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
-import { ChatRepo, WorkspacesRepo } from '@packages/common/db/repositories';
+import { ChatRepo } from '@packages/common/db/repositories';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import { app } from 'electron';
 
 import { getPreset } from '../../../../packages/ai/preset-service';
 import { createPiTaskChatRuntimeFromRequest } from '../../../../packages/ai/runtime/pi/task-chat';
+import type { AgentLoopCompletePayload } from '../../../../packages/ai/services/agent-loop-types';
 import { logMemoryTrace } from '../../../../packages/ai/services/memory-trace';
-import type { AgentLoopCompletePayload } from '../../../../packages/ai/services/memory-types';
-import { extractSnapshot, extractTopFacts, parsePersonaMarkdown } from '../../../../packages/ai/services/persona-document';
-import { PERSONA_FILENAME } from '../../../../packages/ai/services/persona-types';
 import { collectTaskChatText, createActivityAwareTaskTimeoutController, type TaskChatActivityKind } from '../../../../packages/ai/services/task-chat-runner';
+import { extractSnapshot, extractTopFacts, parseUserProfileMarkdown } from '../../../../packages/ai/services/user-profile-document';
+import { LEGACY_USER_PROFILE_FILENAME, USER_PROFILE_FILENAME } from '../../../../packages/ai/services/user-profile-types';
 import { eventManager } from '../../../../packages/event';
 import { AppEvent } from '../../../../packages/event/events';
 import { buildCharacterPrompt } from '../../../../packages/sprite-core/character-service';
@@ -95,14 +95,12 @@ type RecentMessage = {
 
 type ResolvedConversationContext = {
   conversationId?: string;
-  workspaceId?: string;
-  workspaceRoot?: string;
   providerId?: string;
   providerPresetId?: string;
   recentMessages: RecentMessage[];
 };
 
-type PersonaSummary = {
+type UserProfileSummary = {
   snapshot: string | null;
   facts: string[];
 };
@@ -131,21 +129,18 @@ type ImportantDialogueDigest = {
 };
 
 type PendingExecutionContext = {
-  workspaceId?: string;
-  workspaceRoot?: string;
   conversationId?: string;
   providerId?: string;
   providerPresetId?: string;
   createdAt: number;
 };
 
-type HistoryLogContext = Pick<ResolvedConversationContext, 'workspaceId' | 'workspaceRoot' | 'conversationId' | 'providerId' | 'providerPresetId'>;
+type HistoryLogContext = Pick<ResolvedConversationContext, 'conversationId' | 'providerId' | 'providerPresetId'>;
 
 type SpontaneousUtteranceLogEntry = {
   timestamp?: number;
   eventType?: string;
   utteranceId?: string;
-  workspaceId?: string;
   conversationId?: string;
   behaviorId?: string;
   wasSkipped?: boolean;
@@ -178,6 +173,11 @@ type FavorLevel = 'stranger' | 'acquaintance' | 'friend' | 'close-friend' | 'bes
 
 function getPreferencesFilePath(): string {
   return path.join(app.getPath('userData'), 'data', 'sprite-spontaneous-utterance-preferences.json');
+}
+
+/** 主动发言日志与 USER_PROFILE.md 的固定存放目录（workspace 概念已随 mini 分支移除） */
+function getMemoryDataDir(): string {
+  return path.join(app.getPath('userData'), 'data', 'memory');
 }
 
 function createEmptyMemoryContext(): PersistentMemoryContext {
@@ -434,7 +434,7 @@ function formatImportantDialogueDigests(digests: ImportantDialogueDigest[]): str
 function buildPrompt(
   input: SpriteSpontaneousUtteranceRequest,
   ctx: ResolvedConversationContext,
-  persona: PersonaSummary,
+  userProfile: UserProfileSummary,
   characterProfileSummary: string[],
   persistentMemory: PersistentMemoryContext,
   importantDialogueDigests: ImportantDialogueDigest[],
@@ -454,7 +454,7 @@ function buildPrompt(
       speechStyleFields: ['tone', 'firstPerson', 'quirks']
     }
   );
-  const personaSection = persona.snapshot || persona.facts.length ? [`## 用户画像\n ${persona.snapshot || '无'}`, ...persona.facts.map((fact) => `- ${fact}`)].join('\n') : '';
+  const userProfileSection = userProfile.snapshot || userProfile.facts.length ? [`## 用户画像\n ${userProfile.snapshot || '无'}`, ...userProfile.facts.map((fact) => `- ${fact}`)].join('\n') : '';
   const allowedIntentLine = preferences.allowedIntentCategories.join('|');
   const preferredToneLine = preferences.preferredTone === 'auto' ? 'auto' : preferences.preferredTone;
 
@@ -486,7 +486,7 @@ ${characterPrompt ? truncateText(characterPrompt, 1800) : ''}
 ## 已知信息
 
 用户画像:
-${personaSection}
+${userProfileSection}
 
 精灵当前角色状态:
 ${characterProfileSummary.join('\n') || '暂无'}
@@ -608,7 +608,6 @@ function createEmptyHistoryAccumulator(entry: SpontaneousUtteranceLogEntry): His
   return {
     utteranceId: entry.utteranceId,
     timestamp,
-    workspaceId: entry.workspaceId,
     conversationId: entry.conversationId,
     behaviorId: entry.behaviorId,
     status: entry.wasSkipped ? 'skipped' : 'generated',
@@ -629,7 +628,6 @@ function applyHistoryLogEntry(base: HistoryAccumulator, entry: SpontaneousUttera
     ...base,
     timestamp: Math.max(base.timestamp, timestamp),
     sortTimestamp: Math.max(base.sortTimestamp, timestamp),
-    workspaceId: entry.workspaceId ?? base.workspaceId,
     conversationId: entry.conversationId ?? base.conversationId,
     behaviorId: entry.behaviorId ?? base.behaviorId,
     triggerReason: entry.triggerReason ?? base.triggerReason,
@@ -762,7 +760,7 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
     const startedAt = Date.now();
     let generationAbortReason: string | undefined;
     let ctx: ResolvedConversationContext | undefined;
-    let persona: PersonaSummary = { snapshot: null, facts: [] };
+    let userProfile: UserProfileSummary = { snapshot: null, facts: [] };
     const persistentMemory = createEmptyMemoryContext();
     const importantDialogueDigests: ImportantDialogueDigest[] = [];
     let purposeRetrospective: SpontaneousPurposeRetrospectiveContext | null = null;
@@ -777,7 +775,7 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
       }
 
       const characterProfilePromise = getStoredCharacterProfile();
-      persona = await this.loadPersonaSummary(ctx.workspaceId);
+      userProfile = await this.loadUserProfileSummary();
       const [characterProfile, resolvedPurposeRetrospective] = await Promise.all([characterProfilePromise, this.collectPurposeRetrospectiveContext()]);
 
       purposeRetrospective = resolvedPurposeRetrospective;
@@ -790,12 +788,11 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
         ...(characterProfile.description ? [`- 当前角色描述: ${truncateText(characterProfile.description, 300)}`] : [])
       ];
 
-      const prompt = buildPrompt(input, ctx, persona, characterProfileSummary, persistentMemory, importantDialogueDigests, purposeRetrospective, preferences);
+      const prompt = buildPrompt(input, ctx, userProfile, characterProfileSummary, persistentMemory, importantDialogueDigests, purposeRetrospective, preferences);
       const runtime = await createPiTaskChatRuntimeFromRequest(
         buildSpontaneousUtteranceRuntimeRequest({
           providerId: ctx.providerId,
-          providerPresetId: ctx.providerPresetId,
-          workspaceId: ctx.workspaceId
+          providerPresetId: ctx.providerPresetId
         })
       );
       let raw = '';
@@ -812,7 +809,7 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
 
       console.log(raw);
 
-      const logContextDigest = this.buildContextDigest(ctx, persona, persistentMemory, importantDialogueDigests, purposeRetrospective);
+      const logContextDigest = this.buildContextDigest(ctx, userProfile, persistentMemory, importantDialogueDigests, purposeRetrospective);
       const parsedPayload = safeParseJson<GeneratedUtterancePayload>(raw);
       const parsedIntent = normalizeIntentCategory(parsedPayload?.intentCategory);
       const normalized = normalizeGeneratedUtterance(parsedPayload, input, preferences);
@@ -847,7 +844,7 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
         return null;
       }
 
-      const recentHistory = ctx.workspaceId ? await this.listSpontaneousUtterances({ workspaceId: ctx.workspaceId, limit: RECENT_TEXT_DEDUPE_LIMIT }) : [];
+      const recentHistory = await this.listSpontaneousUtterances({ limit: RECENT_TEXT_DEDUPE_LIMIT });
       const noiseDecision = evaluateHistoryNoise(normalized, recentHistory);
       if (noiseDecision.shouldSkip) {
         await this.appendSkippedGenerationLog(input, noiseDecision.reason, {
@@ -869,19 +866,16 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
         utteranceId
       };
       this.pendingExecutionContexts.set(utteranceId, {
-        workspaceId: ctx.workspaceId,
-        workspaceRoot: ctx.workspaceRoot,
         conversationId: ctx.conversationId,
         providerId: ctx.providerId,
         providerPresetId: ctx.providerPresetId,
         createdAt: Date.now()
       });
 
-      await this.appendLog(ctx.workspaceRoot, {
+      await this.appendLog({
         timestamp: Date.now(),
         eventType: 'generation',
         utteranceId,
-        workspaceId: ctx.workspaceId,
         conversationId: ctx.conversationId,
         behaviorId: input.behaviorId,
         triggerReason: 'small-action-idle',
@@ -911,7 +905,7 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
       console.warn(`${TAG} generation failed:`, generationAbortReason ? `${errorMessage} (${generationAbortReason})` : errorMessage);
       await this.appendSkippedGenerationLog(input, failureReason, {
         context: ctx,
-        contextDigest: this.buildContextDigest(ctx, persona, persistentMemory, importantDialogueDigests, purposeRetrospective),
+        contextDigest: this.buildContextDigest(ctx, userProfile, persistentMemory, importantDialogueDigests, purposeRetrospective),
         memoryKeywords: persistentMemory.keywords,
         importantDialogueDigests,
         purposeRetrospective
@@ -934,11 +928,10 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
     }
 
     this.pendingExecutionContexts.delete(report.utteranceId);
-    await this.appendLog(pending.workspaceRoot, {
+    await this.appendLog({
       timestamp: Date.now(),
       eventType: 'execution',
       utteranceId: report.utteranceId,
-      workspaceId: pending.workspaceId,
       conversationId: pending.conversationId,
       behaviorId: report.behaviorId,
       triggeredAt: report.triggeredAt,
@@ -988,13 +981,7 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
   }
 
   async listSpontaneousUtterances(query: SpriteSpontaneousUtteranceHistoryQuery = {}): Promise<SpriteSpontaneousUtteranceHistoryItem[]> {
-    const workspace = query.workspaceId != null ? await WorkspacesRepo.getById(query.workspaceId) : await WorkspacesRepo.getDefault();
-
-    if (!workspace?.rootPath) {
-      return [];
-    }
-
-    const logDir = path.join(workspace.rootPath, 'memory', 'logs');
+    const logDir = path.join(getMemoryDataDir(), 'logs');
     let fileNames: string[] = [];
     try {
       fileNames = (await fs.readdir(logDir)).filter((fileName) => fileName.startsWith(HISTORY_FILE_PREFIX) && fileName.endsWith(HISTORY_FILE_SUFFIX)).sort();
@@ -1052,12 +1039,12 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
 
   private buildContextDigest(
     ctx: ResolvedConversationContext | undefined,
-    persona: PersonaSummary,
+    userProfile: UserProfileSummary,
     persistentMemory: PersistentMemoryContext,
     importantDialogueDigests: ImportantDialogueDigest[],
     purposeRetrospective: SpontaneousPurposeRetrospectiveContext | null
   ): {
-    personaUsed: boolean;
+    userProfileUsed: boolean;
     recentMessageCount: number;
     memoryQuery?: string;
     memoryKeywordCount: number;
@@ -1070,7 +1057,7 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
     purposeRetrospectiveItemCount?: number;
   } {
     return {
-      personaUsed: !!persona.snapshot || persona.facts.length > 0,
+      userProfileUsed: !!userProfile.snapshot || userProfile.facts.length > 0,
       recentMessageCount: ctx?.recentMessages.length ?? 0,
       memoryQuery: persistentMemory.query || undefined,
       memoryKeywordCount: persistentMemory.keywords.length,
@@ -1155,8 +1142,6 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
 
     const providerPresetId = effectiveHint?.providerPresetId ?? chosenConversation?.providerPresetId ?? undefined;
     const providerId = effectiveHint?.providerId || chosenConversation?.providerId || (providerPresetId ? getPreset(providerPresetId)?.providerId : undefined);
-    const workspaceId = chosenConversation?.workspaceId || (await WorkspacesRepo.getDefault())?.id || undefined;
-    const workspace = workspaceId ? await WorkspacesRepo.getById(workspaceId) : undefined;
 
     const rawMessages = chosenConversation?.id ? await ChatRepo.listMessages(chosenConversation.id, MESSAGE_LIMIT, 0) : [];
     const recentMessages = rawMessages
@@ -1171,8 +1156,6 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
 
     return {
       conversationId: chosenConversation?.id,
-      workspaceId,
-      workspaceRoot: workspace?.rootPath || undefined,
       providerId,
       providerPresetId: providerPresetId || undefined,
       recentMessages
@@ -1185,8 +1168,6 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
     }
 
     this.lastResolvedContextHint = {
-      workspaceId: ctx.workspaceId,
-      workspaceRoot: ctx.workspaceRoot,
       conversationId: ctx.conversationId,
       providerId: ctx.providerId,
       providerPresetId: ctx.providerPresetId
@@ -1194,18 +1175,7 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
   }
 
   private async resolveHistoryLogContext(): Promise<HistoryLogContext> {
-    if (this.lastResolvedContextHint?.workspaceRoot) {
-      return this.lastResolvedContextHint;
-    }
-
-    const workspace = await WorkspacesRepo.getDefault();
-    const context = {
-      workspaceId: workspace?.id,
-      workspaceRoot: workspace?.rootPath
-    };
-
-    this.rememberHistoryLogContext(context);
-    return context;
+    return this.lastResolvedContextHint ?? {};
   }
 
   private async appendSkippedGenerationLog(
@@ -1227,10 +1197,9 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
     };
 
     this.rememberHistoryLogContext(context);
-    await this.appendLog(context.workspaceRoot, {
+    await this.appendLog({
       timestamp: Date.now(),
       eventType: 'generation',
-      workspaceId: context.workspaceId,
       conversationId: context.conversationId,
       behaviorId: input.behaviorId,
       triggerReason: 'small-action-idle',
@@ -1254,19 +1223,12 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
     });
   }
 
-  private async loadPersonaSummary(workspaceId?: string): Promise<PersonaSummary> {
-    if (!workspaceId) {
-      return { snapshot: null, facts: [] };
-    }
-
-    const workspace = await WorkspacesRepo.getById(workspaceId);
-    if (!workspace?.rootPath) {
-      return { snapshot: null, facts: [] };
-    }
-
+  private async loadUserProfileSummary(): Promise<UserProfileSummary> {
     try {
-      const content = await fs.readFile(path.join(workspace.rootPath, 'memory', PERSONA_FILENAME), 'utf-8');
-      const parsed = parsePersonaMarkdown(content);
+      const profilePath = path.join(getMemoryDataDir(), USER_PROFILE_FILENAME);
+      await this.migrateLegacyUserProfileFile(profilePath);
+      const content = await fs.readFile(profilePath, 'utf-8');
+      const parsed = parseUserProfileMarkdown(content);
       return {
         snapshot: extractSnapshot(parsed),
         facts: extractTopFacts(parsed).slice(0, MAX_PROFILE_FACTS)
@@ -1276,10 +1238,26 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
     }
   }
 
-  private async appendLog(workspaceRoot: string | undefined, payload: Record<string, any>): Promise<void> {
-    if (!workspaceRoot) return;
+  /** 一次性迁移：旧文件 USER_PERSONA.md 存在且新文件不存在时改名；两者都在时以新文件为准 */
+  private async migrateLegacyUserProfileFile(profilePath: string): Promise<void> {
+    if (fsSync.existsSync(profilePath)) {
+      return;
+    }
 
-    const logDir = path.join(workspaceRoot, 'memory', 'logs');
+    const legacyPath = path.join(getMemoryDataDir(), LEGACY_USER_PROFILE_FILENAME);
+    if (!fsSync.existsSync(legacyPath)) {
+      return;
+    }
+
+    try {
+      await fs.rename(legacyPath, profilePath);
+    } catch (error) {
+      console.warn(`${TAG} user profile migration failed:`, error instanceof Error ? error.message : error);
+    }
+  }
+
+  private async appendLog(payload: Record<string, any>): Promise<void> {
+    const logDir = path.join(getMemoryDataDir(), 'logs');
     const logPath = path.join(logDir, `${HISTORY_FILE_PREFIX}${formatLocalDateStamp()}${HISTORY_FILE_SUFFIX}`);
     await fs.mkdir(logDir, { recursive: true });
     await fs.appendFile(logPath, `${JSON.stringify(payload)}\n`, 'utf-8');

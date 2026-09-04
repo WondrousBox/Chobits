@@ -1,8 +1,5 @@
 export type { AISpeechToggleProps } from './AISpeechToggle';
 export { default as AISpeechToggle } from './AISpeechToggle';
-export { default as AssistantMessageTimeline } from './AssistantMessageTimeline';
-export type { AssistantMiniInputWithServiceProps } from './AssistantMiniInputWithService';
-export { default as AssistantMiniInputWithService } from './AssistantMiniInputWithService';
 export type { ChatAgentSelectOption, ChatAgentSelectProps } from './ChatAgentSelect';
 export { default as ChatAgentSelect } from './ChatAgentSelect';
 export type { ChatFooterActionButtonProps } from './ChatFooterActionButton';
@@ -12,6 +9,9 @@ export { default as ChatFooterActions } from './ChatFooterActions';
 export type { ChatInputWithServiceProps } from './ChatInputWithService';
 export { default as ChatInputWithService } from './ChatInputWithService';
 export { default as ChatMessageRenderer } from './ChatMessageRenderer';
+export { default as ChatMessageTimeline } from './ChatMessageTimeline';
+export type { ChatMiniInputWithServiceProps } from './ChatMiniInputWithService';
+export { default as ChatMiniInputWithService } from './ChatMiniInputWithService';
 export { default as ChatTokenUsage } from './ChatTokenUsage';
 export type { CodingWorkspaceButtonProps } from './CodingWorkspaceButton';
 export { default as CodingWorkspaceButton } from './CodingWorkspaceButton';

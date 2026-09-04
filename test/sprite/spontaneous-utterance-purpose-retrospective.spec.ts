@@ -15,7 +15,7 @@ function createRetrospective(): SpontaneousPurposeDailyRetrospective {
     generatedAt: 1_777_777_000_000,
     items: [
       {
-        completedStepIds: ['accept-drop'],
+        completedStepIds: ['speak'],
         durationMs: 4200,
         endedAt: 1_777_777_004_200,
         failedStepIds: [],
@@ -23,14 +23,14 @@ function createRetrospective(): SpontaneousPurposeDailyRetrospective {
         memoryWorthiness: 0.74,
         outcome: 'completed after 4200ms with 3 steps',
         priority: 120,
-        purposeId: 'purpose-file-drop',
-        purposeKind: 'file.drop.intake',
-        recallCue: '- [event] Sprite purpose file.drop.intake completed: accepted files',
+        purposeId: 'purpose-rest-reminder',
+        purposeKind: 'daily.rest-reminder',
+        recallCue: '- [event] Sprite purpose daily.rest-reminder completed: reminded to take a break',
         source: 'user-event',
         startedAt: 1_777_777_000_000,
         status: 'completed',
         stepCount: 3,
-        summary: 'accepted files'
+        summary: 'reminded to take a break'
       },
       {
         completedStepIds: [],
@@ -45,9 +45,9 @@ function createRetrospective(): SpontaneousPurposeDailyRetrospective {
         stepCount: 0
       }
     ],
-    kindCounts: { 'file.drop.intake': 1, 'idle.presence': 1 },
+    kindCounts: { 'daily.rest-reminder': 1, 'idle.presence': 1 },
     memoryCandidateCount: 1,
-    recallCues: ['- [event] Sprite purpose file.drop.intake completed: accepted files'],
+    recallCues: ['- [event] Sprite purpose daily.rest-reminder completed: reminded to take a break'],
     terminalPurposeCount: 2,
     totalPurposeCount: 2
   };
@@ -60,8 +60,8 @@ describe('spontaneous utterance purpose retrospective context', () => {
 
     expect(context?.items).toHaveLength(1);
     expect(formatted).toContain('Purpose outcomes: 2 completed, 1 cancelled, 0 failed');
-    expect(formatted).toContain('Sprite purpose file.drop.intake completed');
-    expect(formatted).toContain('file.drop.intake completed: accepted files');
+    expect(formatted).toContain('Sprite purpose daily.rest-reminder completed');
+    expect(formatted).toContain('daily.rest-reminder completed: reminded to take a break');
     expect(formatted).not.toContain('idle.presence');
   });
 

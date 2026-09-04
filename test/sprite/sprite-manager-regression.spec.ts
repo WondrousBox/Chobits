@@ -8,7 +8,7 @@ import type { AnimationEntry } from '../../packages/sprite-core/animation-regist
 import { initSpriteCapabilityRuntime, resetSpriteCapabilityRuntime } from '../../packages/sprite-core/capability-runtime';
 import { registerDefaultBehaviors } from '../../packages/sprite-core/manager/default-behaviors';
 import { SpriteManager } from '../../packages/sprite-core/manager/sprite-manager';
-import { mapStateToEventType } from '../../packages/sprite-core/manager/state-mapping';
+import { mapStateToTrigger } from '../../packages/sprite-core/manager/state-mapping';
 import type { SpriteAnimation, SpriteMovementConfig } from '../../packages/sprite-core/types';
 
 function createTestWindow(): {
@@ -1169,117 +1169,6 @@ describe('sprite manager regression coverage', () => {
     expect(mgr.getCurrentAnimation()?.animationId).toBe('idle-purpose');
   });
 
-  it('plays quest record feedback through the active purpose lifecycle lock owner', () => {
-    const { mgr, dataDir } = createManager();
-    dataDirs.add(dataDir);
-    const registry = (mgr as any).animationRegistry;
-
-    registry.register({
-      id: 'thinking-purpose',
-      title: 'Thinking Purpose',
-      eventTypes: ['thinking'],
-      source: { localPath: './thinking.webm', type: 'video/webm' },
-      playback: { durationMs: 100 }
-    });
-    registry.register({
-      id: 'write-feedback',
-      title: 'Write Feedback',
-      eventTypes: ['write'],
-      source: { localPath: './write.webm', type: 'video/webm' },
-      playback: { durationMs: 100 }
-    });
-
-    mgr.trigger('thinking', { silent: true });
-    (mgr as any).acquireRoutinePresentationLock(
-      { id: 'purpose-1', priority: 80 },
-      {
-        id: 'routine-purpose-1',
-        purposeId: 'purpose-1',
-        priority: 80,
-        source: 'preset',
-        status: 'running',
-        steps: [{ id: 'wait', type: 'wait', durationMs: 1000 }],
-        cursor: 0,
-        createdAt: Date.now()
-      }
-    );
-
-    const result = mgr.playFeedbackAnimation({ trigger: 'write', kind: 'quest-record', silent: true });
-
-    expect(result).toEqual({ ok: true, played: true, ownerPurposeId: 'purpose-1' });
-    expect(mgr.getCurrentAnimation()?.animationId).toBe('write-feedback');
-  });
-
-  it('blocks feedback when the presentation lock is not owned by the active purpose', () => {
-    const { mgr, dataDir } = createManager();
-    dataDirs.add(dataDir);
-    const registry = (mgr as any).animationRegistry;
-
-    registry.register({
-      id: 'thinking-purpose',
-      title: 'Thinking Purpose',
-      eventTypes: ['thinking'],
-      source: { localPath: './thinking.webm', type: 'video/webm' },
-      playback: { durationMs: 100 }
-    });
-    registry.register({
-      id: 'write-feedback',
-      title: 'Write Feedback',
-      eventTypes: ['write'],
-      source: { localPath: './write.webm', type: 'video/webm' },
-      playback: { durationMs: 100 }
-    });
-
-    mgr.trigger('thinking', { silent: true });
-    (mgr as any).presentationLock.acquire('other-owner', 90, 1000, 'test:other-owner');
-
-    const result = mgr.playFeedbackAnimation({ trigger: 'write', kind: 'quest-record', silent: true });
-
-    expect(result).toEqual({ ok: true, played: false, reason: 'blocked-by-lock' });
-    expect(mgr.getCurrentAnimation()?.animationId).toBe('thinking-purpose');
-  });
-
-  it('reports missing feedback animation candidates before checking presentation ownership', () => {
-    const { mgr, dataDir } = createManager();
-    dataDirs.add(dataDir);
-
-    const result = mgr.playFeedbackAnimation({ trigger: 'write', kind: 'quest-record', silent: true });
-
-    expect(result).toEqual({ ok: true, played: false, reason: 'missing-animation' });
-    expect(mgr.getCurrentAnimation()).toBeNull();
-  });
-
-  it('plays feedback as a normal trigger when no presentation lock is active', () => {
-    const { mgr, dataDir } = createManager();
-    dataDirs.add(dataDir);
-    const registry = (mgr as any).animationRegistry;
-
-    registry.register({
-      id: 'write-feedback',
-      title: 'Write Feedback',
-      eventTypes: ['write'],
-      source: { localPath: './write.webm', type: 'video/webm' },
-      playback: { durationMs: 100 }
-    });
-
-    const result = mgr.playFeedbackAnimation({ trigger: 'write', kind: 'quest-record', silent: true });
-
-    expect(result).toEqual({ ok: true, played: true });
-    expect(mgr.getCurrentAnimation()?.animationId).toBe('write-feedback');
-  });
-
-  it('rejects invalid feedback animation requests', () => {
-    const { mgr, dataDir } = createManager();
-    dataDirs.add(dataDir);
-
-    expect(mgr.playFeedbackAnimation({ trigger: 'write' })).toEqual({
-      ok: false,
-      played: false,
-      reason: 'invalid-request',
-      error: 'Feedback trigger and kind are required'
-    });
-  });
-
   it('allows routine-owned walk state animation while the lifecycle lock is active and returns to idle after walking', async () => {
     const { mgr, dataDir } = createManager();
     dataDirs.add(dataDir);
@@ -1664,59 +1553,10 @@ describe('sprite manager regression coverage', () => {
   });
 
   it('reacting state no longer treats business animation semantics as sub-state mappings', () => {
-    expect(mapStateToEventType('reacting', 'click')).toBe('click');
-    expect(mapStateToEventType('reacting', 'emotion' as any)).toBe('idle');
-    expect(mapStateToEventType('reacting', 'celebrate' as any)).toBe('idle');
-    expect(mapStateToEventType('reacting', 'write' as any)).toBe('idle');
-  });
-
-  it('stopMovementPreview restores the live sprite config', () => {
-    const { mgr, dataDir } = createManager();
-    dataDirs.add(dataDir);
-    const setSize = vi.fn();
-    const stopWalk = vi.fn();
-
-    (mgr as any).windowController = {
-      setSize,
-      stopWalk,
-      isAutoMoving: () => false
-    };
-
-    expect(mgr.getSpriteConfig()).toEqual({
-      width: 200,
-      height: 200,
-      padding: 100,
-      animationPlaylistMode: 'list-loop',
-      bubbleMode: 'fixed-top',
-      debugOverlayEnabled: false
-    });
-
-    mgr.previewMovement({
-      width: 320,
-      height: 260,
-      padding: 24,
-      movement: { enabled: false }
-    });
-    expect(mgr.getSpriteConfig()).toEqual({
-      width: 320,
-      height: 260,
-      padding: 24,
-      animationPlaylistMode: 'list-loop',
-      bubbleMode: 'fixed-top',
-      debugOverlayEnabled: false
-    });
-
-    mgr.stopMovementPreview();
-    expect(stopWalk).toHaveBeenCalledOnce();
-    expect(setSize).toHaveBeenLastCalledWith(200, 200, 0);
-    expect(mgr.getSpriteConfig()).toEqual({
-      width: 200,
-      height: 200,
-      padding: 100,
-      animationPlaylistMode: 'list-loop',
-      bubbleMode: 'fixed-top',
-      debugOverlayEnabled: false
-    });
+    expect(mapStateToTrigger('reacting', 'click')).toBe('click');
+    expect(mapStateToTrigger('reacting', 'emotion' as any)).toBe('idle');
+    expect(mapStateToTrigger('reacting', 'celebrate' as any)).toBe('idle');
+    expect(mapStateToTrigger('reacting', 'write' as any)).toBe('idle');
   });
 
   it('trigger() routes direction movement through the unified coordinator path', () => {
@@ -1882,7 +1722,7 @@ describe('sprite manager regression coverage', () => {
     });
   });
 
-  it('pauses movement while the assistant context menu is open', async () => {
+  it('pauses movement while the sprite context menu is open', async () => {
     const { mgr, dataDir } = createManager();
     dataDirs.add(dataDir);
     initSpriteCapabilityRuntime({
@@ -2177,7 +2017,7 @@ describe('sprite manager regression coverage', () => {
 
     expect(startPurpose).not.toHaveBeenCalled();
     expect(playOnce).toHaveBeenCalledWith('sleepy');
-    expect(showToast).toHaveBeenCalledWith('有点困了呢...', { category: 'info', duration: 2000, ambientContext: 'behavior' });
+    expect(showToast).toHaveBeenCalledWith('有点困了呢...', { category: 'info', duration: 2000 });
   });
 
   it('reminds idle sleepy once per idle period and re-arms after interaction', async () => {
@@ -2264,7 +2104,7 @@ describe('sprite manager regression coverage', () => {
       })
     );
     expect(trigger).toHaveBeenCalledWith('talk', { silent: true });
-    expect(speak).toHaveBeenCalledWith('我想说两句。', { bubbleEnabled: true, ambientContext: 'behavior' });
+    expect(speak).toHaveBeenCalledWith('我想说两句。', { bubbleEnabled: true });
   });
 
   it('gates idle emotion behavior behind emotionExpression capability', () => {

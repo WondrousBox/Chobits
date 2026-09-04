@@ -188,6 +188,3 @@ export class SpriteEventBus {
     }
   }
 }
-
-/** 全局单例 - 精灵事件总线 */
-export const spriteEventBus = new SpriteEventBus();

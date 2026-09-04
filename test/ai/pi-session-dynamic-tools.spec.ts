@@ -1,15 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { installSameTurnDynamicToolActivation } from '../../packages/ai/runtime/pi/dynamic-tool-activation';
-import { createPiPushCardTool } from '../../packages/ai/runtime/pi/tools/push-card';
+import { createPiAskUserTool } from '../../packages/ai/runtime/pi/tools/ask-user';
 
 describe('Pi session dynamic tool activation', () => {
   it('replaces the running context snapshot with newly active tool schemas before the next model request', async () => {
     const toolboxTool = { description: 'toolbox', name: 'toolboxTool', parameters: {} };
-    const pushCardTool = createPiPushCardTool({ pushCardToWindows: vi.fn() } as any);
+    const askUserTool = createPiAskUserTool({} as any);
     const toolsByName = new Map([
       [toolboxTool.name, toolboxTool],
-      [pushCardTool.name, pushCardTool]
+      [askUserTool.name, askUserTool]
     ]);
     const originalPrepareNextTurn = vi.fn(async () => ({ model: { id: 'next-model' } }));
     const agent = {
@@ -32,17 +32,17 @@ describe('Pi session dynamic tool activation', () => {
     installSameTurnDynamicToolActivation(session);
     const promptStartSnapshot = agent.state.tools.slice();
 
-    session.setActiveToolsByName(['toolboxTool', 'pushCardTool']);
+    session.setActiveToolsByName(['toolboxTool', 'askUserTool']);
 
     expect(promptStartSnapshot.map((tool) => tool.name)).toEqual(['toolboxTool']);
 
     const update = await agent.prepareNextTurn();
-    const injectedPushCardTool = update.context.tools.find((tool: any) => tool.name === 'pushCardTool');
+    const injectedAskUserTool = update.context.tools.find((tool: any) => tool.name === 'askUserTool');
 
     expect(originalPrepareNextTurn).toHaveBeenCalledOnce();
     expect(update.model).toEqual({ id: 'next-model' });
-    expect(update.context.systemPrompt).toBe('active: toolboxTool, pushCardTool');
-    expect(injectedPushCardTool.description).toContain('Push a resource card');
-    expect(injectedPushCardTool.parameters.properties.resourceId.description).toContain('Resource ID');
+    expect(update.context.systemPrompt).toBe('active: toolboxTool, askUserTool');
+    expect(injectedAskUserTool.description).toContain('向用户展示交互式选项卡');
+    expect(injectedAskUserTool.parameters.properties.questions.description).toContain('要问的选择题列表');
   });
 });

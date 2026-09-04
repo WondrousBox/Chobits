@@ -122,12 +122,5 @@ export const PreferencesStore = {
    */
   getWebRecorderDeviceId(): string | undefined {
     return this.getConfig().webRecorderDeviceId;
-  },
-
-  /**
-   * 设置 WebRecorder 麦克风设备ID
-   */
-  setWebRecorderDeviceId(deviceId: string | undefined): PreferencesConfig {
-    return this.setConfig({ webRecorderDeviceId: deviceId });
   }
 };

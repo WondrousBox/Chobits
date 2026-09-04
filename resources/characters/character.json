@@ -157,8 +157,7 @@
       "downloadComplete": ["下载完成！"],
       "downloadFail": ["下载失败"],
       "pluginInstall": ["插件安装完成！"],
-      "pluginRemove": ["插件已移除"],
-      "pluginUpdate": ["插件已更新！"]
+      "pluginRemove": ["插件已移除"]
     },
     "routines": {
       "daily.rest-reminder.speak": ["差不多该休息一下了。"],
@@ -227,24 +226,6 @@
         }
       ]
     },
-    "pushCardTool": {
-      "default": {
-        "calling": "准备推一张卡片给你",
-        "done": "卡片推好啦"
-      }
-    },
-    "memorySearchTool": {
-      "default": {
-        "calling": "在记忆里搜搜「{query}」……",
-        "done": "记忆搜索完成"
-      }
-    },
-    "memorySaveTool": {
-      "default": {
-        "calling": "把这个记住……",
-        "done": "记住了！"
-      }
-    },
     "askUserTool": {
       "default": {
         "calling": "有个问题想问你～",
@@ -256,28 +237,6 @@
         "calling": "去搜一下「{query}」……",
         "done": "搜索结果出来了"
       }
-    },
-    "workflowRunTool": {
-      "default": {
-        "calling": "执行工作流……",
-        "done": "工作流跑完了"
-      },
-      "conditions": [
-        {
-          "when": {
-            "action": "search"
-          },
-          "calling": "找找有什么工作流……",
-          "done": "找到了"
-        },
-        {
-          "when": {
-            "action": "run"
-          },
-          "calling": "开始运行工作流～",
-          "done": "工作流跑完啦！"
-        }
-      ]
     }
   },
   "dimensions": {
@@ -338,7 +297,7 @@
     "version": "1.0.0",
     "license": "MIT",
     "description": "Chobits 默认角色 —— chii，一个温暖可爱的桌面智能精灵，陪伴用户工作和生活。",
-    "tags": ["default", "friendly", "assistant"],
+    "tags": ["default", "friendly"],
     "createdAt": "2026-04-02",
     "updatedAt": "2026-04-02"
   }

@@ -10,7 +10,7 @@ export function useSpeechRecognitionSettings(options?: SpriteCapabilityGuardOpti
   const checkStatus = async (): Promise<void> => {
     try {
       const status = await window.chobits.sherpa.getStatus();
-      setIsRunning(status.running);
+      setIsRunning(!!(status.ok && status.running));
     } catch (error) {
       console.error('查询 ASR 状态失败:', error);
       setIsRunning(false);
@@ -50,8 +50,10 @@ export function useSpeechRecognitionSettings(options?: SpriteCapabilityGuardOpti
       if (checked) {
         window.chobits.window['window:open']('asrConfig');
       } else {
-        await window.chobits.sherpa.destroyInstance();
-        await window.chobits.sherpa.saveASRConfig({ enabled: false });
+        const destroyResult = await window.chobits.sherpa.destroyInstance();
+        if (!destroyResult.ok) throw new Error(destroyResult.error);
+        const saveResult = await window.chobits.sherpa.saveASRConfig({ enabled: false });
+        if (!saveResult.ok) throw new Error(saveResult.error);
         setIsRunning(false);
       }
     } catch (error) {

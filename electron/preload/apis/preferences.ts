@@ -3,9 +3,9 @@ import { ipcRenderer } from 'electron';
 
 export type { PreferencesConfig, PreviewMode } from '@packages/common/types/preferences';
 
-export type PreferencesIpcType = typeof preferencesIpcRenderer;
+export type PreferencesBridgeType = typeof preferencesBridge;
 
-export const preferencesIpcRenderer = {
+export const preferencesBridge = {
   /**
    * 获取完整配置
    */
@@ -43,12 +43,5 @@ export const preferencesIpcRenderer = {
     error?: string;
   }> => {
     return await ipcRenderer.invoke('preferences:get-web-recorder-device-id');
-  },
-
-  /**
-   * 设置 WebRecorder 麦克风设备ID
-   */
-  'preferences:set-web-recorder-device-id': async (payload: { deviceId: string | undefined }): Promise<{ ok: boolean; config?: PreferencesConfig; error?: string }> => {
-    return await ipcRenderer.invoke('preferences:set-web-recorder-device-id', payload);
   }
 };

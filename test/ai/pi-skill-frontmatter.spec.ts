@@ -14,9 +14,9 @@ arguments:
   - name: resourceId
   - name: targetLanguage
 allowed-tools:
-  - pushCardTool
+  - appWindowTool
   - web-search
-activation-tools: [pushCardTool, webSearchTool]
+activation-tools: [appWindowTool, webSearchTool]
 aliases: [翻译字幕, 字幕翻译]
 tags:
   - subtitles
@@ -37,9 +37,9 @@ effort: high
 
     expect(parsed.issues).toEqual([]);
     expect(parsed.metadata).toMatchObject({
-      activationToolIds: ['push-card', 'web-search'],
+      activationToolIds: ['app-window', 'web-search'],
       aliases: ['翻译字幕', '字幕翻译'],
-      allowedToolIds: ['push-card', 'web-search'],
+      allowedToolIds: ['app-window', 'web-search'],
       argumentHint: 'resourceId, targetLanguage',
       argumentNames: ['resourceId', 'targetLanguage'],
       description: 'Reliable subtitle translation workflow.',

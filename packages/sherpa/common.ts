@@ -306,18 +306,6 @@ export type StreamInstances = Record<
 
 // ==================== TTS 相关类型 ====================
 
-export type TTSModel =
-  | 'kokoro-multi-lang-v1_0'
-  | 'kokoro-int8-multi-lang-v1_0'
-  | 'kokoro-v1_0-zh'
-  | 'kokoro-v1_0-en'
-  | 'vits-zh-hf-theresa'
-  | 'vits-zh-hf-eula'
-  | 'vits-melo-tts-zh_en'
-  | 'vits-piper-en_US-amy'
-  | 'vits-piper-en_US-lessac'
-  | 'vits-piper-zh_CN-huayan';
-
 export interface TTSModelConfig {
   model: {
     kokoro?: {

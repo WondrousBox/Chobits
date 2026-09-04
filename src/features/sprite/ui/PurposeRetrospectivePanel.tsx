@@ -19,15 +19,6 @@ function formatDuration(ms?: number): string {
   return `${Math.round(ms / 60_000)}m`;
 }
 
-function getPurposeKindLabel(kind: string): string {
-  switch (kind) {
-    case 'file.drop':
-      return '文件投递';
-    default:
-      return kind;
-  }
-}
-
 function getStatusLabel(status: string): string {
   switch (status) {
     case 'completed':
@@ -60,12 +51,12 @@ function getStatusClass(status: string): string {
 function PurposeItem({ item }: { item: SpritePurposeRetrospectiveItem }): JSX.Element {
   return (
     <div className="flex min-w-0 items-center gap-2 rounded-md bg-muted/35 px-2 py-1.5">
-      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-background text-muted-foreground">
+      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-background text-muted-foreground" title={item.memoryCandidate ? '高价值' : undefined}>
         {item.memoryCandidate ? <TbSparkles className="h-4 w-4" /> : <TbFlag className="h-4 w-4" />}
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-2 text-xs">
-          <span className="truncate font-medium text-foreground">{getPurposeKindLabel(item.purposeKind)}</span>
+          <span className="truncate font-medium text-foreground">{item.purposeKind}</span>
           <span className={getStatusClass(item.status)}>{getStatusLabel(item.status)}</span>
         </div>
         <div className="truncate text-[11px] text-muted-foreground">
@@ -101,7 +92,7 @@ const PurposeRetrospectivePanel: React.FC<PurposeRetrospectivePanelProps> = ({ r
               {retrospective.failedCount + retrospective.cancelledCount}
             </span>
           )}
-          <span className="flex items-center gap-1">
+          <span className="flex items-center gap-1" title="高价值">
             <TbSparkles className="h-3.5 w-3.5" />
             {retrospective.memoryCandidateCount}
           </span>

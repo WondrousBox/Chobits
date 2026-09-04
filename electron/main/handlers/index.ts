@@ -23,14 +23,13 @@ import {
   type SpriteWindowAnimationPlayPosition
 } from '../../../packages/sprite-core/types';
 import { isFeatureEnabled } from '../feature-flags';
-import { addAllowedResourceRoot, isPathWithinAllowedRoots } from '../resource-protocol';
+import { addAllowedResourceRoot } from '../resource-protocol';
 import { initFileHandlers } from './file/ipc-main';
 import { initPreferencesHandlers } from './preferences/ipc-main';
 import { initProxyHandlers } from './proxy/ipc-main';
 import { getHttpProxy } from './proxy/proxy';
 import { initShortcutsHandlers } from './shortcuts';
 import { SpritePurposePlannerRuntimeContextTracker } from './sprite/purpose-planner-context';
-import { initSpritePurposePlannerHandlers } from './sprite/purpose-planner-ipc';
 import { SpritePurposePlannerPreferencesStore } from './sprite/purpose-planner-preferences';
 import { createSpritePurposePiPlannerExecutor } from './sprite/purpose-planner-runtime';
 import { createSpritePurposeRoutinePlanner, SpritePurposePlannerService } from './sprite/purpose-planner-service';
@@ -256,7 +255,7 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
     getResourcePath,
     assertCapabilityUnlocked: assertSpriteCapabilityUnlocked
   });
-  initStatusHandlers(win);
+  initStatusHandlers();
   await initAIHandlers(win);
   if (isFeatureEnabled('localAI')) {
     initSherpaHandlers();
@@ -301,10 +300,8 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
     animationTriggers: SPRITE_EVENT_TYPES,
     history: purposeHistoryStore
   });
-  initSpritePurposePlannerHandlers(purposePlannerService, purposePlannerPreferencesStore);
   await initSpriteManagerHandlers(win, {
     addAllowedResourceRoot,
-    isPathWithinAllowedRoots,
     registerCharacterPromptProvider: async (resolveCharacterPrompt) => {
       registerSystemPromptEnricher({
         id: 'character-prompt',

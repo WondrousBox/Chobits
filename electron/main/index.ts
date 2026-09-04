@@ -2,7 +2,6 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { WorkspacesRepo } from '@packages/common/db/repositories';
 import { Env, getResourcePath } from '@packages/common/utils';
 import { app, BrowserWindow, ipcMain, shell } from 'electron';
 
@@ -11,8 +10,9 @@ import { AppEvent } from '../../packages/event/events';
 import { initHandlers } from './handlers';
 import { PreferencesStore } from './handlers/preferences/preferences-store';
 import { logger } from './logger';
-import { addAllowedResourceRoot, addWorkspaceResourceRoot, setupResourceProtocol } from './resource-protocol';
+import { addAllowedResourceRoot, setupResourceProtocol } from './resource-protocol';
 import { registerGlobalShortcuts, unregisterGlobalShortcuts } from './shortcuts';
+import { initAutoUpdater } from './updater';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -120,7 +120,7 @@ async function createWindow(): Promise<void> {
     // 窗口大小由渲染进程通过 IPC 设置，这里只设置一个很小的默认值
     width: 1,
     height: 1,
-    frame: false, // frameless for a floating assistant
+    frame: false, // frameless for a floating sprite
     transparent: true, // transparent background
     backgroundColor: '#00000000',
     alwaysOnTop: true, // stay on top
@@ -193,20 +193,6 @@ app.whenReady().then(async () => {
     console.warn('[protocol res] setup failed', e);
   }
 
-  // Add workspace root if exists
-  logStartupStep('loading default workspace');
-  try {
-    const ws = await WorkspacesRepo.getDefault();
-    if (ws?.rootPath) {
-      const resRoot = path.join(ws.rootPath, 'resources');
-      addAllowedResourceRoot(resRoot);
-      addWorkspaceResourceRoot(ws.id, resRoot);
-      logStartupStep(`workspace root: ${ws.rootPath}`);
-    }
-  } catch (e) {
-    console.warn('[protocol res] add workspace root failed', e);
-  }
-
   // Add userData/data directory as allowed root for sprite speak cache etc.
   logStartupStep('registering userData resource root');
   try {
@@ -242,7 +228,7 @@ app.whenReady().then(async () => {
   await createWindow();
   logStartupStep('main window created, loading IPC handlers');
 
-  // Register all global shortcuts (assistant toggle, devtools, etc.)
+  // Register all global shortcuts (sprite toggle, devtools, etc.)
   logStartupStep('registering global shortcuts');
   registerGlobalShortcuts(getMainWindow);
 
@@ -268,8 +254,10 @@ app.whenReady().then(async () => {
   }
   closeSplashWindow();
 
-  // Emit App Started Event
-  eventManager.emit(AppEvent.APP_STARTED);
+  // 启动自动更新（仅生产环境生效；内部延迟检查，不阻塞启动）
+  initAutoUpdater();
+
+  // Emit Sprite System Ready Event
   eventManager.emit(AppEvent.SPRITE_SYSTEM_READY);
 });
 

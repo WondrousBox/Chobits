@@ -58,10 +58,7 @@
     "entitlements": "public/entitlements.plist",
     "entitlementsInherit": "public/entitlements.plist",
     "extendInfo": {
-      "NSMicrophoneUsageDescription": "此应用需要访问麦克风以进行音频录制",
-      "NSCameraUsageDescription": "此应用需要访问摄像头以进行视频录制",
-      "NSSpeechRecognitionUsageDescription": "此应用需要访问语音识别服务",
-      "NSScreenCaptureUsageDescription": "此应用需要屏幕录制权限以录制屏幕和系统音频"
+      "NSMicrophoneUsageDescription": "此应用需要访问麦克风以进行音频录制"
     }
   },
   "win": {
@@ -80,8 +77,9 @@
     "deleteAppDataOnUninstall": false
   },
   "publish": {
-    "provider": "generic",
-    "channel": "latest",
-    "url": "https://github.com/electron-vite/chobits/releases/download/v0.0.1/"
+    "provider": "github",
+    "owner": "chenxin199305",
+    "repo": "Chobits-Chi-Mascot",
+    "channel": "latest"
   }
 }

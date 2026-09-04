@@ -2,7 +2,7 @@
 
 > **mini 分支注记**：文中提到的长期记忆系统（Memory Note 复盘消费面）已移除；purpose/routine 运行时与复盘摘要面本身仍然保留。
 >
-> 另：FileActionsMenu 页面、packages/workflow、DailyCare service 与任务列表页（QuestListPage）均已移除（`daily.care.reminder` preset 本身仍保留）；`file.drop.intake` preset 已改名为 `file.drop`，`file.drop.invite` 已不存在；§7.2 的 `daily.rest-reminder` 示例中的 walkTo 步骤与当前 `createRestReminderSteps()` 实现不符（现为原地提醒，无位移）。正文不再逐段改写，下方文件/测试清单中的失效条目仅在条目旁标注“（已移除）”。
+> 另：FileActionsMenu 页面、packages/workflow、DailyCare service 与任务列表页（QuestListPage）均已移除（`daily.care.reminder` preset 本身仍保留）；`file.drop.intake` preset 已改名为 `file.drop`，`file.drop.invite` 已不存在；§7.2 的 `daily.rest-reminder` 示例中的 walkTo 步骤与当前 `createRestReminderSteps()` 实现不符（现为原地提醒，无位移）；`sprite:purpose:cancel` / `sprite:purpose:get-snapshot` / `sprite:purpose:list-history` IPC 已随死代码清理移除，现存 purpose IPC 为 `sprite:purpose:start` / `sprite:purpose:event` / `sprite:purpose:get-daily-retrospective`；§8.3 落地的 `sprite:feedback:play` IPC 与 preload `playFeedback` bridge 亦已移除。正文不再逐段改写，下方文件/测试清单中的失效条目仅在条目旁标注“（已移除）”。
 
 > 状态：Phase 1-8 基础闭环已完成；受限 AI planner 默认关闭；剩余为真实 provider 手动冒烟、体验打磨与产品化 backlog。
 > 日期：2026-05-03
@@ -13,14 +13,14 @@
 截至 2026-05-03，Purpose/Routine 已按“不改写 `BehaviorEngine`、只在上层封装连续行为方案”的原则完成 Phase 1-8 基础闭环，并完成受限 AI planner 的默认关闭安全接入：
 
 - 已新增 `packages/sprite-core/purpose/` 基础运行时：`SpritePurposeManager`、`SpriteRoutineRunner`、`SpriteRoutinePresetRegistry`、默认 preset、history writer 抽象。
-- `SpriteManager` 已持有 PurposeManager，并暴露 `startPurpose()`、`cancelPurpose()`、`getPurposeSnapshot()`。
-- preload / IPC 已接入 `sprite:purpose:start`、`sprite:purpose:cancel`、`sprite:purpose:get-snapshot`。
+- `SpriteManager` 已持有 PurposeManager，并暴露 `startPurpose()`（`cancelPurpose()`、`getPurposeSnapshot()` 已移除）。
+- preload / IPC 已接入 `sprite:purpose:start`、`sprite:purpose:cancel`（已移除）、`sprite:purpose:get-snapshot`（已移除）。
 - 动画播放指令已支持 `playId`，渲染层完成上报可回传 `playId`。
 - `playAnimation` step 已支持 `waitFor: 'duration'`、按 `playId` 等待 `waitFor: 'complete'`，以及省略 `waitFor` / `waitFor: 'none'` 的 fire-and-forget 触发语义。
 - 已新增 `SpritePresentationLock`，高优先级 routine 动画/行走期间会阻止低优先级 ambient trigger 抢占展示。
 - Phase 2.5 已把展示锁扩展到状态机驱动的动画解析链路，并新增 routine 生命周期级展示锁。
 - routine 自己触发的行走状态会带 owner 上下文通过展示锁；routine 结束释放锁后会按当前状态刷新动画。
-- Phase 3 基础版已新增 `PurposeEventWaiter`、`waitForEvent` step、`sprite:purpose:event`、`sprite:purpose:list-history`、JSONL history store 与 step 生命周期历史。
+- Phase 3 基础版已新增 `PurposeEventWaiter`、`waitForEvent` step、`sprite:purpose:event`、`sprite:purpose:list-history`（已移除）、JSONL history store 与 step 生命周期历史。
 - SpriteEventBus 事件与 AppEvent 已会转入 purpose-event 等待层；workflow 的 `SPRITE_WORKFLOW_*` payload 已带 `runId/workflowId/status/progress/resourceId` 等 correlation 字段。
 - Phase 4/5 已完成文件投递与 workflow 等待链路：`file.drop.intake`、FileActionsMenu purpose event 回报、`branch` / `loopUntil`、`workflow.waiting`、progress/updateBusy、取消/失败/完成收尾、UI/e2e 风格验收与低频 speak/cooldown 均已接入。
 - 文件投递已补齐 drop 前邀请段：`file.drop.invite` 会在 `file-drag-over` 时走向屏幕中心，等待 `interact:file-drop` / `interact:file-drag-leave`；drop 后沿用 `file.drop.intake` 接管菜单与处理链路。
@@ -992,6 +992,8 @@ parallel(
 - 已补充 manager 回归测试覆盖 lifecycle lock 下普通 walk 回 idle、三段式 walk outro 后 owner-aware idle；renderer mount 测试覆盖 walk loop 退出和 idle segment loop 保持。
 
 ## 8.3 2026-06-09 Quest Record Link-State Feedback Animation
+
+> **（已移除）**：本节设计并落地的 `playFeedback` / `sprite:feedback:play`（IPC 与 preload bridge）已随 mini 分支死代码清理移除；下方内容保留为历史记录。
 
 ### 背景
 

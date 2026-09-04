@@ -11,11 +11,6 @@ import type { AIPromptInspectionSource } from './prompt-inspector';
  * 默认 enabled=false（生产姿态），仅靠单次 ChatRequest.extras
  * 临时打开；本地排障时把 enabled 改成 true，或配合下面的 allowlist
  * 收敛到只关心少数 source / agentId。
- *
- * 当前配置：enabled=true，配合 allowlist 只观察 conversation-route
- * 和 project-tracking。
- * 临时切换为"全部打印"：把两个 allowlist 置空 []；恢复只观察
- * conversation-route：把 enabled 改回 false、allowlist 留作示例。
  */
 export const AI_PROMPT_INSPECTOR_SETTINGS = {
   /**
@@ -48,11 +43,11 @@ export const AI_PROMPT_INSPECTOR_SETTINGS = {
    *
    * 合法取值见 AIPromptInspectionSource：
    *   - 'pi-session'             // 普通聊天会话
-   *   - 'pi-task-chat'           // 后台任务型 chat（如 conversation-route）
+   *   - 'pi-task-chat'           // 后台任务型 chat（task-chat）
    *   - 'pi-coding-session'      // coding agent 会话
    *   - 'pi-forked-skill'        // forked skill 子会话
    *
-   * 用例：只想看 conversation-route 时可写
+   * 用例：只想看后台任务型 chat 的 prompt 时可写
    *   sourceAllowlist: ['pi-task-chat']
    * 并配合 agentIdAllowlist 进一步收敛。
    */
@@ -62,18 +57,13 @@ export const AI_PROMPT_INSPECTOR_SETTINGS = {
    * AgentId 白名单：仅当 inspection record 的 agentId 在该列表中时
    * 才允许打印 / 落盘。留空（默认）表示不按 agentId 过滤。
    *
-   * 常见 agentId：
-   *   - 'conversation-route'           // 对话路由抽取
-   *   - 'project-tracking'             // 项目候选识别 / 项目增量抽取
-   *   - 'memory-extraction'            // 记忆抽取
-   *   - 'memory-auto-recall'           // 记忆自动召回
-   *   - 'memory-recall-cue-backfill'   // 记忆回填
-   *   - 'title-generation'             // 标题生成
-   *   - 'user-persona-check'           // 人设一致性检查
-   *   - 'user-persona-update'          // 人设更新
+   * 现存 agentId：
+   *   - 'chat'        // 聊天会话与后台任务（title / tag 等）
+   *   - 'assistant'   // 助手 profile
+   *   - 'coder'       // coding agent 会话
    *
-   * 用例：只观察 conversation-route 的 prompt 时可写
-   *   agentIdAllowlist: ['conversation-route']
+   * 用例：只观察聊天会话的 prompt 时可写
+   *   agentIdAllowlist: ['chat']
    */
-  agentIdAllowlist: ['conversation-route', 'project-tracking'] as string[]
+  agentIdAllowlist: [] as string[]
 };

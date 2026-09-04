@@ -1,3 +1,4 @@
+import type { TTSResultPayload } from '@packages/sherpa/ipc-renderer';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TbChevronDown, TbDownload, TbLoader2, TbPlayerPlay, TbPlayerStop, TbVolume, TbX } from 'react-icons/tb';
 
@@ -15,17 +16,6 @@ import {
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Textarea } from '@/components/ui/textarea';
-
-interface TTSSynthesisResult {
-  requestId: string;
-  samples?: number[];
-  sampleRate?: number;
-  duration?: number;
-  outputPath?: string;
-  elapsedSeconds?: number;
-  rtf?: number;
-  error?: string;
-}
 
 // Kokoro 说话人列表（仅支持英文和中文）
 const KOKORO_SPEAKERS = [
@@ -84,7 +74,7 @@ const TTSPage: React.FC = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioData, setAudioData] = useState<{ samples: Float32Array; sampleRate: number } | null>(null);
-  const [result, setResult] = useState<TTSSynthesisResult | null>(null);
+  const [result, setResult] = useState<TTSResultPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -111,82 +101,81 @@ const TTSPage: React.FC = () => {
 
   // 监听 TTS 结果并自动播放
   useEffect(() => {
-    const handleMessage = async (_event: any, message: { type: string; data: TTSSynthesisResult }): Promise<void> => {
-      if (message.type === 'sherpa:tts:message') {
-        const data = message.data;
-        console.log('[TTS] Received result:', data);
+    const handleTTSResult = async (data: TTSResultPayload): Promise<void> => {
+      console.log('[TTS] Received result:', data);
 
-        // 检查是否是当前请求
-        if (data.requestId !== requestIdRef.current) {
-          return;
-        }
+      // 检查是否是当前请求
+      if (data.requestId !== requestIdRef.current) {
+        return;
+      }
 
-        setIsGenerating(false);
+      setIsGenerating(false);
 
-        if (data.error) {
-          setError(data.error);
-          setResult(null);
-          setAudioData(null);
-        } else {
-          setError(null);
-          setResult(data);
+      if (data.error) {
+        setError(data.error);
+        setResult(null);
+        setAudioData(null);
+      } else {
+        setError(null);
+        setResult(data);
 
-          // 如果返回了音频数据，保存并自动播放
-          if (data.samples && data.sampleRate) {
-            const floatSamples = new Float32Array(data.samples);
-            setAudioData({ samples: floatSamples, sampleRate: data.sampleRate });
+        // 如果返回了音频数据，保存并自动播放
+        if (data.samples && data.sampleRate) {
+          const floatSamples = new Float32Array(data.samples);
+          setAudioData({ samples: floatSamples, sampleRate: data.sampleRate });
 
-            // 自动播放
-            try {
-              // 停止任何可能正在播放的旧音频
-              if (sourceNodeRef.current) {
-                sourceNodeRef.current.stop();
-                sourceNodeRef.current.onended = null; // 移除旧的 onended 回调
-                sourceNodeRef.current = null;
-              }
-
-              // 创建 AudioContext（如果不存在）
-              if (!audioContextRef.current) {
-                audioContextRef.current = new AudioContext();
-              }
-
-              const audioContext = audioContextRef.current;
-
-              // 确保 AudioContext 处于运行状态
-              if (audioContext.state === 'suspended') {
-                await audioContext.resume();
-              }
-
-              // 创建 AudioBuffer
-              const audioBuffer = audioContext.createBuffer(1, floatSamples.length, data.sampleRate);
-              audioBuffer.getChannelData(0).set(floatSamples);
-
-              // 创建 BufferSource
-              const source = audioContext.createBufferSource();
-              source.buffer = audioBuffer;
-              source.connect(audioContext.destination);
-
-              // 播放结束时的处理
-              source.onended = () => {
-                setIsPlaying(false);
-                sourceNodeRef.current = null;
-              };
-
-              sourceNodeRef.current = source;
-              source.start();
-              setIsPlaying(true);
-            } catch (err) {
-              console.error('[TTS] 自动播放失败:', err);
-              setError(err instanceof Error ? err.message : '播放失败');
+          // 自动播放
+          try {
+            // 停止任何可能正在播放的旧音频
+            if (sourceNodeRef.current) {
+              sourceNodeRef.current.stop();
+              sourceNodeRef.current.onended = null; // 移除旧的 onended 回调
+              sourceNodeRef.current = null;
             }
+
+            // 创建 AudioContext（如果不存在）
+            if (!audioContextRef.current) {
+              audioContextRef.current = new AudioContext();
+            }
+
+            const audioContext = audioContextRef.current;
+
+            // 确保 AudioContext 处于运行状态
+            if (audioContext.state === 'suspended') {
+              await audioContext.resume();
+            }
+
+            // 创建 AudioBuffer
+            const audioBuffer = audioContext.createBuffer(1, floatSamples.length, data.sampleRate);
+            audioBuffer.getChannelData(0).set(floatSamples);
+
+            // 创建 BufferSource
+            const source = audioContext.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(audioContext.destination);
+
+            // 播放结束时的处理
+            source.onended = () => {
+              setIsPlaying(false);
+              sourceNodeRef.current = null;
+            };
+
+            sourceNodeRef.current = source;
+            source.start();
+            setIsPlaying(true);
+          } catch (err) {
+            console.error('[TTS] 自动播放失败:', err);
+            setError(err instanceof Error ? err.message : '播放失败');
           }
         }
       }
     };
 
-    window.ipcRenderer?.on('app:renderer-message', handleMessage);
+    const unsubscribe = window.chobits.sherpa.onTTSResult((data) => {
+      void handleTTSResult(data);
+    });
     return () => {
-      window.ipcRenderer?.off('app:renderer-message', handleMessage);
+      unsubscribe();
     };
   }, []);
 

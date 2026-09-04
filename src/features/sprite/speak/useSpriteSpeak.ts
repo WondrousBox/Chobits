@@ -99,7 +99,7 @@ export function useSpriteSpeak(): { stop: () => void } {
     [stop]
   );
 
-  // 订阅 sprite:speak 事件
+  // 订阅 sprite:speak-started 事件
   useEffect(() => {
     const sprite = window.chobits?.sprite;
     if (!sprite?.onSpeak) {

@@ -17,11 +17,9 @@
  * 下行(主进程→渲染)：
  *   sprite:play             — 播放动画命令
  *   sprite:state            — 状态变化
- *   sprite:message          — 消息(toast/notice/busy)
+ *   app:message:bridge      — 统一消息桥(toast/notice/busy)
  *   sprite:walk             — 行走状态
  *   sprite:config           — 配置变化
- *   sprite:busy:update      — 忙碌进度
- *   sprite:busy:clear       — 清除忙碌
  */
 
 import { randomUUID } from 'node:crypto';
@@ -29,23 +27,18 @@ import { randomUUID } from 'node:crypto';
 import { windowManager } from '@aim-packages/window-manager';
 import { app, BrowserWindow, ipcMain, screen, systemPreferences } from 'electron';
 
-import { loadShortcutEnabledConfig, saveShortcutEnabledConfig } from '../../common/shortcut-store';
 import { AppEvent, eventManager } from '../../event';
 import { setSherpaCapabilityGuards } from '../../sherpa/capability-guard';
 import { disableASRRuntime, getASRConfigSnapshot, getASRStatusSnapshot } from '../../sherpa/ipc-main';
 import { SPRITE_CAPABILITY_SIGNALS, type SpriteCapabilityResolutionContext } from '../capability-registry';
 import { assertSpriteCapabilityActive, assertSpriteCapabilityUnlocked, getSpriteCapabilitySnapshot, initSpriteCapabilityRuntime } from '../capability-runtime';
 import { getCharacterCapabilityContextFlags } from '../character-capability-flags';
-import type { CharacterGalleryAIEditDraft } from '../character-gallery';
 import {
-  buildCharacterGalleryAIEditContext,
-  getCharacterGalleryCanvasLayout,
   importCharacterGalleryItem,
   initCharacterGalleryManager,
   listCharacterGalleryItems,
   removeCharacterGalleryItem,
   replaceCharacterGalleryItemImage,
-  saveCharacterGalleryCanvasLayout,
   updateCharacterGalleryItem
 } from '../character-gallery-manager';
 import {
@@ -70,29 +63,17 @@ import { buildCharacterPrompt, getCharacterDefinition, getCharacterInfo, getChar
 import { isSpriteInteractionIntent, type SpriteInteractionPayload } from '../interaction-contract';
 import type { SpriteProactiveSpeechGate, SpritePurposeRoutinePlanner, SpritePurposeWindowAdapter, SpriteSpontaneousUtteranceExecutor, SpriteWindowAnimationAdapter } from '../manager';
 import { SpriteManager } from '../manager';
-import type { SpritePurposeHistoryQuery, SpritePurposeRetrospectiveQuery, SpritePurposeRuntimeEventInput, StartSpritePurposeRequest } from '../purpose';
+import type { SpritePurposeRetrospectiveQuery, SpritePurposeRuntimeEventInput, StartSpritePurposeRequest } from '../purpose';
 import type { SpeakRequest, SpriteRealtimeSpeechEvent, SpriteRealtimeSpeechSessionRequest, SpriteSpeakConfig, SpriteSpeechSynthesisExecutor, SpriteSpeechTextTranslator } from '../speak/types';
-import type {
-  SpriteAnimationPlaylistMode,
-  SpriteAnimationTrigger,
-  SpriteBubbleMode,
-  SpriteConfirmNoticeRequest,
-  SpriteConfirmNoticeResult,
-  SpriteFeedbackRequest,
-  SpriteMovementPreviewConfig,
-  SpriteTriggerRequest
-} from '../types';
+import type { SpriteAnimationPlaylistMode, SpriteAnimationTrigger, SpriteBubbleMode, SpriteTriggerRequest } from '../types';
 import { MESSAGE_IPC_CHANNELS } from '../types';
 import { WindowController } from '../window-controller';
-import type { WindowControllerAvoidRegion } from '../window-controller-model';
 import { notifySpriteCapabilityChanged } from './capability-broadcast';
 import { getDefaultCharactersDir, listSprites, setSpriteAssetsChangeHandler } from './sprite-assets';
 import { initSpriteEventListener } from './sprite-event-listener';
 
 export interface SpriteManagerDeps {
   addAllowedResourceRoot: (root: string) => void;
-  /** 校验路径是否在已注册资源根之内(用于 addTempResourceRoot 的注册前校验) */
-  isPathWithinAllowedRoots?: (target: string) => boolean;
   registerCharacterPromptProvider?: (provider: () => string | null) => void | Promise<void>;
   spontaneousUtteranceExecutor?: SpriteSpontaneousUtteranceExecutor;
   /** 主动发言闸门：routine 的 speak 步骤受"主动发言间隔"统一节制 */
@@ -496,13 +477,6 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
   function resolveCapabilityContext(): SpriteCapabilityResolutionContext {
     const { featureFlags } = getCharacterCapabilityContextFlags();
 
-    let screenshotEnabled = false;
-    try {
-      screenshotEnabled = Boolean(loadShortcutEnabledConfig().screenshot);
-    } catch {
-      screenshotEnabled = false;
-    }
-
     let asrRunning = false;
     try {
       asrRunning = Boolean(getASRStatusSnapshot().running);
@@ -522,9 +496,7 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
     return {
       featureFlags,
       activeSignals: {
-        [SPRITE_CAPABILITY_SIGNALS.dailyCareEnabled]: false,
         [SPRITE_CAPABILITY_SIGNALS.recorderEnabled]: recorderEnabled,
-        [SPRITE_CAPABILITY_SIGNALS.screenshotEnabled]: screenshotEnabled,
         [SPRITE_CAPABILITY_SIGNALS.asrRunning]: asrRunning
       }
     };
@@ -534,32 +506,11 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
     const snapshot = getSpriteCapabilitySnapshot();
     if (!snapshot) return;
 
-    const screenshotCapability = snapshot.capabilities.screenshot;
-    if (screenshotCapability?.status === 'locked' && loadShortcutEnabledConfig().screenshot) {
-      saveShortcutEnabledConfig({ screenshot: false });
-      broadcastShortcutEnabledConfig();
-    }
-
     const speechRecognitionCapability = snapshot.capabilities.speechRecognition;
     const asrConfig = getASRConfigSnapshot();
     if (speechRecognitionCapability?.status === 'locked' && (asrConfig.enabled || getASRStatusSnapshot().running)) {
       disableASRRuntime({ disableConfig: true });
     }
-  }
-
-  function broadcastShortcutEnabledConfig(): void {
-    const shortcutEnabledConfig = loadShortcutEnabledConfig();
-    for (const candidate of BrowserWindow.getAllWindows()) {
-      if (!candidate || candidate.isDestroyed()) continue;
-
-      try {
-        candidate.webContents.send('shortcuts:enabled-updated', shortcutEnabledConfig);
-      } catch {
-        /* ignore */
-      }
-    }
-
-    notifySpriteCapabilityChanged({ source: 'shortcuts.screenshot' });
   }
 
   // ===== 渲染进程 → 主进程 (handle) =====
@@ -618,18 +569,6 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
 
   ipcMain.handle('sprite:character:get-info', () => {
     return getCharacterInfo();
-  });
-
-  ipcMain.handle('sprite:character:get-prompt', (_event, options?: import('../character-service').CharacterPromptBuildOptions) => {
-    const characterState = mgr.getCharacterState();
-    return buildCharacterPrompt(
-      {
-        favorLevel: characterState.favorLevel,
-        mood: characterState.mood,
-        level: characterState.level
-      },
-      options
-    );
   });
 
   ipcMain.handle('sprite:character:list-packs', async () => {
@@ -870,28 +809,6 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
     return listCharacterGalleryItems(payload);
   });
 
-  ipcMain.handle('sprite:character:gallery:canvas:get', async (_event, payload: { packId?: string; source?: CharacterPackSource } = {}) => {
-    return getCharacterGalleryCanvasLayout(payload);
-  });
-
-  ipcMain.handle(
-    'sprite:character:gallery:canvas:save',
-    async (
-      _e,
-      payload: {
-        layout: Parameters<typeof saveCharacterGalleryCanvasLayout>[0];
-        packId?: string;
-        source?: CharacterPackSource;
-      }
-    ) => {
-      assertSpriteCapabilityUnlocked('spriteManage');
-      return saveCharacterGalleryCanvasLayout(payload.layout, {
-        packId: payload.packId,
-        source: payload.source
-      });
-    }
-  );
-
   ipcMain.handle(
     'sprite:character:gallery:import',
     async (
@@ -963,25 +880,6 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
     });
   });
 
-  ipcMain.handle('sprite:character:gallery:build-ai-edit-context', async (_event, payload: { packId?: string; source?: CharacterPackSource; draft: CharacterGalleryAIEditDraft }) => {
-    return buildCharacterGalleryAIEditContext(payload.draft, {
-      packId: payload.packId,
-      source: payload.source
-    });
-  });
-
-  ipcMain.handle('sprite:character:reload', async () => {
-    const reload = await reloadCharacterRuntimeChain({
-      notifyCapabilitySource: 'character.reload'
-    });
-    return {
-      ok: true,
-      character: getCharacterInfo(),
-      runtime: reload.runtime,
-      characterSlot: reload.characterSlot
-    };
-  });
-
   // ===== 配置 =====
 
   ipcMain.handle('sprite:config:get-debug-overlay', () => {
@@ -1013,11 +911,6 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
     return next;
   });
 
-  ipcMain.handle('sprite:movement:set-avoid-regions', (_event, p: { regions?: WindowControllerAvoidRegion[] } | undefined) => {
-    mgr.setMovementAvoidRegions(Array.isArray(p?.regions) ? p.regions : []);
-    return { ok: true };
-  });
-
   ipcMain.handle('sprite:spontaneous:get-preferences', async () => {
     return (await deps.spontaneousUtteranceExecutor?.getSpontaneousUtterancePreferences?.()) ?? null;
   });
@@ -1030,26 +923,11 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
     return (await deps.spontaneousUtteranceExecutor?.listSpontaneousUtterances?.(p as any)) ?? [];
   });
 
-  // 预览窗口移动效果
-  ipcMain.handle('sprite:preview-movement', (_event, p: SpriteMovementPreviewConfig) => {
-    mgr.previewMovement(p);
-  });
-
-  // 停止移动预览
-  ipcMain.handle('sprite:stop-movement-preview', () => {
-    mgr.stopMovementPreview();
-  });
-
   // ===== 语音合成 (Speak) =====
 
   /** 让精灵说话：合成 + 播放 + 显示气泡 */
   ipcMain.handle('sprite:speak', async (_event, p: SpeakRequest) => {
     return mgr.speak(p.text, { bubbleEnabled: p.bubbleEnabled, bubbleDuration: p.bubbleDuration });
-  });
-
-  /** 仅合成语音（不播放，不显示气泡） */
-  ipcMain.handle('sprite:speak:synthesize', async (_event, p: { text: string }) => {
-    return mgr.synthesizeSpeech(p.text);
   });
 
   /** 获取语音合成配置 */
@@ -1060,11 +938,6 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
   /** 更新语音合成配置 */
   ipcMain.handle('sprite:speak:set-config', (_event, p: Partial<SpriteSpeakConfig>) => {
     return mgr.setSpeakConfig(p);
-  });
-
-  /** 重置语音合成配置 */
-  ipcMain.handle('sprite:speak:reset-config', () => {
-    return mgr.resetSpeakConfig();
   });
 
   /** 获取语音缓存统计 */
@@ -1147,18 +1020,6 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
     });
   });
 
-  ipcMain.handle('sprite:feedback:play', (_event, p: SpriteFeedbackRequest | null | undefined) => {
-    const request = p ?? {};
-    return mgr.playFeedbackAnimation({
-      trigger: request.trigger,
-      kind: request.kind,
-      silent: request.silent,
-      durationMs: request.durationMs,
-      message: request.message,
-      ctx: request.ctx
-    });
-  });
-
   // ===== 按动画 ID 测试播放 =====
   ipcMain.handle('sprite:trigger-by-id', (_event, p: { animationId: string; message?: string; duration?: number; durationMs?: number; silent?: boolean; allowMovementDuringPlayback?: boolean }) => {
     return mgr.triggerById(p.animationId, {
@@ -1175,103 +1036,12 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
     return mgr.startPurpose(p);
   });
 
-  ipcMain.handle('sprite:purpose:cancel', (_event, p: { purposeId?: string; reason?: string } | undefined) => {
-    return mgr.cancelPurpose(p?.purposeId, p?.reason);
-  });
-
-  ipcMain.handle('sprite:purpose:get-snapshot', () => {
-    return mgr.getPurposeSnapshot();
-  });
-
   ipcMain.handle('sprite:purpose:event', (_event, p: SpritePurposeRuntimeEventInput) => {
     if (p?.source === 'app-event' && Object.values(AppEvent).includes(p.event as AppEvent)) {
       eventManager.emit(p.event as AppEvent, p.payload);
       return { matched: 0 };
     }
     return mgr.emitPurposeEvent(p);
-  });
-
-  ipcMain.handle('sprite:message:confirm', async (_event, request: SpriteConfirmNoticeRequest | undefined): Promise<SpriteConfirmNoticeResult> => {
-    const content = typeof request?.content === 'string' ? request.content.trim() : '';
-    const messageId = typeof request?.id === 'string' && request.id.trim() ? request.id.trim() : `sprite-confirm-${randomUUID()}`;
-    if (!content) {
-      return { confirmed: false, messageId, reason: 'error' };
-    }
-
-    const timeoutMs = Number.isFinite(request?.timeoutMs) ? Math.max(0, Number(request?.timeoutMs)) : 5 * 60 * 1000;
-    const controller = new AbortController();
-    const waitOptions = {
-      source: 'purpose-event' as const,
-      match: { messageId },
-      timeoutMs,
-      ignoreHistory: true,
-      signal: controller.signal
-    };
-    const actionPromise = mgr.waitForPurposeEvent({
-      ...waitOptions,
-      event: 'bubble:action',
-      routineId: `${messageId}:action`
-    });
-    actionPromise.catch(() => undefined);
-    const dismissedPromise = mgr.waitForPurposeEvent({
-      ...waitOptions,
-      event: 'bubble:dismissed',
-      routineId: `${messageId}:dismissed`
-    });
-    dismissedPromise.catch(() => undefined);
-
-    try {
-      const delivered = await mgr.showSpriteNotice(content, {
-        id: messageId,
-        level: request?.level ?? 'warning',
-        persistent: true,
-        speak: request?.shouldSpeak ?? false,
-        buttons: [
-          {
-            id: 'confirm',
-            label: request?.confirmLabel || '确认',
-            action: 'purpose:confirm',
-            variant: 'default'
-          },
-          {
-            id: 'cancel',
-            label: request?.cancelLabel || '取消',
-            action: 'purpose:cancel',
-            variant: 'secondary'
-          }
-        ]
-      });
-
-      if (!delivered) {
-        return { confirmed: false, messageId, reason: 'error' };
-      }
-
-      const event = await Promise.race([actionPromise, dismissedPromise]);
-      const action = event.event === 'bubble:action' ? String(event.payload?.purposeAction || event.payload?.actionId || '') : undefined;
-      return {
-        confirmed: action === 'confirm',
-        messageId,
-        actionId: typeof event.payload?.actionId === 'string' ? event.payload.actionId : undefined,
-        action,
-        reason: event.event === 'bubble:action' ? (action === 'confirm' ? 'confirm' : 'cancel') : 'dismissed'
-      };
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') {
-        return { confirmed: false, messageId, reason: 'dismissed' };
-      }
-      if (error instanceof Error && error.name === 'SpritePurposeEventTimeoutError') {
-        return { confirmed: false, messageId, reason: 'timeout' };
-      }
-      console.warn('[SpriteManagerIPC] sprite confirm notice failed', error);
-      return { confirmed: false, messageId, reason: 'error' };
-    } finally {
-      controller.abort();
-      mgr.clearMessage({ id: messageId, type: 'notice' });
-    }
-  });
-
-  ipcMain.handle('sprite:purpose:list-history', (_event, p: SpritePurposeHistoryQuery | undefined) => {
-    return mgr.listPurposeHistory(p);
   });
 
   ipcMain.handle('sprite:purpose:get-daily-retrospective', (_event, p: SpritePurposeRetrospectiveQuery | undefined) => {
@@ -1344,17 +1114,6 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
   };
 
   forwardCharacterEvent('sprite:character:switched', 'sprite:character:switched');
-
-  // ===== 临时资源根目录（用于视频预览等场景） =====
-  ipcMain.handle('sprite:add-temp-resource-root', (_event, root: string) => {
-    // 只允许注册已可信根（userData / 工作区 / 资源目录）之内的路径,防止渲染进程把 res:// 扩大成任意文件读
-    if (typeof root !== 'string' || !deps.isPathWithinAllowedRoots?.(root)) {
-      console.warn('[sprite:add-temp-resource-root] rejected root outside allowed roots:', root);
-      return { ok: false };
-    }
-    deps.addAllowedResourceRoot(root);
-    return { ok: true };
-  });
 
   // ===== 基于已加载动画触发初始播放 =====
   try {

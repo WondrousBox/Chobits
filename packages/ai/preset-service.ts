@@ -1,7 +1,7 @@
 import { clearStoredPresetSecrets, getStoredPresetSecrets, setStoredPresetSecrets } from './preset-secrets-store';
-import { createStoredPreset, deleteStoredPreset, getStoredPreset, listStoredPresets, updateStoredPreset } from './presets-store';
+import { createStoredPreset, deleteStoredPreset, getStoredPreset, listStoredPresets } from './presets-store';
 import { listProviderSecretKeys, listRequiredProviderSecretKeys, toCanonicalProviderId } from './providers/service';
-import type { ProviderPresetCreatePayload, ProviderPresetRecord, ProviderPresetUpdatePatch } from './types';
+import type { ProviderPresetCreatePayload, ProviderPresetRecord } from './types';
 
 function normalizePresetId(presetId?: string): string | undefined {
   const normalizedPresetId = presetId?.trim();
@@ -57,10 +57,6 @@ export async function resolveUsablePreset(providerId: string, preferredPresetId?
 
 export function createPreset(payload: ProviderPresetCreatePayload): ProviderPresetRecord {
   return createStoredPreset(payload);
-}
-
-export function updatePreset(id: string, patch: ProviderPresetUpdatePatch): ProviderPresetRecord | undefined {
-  return updateStoredPreset(id, patch);
 }
 
 export async function deletePreset(id: string): Promise<boolean> {

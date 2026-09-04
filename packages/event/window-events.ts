@@ -37,7 +37,6 @@ export function attachAppWindowClosedReporter(targetWindow: BrowserWindow | null
   if (reporters.has(windowKey)) return;
   reporters.add(windowKey);
 
-  const sourceWindowId = targetWindow.webContents.id;
   targetWindow.once('closed', () => {
     const closeSource = sources.get(windowKey) ?? source;
     const payload: AppWindowClosePayload = {
@@ -45,6 +44,6 @@ export function attachAppWindowClosedReporter(targetWindow: BrowserWindow | null
       windowKey,
       source: closeSource
     };
-    eventManager.emit(AppEvent.APP_WINDOW_CLOSED, payload, sourceWindowId);
+    eventManager.emit(AppEvent.APP_WINDOW_CLOSED, payload);
   });
 }

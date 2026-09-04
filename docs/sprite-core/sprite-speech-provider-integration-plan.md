@@ -150,7 +150,7 @@ SpriteManager.speak(text)
   -> cache hit: return audioPath and trigger playback
   -> engine=edge: EdgeTTS -> cache.put()
   -> engine=ai-provider: executor.synthesize(toSpeechSynthesisRequest()) -> cache.put/copy materialized artifact
-  -> callback sprite:speak with audioPath
+  -> callback sprite:speak-started with audioPath
   -> SpriteManager trigger talk animation only when audio will play
 ```
 
@@ -336,8 +336,6 @@ durationMs?: number;
 
 - `sprite:speak:get-config`
 - `sprite:speak:set-config`
-- `sprite:speak:reset-config`
-- `sprite:speak:synthesize`
 - `sprite:speak`
 - `sprite:speak:get-cache-stats`
 - `sprite:speak:clear-cache`

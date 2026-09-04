@@ -17,9 +17,9 @@ function toThinkingBlocks(thinking: string): ThinkingMetadataBlock[] | undefined
   return [{ type: 'thinking', thinking }];
 }
 
-export function getRealtimeSpeechScope(req: ChatRequest): 'mainChat' | 'resourceChatSidebar' | undefined {
+export function getRealtimeSpeechScope(req: ChatRequest): 'mainChat' | undefined {
   const scope = req.extras?.realtimeSpeechScope;
-  return scope === 'mainChat' || scope === 'resourceChatSidebar' ? scope : undefined;
+  return scope === 'mainChat' ? scope : undefined;
 }
 
 export function appendTextDisplayPart(parts: ChatMessageDisplayPart[], text: string): void {

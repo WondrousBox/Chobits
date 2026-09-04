@@ -70,23 +70,6 @@ export function listProviders(): ProviderAdapter[] {
 }
 
 /**
- * 注册一个 Agent/Profile 元数据
- */
-export function registerAgentProfile(profile: AgentProfileDescriptor): void {
-  ensureDefaultAgentProfiles();
-  agentProfiles.set(profile.id, profile);
-}
-
-/**
- * 根据 ID 获取 Agent/Profile 描述信息
- */
-export function getAgentProfile(id?: string): AgentProfileDescriptor | undefined {
-  ensureDefaultAgentProfiles();
-  if (id) return agentProfiles.get(id);
-  return agentProfiles.get('assistant');
-}
-
-/**
  * 获取所有可见 Agent/Profile 列表
  */
 export function listAgents(): AgentProfileDescriptor[] {

@@ -2,7 +2,7 @@
 
 /**
  * macOS 应用权限检查工具
- * 用于检查应用是否有必要的权限来录制系统音频
+ * 用于检查应用是否有必要的权限配置（麦克风等）
  */
 
 import { execSync } from 'child_process';
@@ -126,10 +126,6 @@ if (!appPath) {
     } else {
       console.log('ℹ️  未找到沙盒配置（可能使用默认设置）');
     }
-
-    // 注意：屏幕录制权限不需要在 entitlements 中声明
-    // 它通过 Info.plist 中的 NSScreenCaptureUsageDescription 和用户手动授予
-    console.log('ℹ️  屏幕录制权限通过 Info.plist 和系统设置管理');
   } catch (e) {
     console.log('⚠️  无法检查 entitlements');
     console.log('   错误:', e.message);
@@ -173,12 +169,6 @@ try {
   } else {
     console.log('⚠️  electron-builder.json 缺少麦克风使用说明');
   }
-
-  if (extendInfo.NSScreenCaptureUsageDescription) {
-    console.log('✅ electron-builder.json 包含屏幕录制使用说明');
-  } else {
-    console.log('❌ electron-builder.json 缺少屏幕录制使用说明');
-  }
 } catch {
   console.log('❌ 无法读取 electron-builder.json');
 }
@@ -195,15 +185,12 @@ console.log('');
 console.log('1. 打开「系统设置」>「隐私与安全性」');
 console.log('');
 console.log('2. 检查以下权限：');
-console.log('   📹 屏幕录制 - 必须开启');
-console.log('      ⚠️  重要：在授予权限时，必须勾选「允许系统音频录制」');
-console.log('   🎤 麦克风 - 建议开启');
+console.log('   🎤 麦克风 - 语音录制与识别必需');
 console.log('');
 console.log('3. 如果应用未出现在列表中：');
 console.log('   - 点击列表下方的「+」按钮');
 console.log('   - 导航到应用并添加');
 console.log('   - 开启开关');
-console.log('   - 在弹出的对话框中勾选「允许系统音频录制」');
 console.log('');
 console.log('4. 授予权限后，必须重启应用才能生效');
 console.log('');
@@ -215,9 +202,6 @@ console.log('========================================');
 console.log('');
 console.log('运行以下命令打开相应的设置页面：');
 console.log('');
-console.log('打开屏幕录制设置：');
-console.log("  open 'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture'");
-console.log('');
 console.log('打开麦克风设置：');
 console.log("  open 'x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone'");
 console.log('');
@@ -227,20 +211,13 @@ console.log('========================================');
 console.log('权限诊断提示');
 console.log('========================================');
 console.log('');
-console.log('如果权限已授予但仍无法录制系统音频：');
+console.log('如果麦克风权限已授予但仍无法录音：');
 console.log('');
-console.log('1. 确认在授予屏幕录制权限时勾选了「允许系统音频录制」');
-console.log('   如果没有勾选，需要：');
-console.log('   - 关闭应用的屏幕录制权限');
-console.log('   - 重新开启，并在弹出的对话框中勾选「允许系统音频录制」');
-console.log('   - 重启应用');
+console.log('1. 检查应用是否已正确安装（不是从 zip 解压直接运行）');
 console.log('');
-console.log('2. 检查应用是否已正确安装（不是从 zip 解压直接运行）');
-console.log('');
-console.log('3. 查看系统日志（需要管理员权限）：');
+console.log('2. 查看系统日志（需要管理员权限）：');
 console.log("   sudo log show --predicate 'subsystem == \"com.apple.TCC\"' --last 1h | grep -i '${APP_BUNDLE_ID}'");
 console.log('');
-console.log('4. 重置权限（谨慎使用，会清除所有权限）：');
-console.log(`   tccutil reset ScreenCapture ${APP_BUNDLE_ID}`);
+console.log('3. 重置权限（谨慎使用，会清除对应权限）：');
 console.log(`   tccutil reset Microphone ${APP_BUNDLE_ID}`);
 console.log('');

@@ -14,10 +14,6 @@ export function resetSpriteCapabilityRuntime(): void {
   runtimeResolver = null;
 }
 
-export function hasSpriteCapabilityRuntime(): boolean {
-  return runtimeResolver !== null;
-}
-
 export function getSpriteCapabilitySnapshot(): SpriteCapabilitySnapshot | null {
   if (!runtimeResolver) return null;
   return DEFAULT_SPRITE_CAPABILITY_REGISTRY.resolveSnapshot(runtimeResolver.resolveContext());

@@ -81,10 +81,6 @@ function trimPath(targetPath?: string): string | undefined {
   return trimmed || undefined;
 }
 
-export function isTrustedSkillSource(trustLevel: SkillTrustLevel): boolean {
-  return trustLevel === 'trusted' || trustLevel === 'workspace';
-}
-
 export function requiresSkillSourceCaution(trustLevel: SkillTrustLevel): boolean {
   return trustLevel === 'plugin' || trustLevel === 'compatibility';
 }

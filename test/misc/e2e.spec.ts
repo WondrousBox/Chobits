@@ -35,7 +35,7 @@ if (process.platform === 'linux') {
     await electronApp.close();
   });
 
-  describe('[electron-vite-react] e2e tests', async () => {
+  describe('[Chobits] e2e tests', async () => {
     test('startup', async () => {
       const title = await page.title();
       expect(title).eq(pkg.name);

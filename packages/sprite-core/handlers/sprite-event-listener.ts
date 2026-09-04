@@ -234,13 +234,6 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
     }
   });
 
-  handlers.push({
-    event: AppEvent.SPRITE_PLUGIN_UPDATE,
-    handler: (data) => {
-      mgr.trigger('update', { message: data?.message || eventText('pluginUpdate', data, '插件已更新！') });
-    }
-  });
-
   // ===== 系统生命周期事件 =====
 
   handlers.push({
@@ -258,41 +251,17 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
     }
   });
 
+  // ===== 应用窗口事件 =====
+  // 无动画行为，仅借下方统一包装把事件转发给 Purpose waiter ——
+  // first-chat / chat-api-config-guide 等 routine 的 loopUntil 在等待它们。
   handlers.push({
-    event: AppEvent.SPRITE_SYSTEM_FOCUS,
-    handler: () => {
-      mgr.trigger('wake', { duration: 1500 });
-    }
+    event: AppEvent.APP_WINDOW_OPENED,
+    handler: () => {}
   });
 
   handlers.push({
-    event: AppEvent.SPRITE_SYSTEM_BLUR,
-    handler: () => {
-      mgr.trigger('sleep', { silent: true });
-    }
-  });
-
-  // ===== 网络事件 =====
-
-  handlers.push({
-    event: AppEvent.SPRITE_NETWORK_CONNECT,
-    handler: (data) => {
-      mgr.trigger('connect', { message: data?.message });
-    }
-  });
-
-  handlers.push({
-    event: AppEvent.SPRITE_NETWORK_DISCONNECT,
-    handler: (data) => {
-      mgr.trigger('disconnect', { message: data?.message });
-    }
-  });
-
-  handlers.push({
-    event: AppEvent.SPRITE_NETWORK_TIMEOUT,
-    handler: (data) => {
-      mgr.trigger('timeout', { message: data?.message });
-    }
+    event: AppEvent.APP_WINDOW_CLOSED,
+    handler: () => {}
   });
 
   const subscriptions = handlers.map(({ event, handler }) => ({

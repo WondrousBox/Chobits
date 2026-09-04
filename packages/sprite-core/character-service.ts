@@ -251,10 +251,6 @@ export function setCharacterPackFilePath(filePath: string | null): void {
   }
 }
 
-export function getCharacterPackFilePath(): string | null {
-  return characterPackFilePath;
-}
-
 export function setCharacterPackSource(source: CharacterPackRuntimeSource | null | undefined): void {
   characterPackSource = source ?? null;
 }
@@ -324,14 +320,6 @@ export function getCharacterDefinition(): CharacterDefinition | null {
 }
 
 /**
- * Get the favor tier overlay for a given favor level.
- */
-export function getFavorTierOverlay(favorLevel: string): FavorTier | null {
-  const char = getCharacterDefinition();
-  return char?.favorTiers?.[favorLevel] ?? null;
-}
-
-/**
  * Get the dimension definitions from the current character.
  */
 export function getDimensionSchema(): DimensionDef[] {
@@ -350,17 +338,6 @@ export function reloadCharacter(): CharacterDefinition | null {
     characterFilePath = resolvedCharacterPath;
   }
   return getCharacterDefinition();
-}
-
-export function reloadCharacterPack(): CharacterPackDefinition | null {
-  cachedCharacterPack = null;
-  const pack = getCharacterPackDefinition();
-  const resolvedCharacterPath = resolveCharacterFilePathFromPack(pack, characterPackFilePath);
-  if (resolvedCharacterPath && resolvedCharacterPath !== characterFilePath) {
-    characterFilePath = resolvedCharacterPath;
-    cachedCharacter = null;
-  }
-  return pack;
 }
 
 // ━━ Character Prompt Builder (Phase 2) ━━

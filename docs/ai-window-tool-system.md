@@ -80,7 +80,6 @@ appWindowTool({ action: 'open', windowKey: 'settings', payload: { category: 'ai'
 - `chatMini`
 - `aiProviderConfig`
 - `asrConfig`
-- `asr`
 - `ttsConfig`
 - `tts`
 - `characterPackEditor`
@@ -101,7 +100,6 @@ appWindowTool({ action: 'open', windowKey: 'settings', payload: { category: 'ai'
 
 - `settings`: `category`, `tab`, `aiProviderId`, `aiPresetId`
 - `aiProviderConfig`: `providerId`, `presetId`, `fields`
-- `asr`: `mode`, `cloudProviderId`, `cloudProviderPresetId`, `cloudModelId`, `audioSource`
 - `chat` / `chatPanel` / `chatMini`: `initialMessage`, `providerId`, `modelId`, `preferredPresetId`, `presetId`, `agentId`, `codingWorkspaceRoot`, `codingWorkspaceLabel`, `webSearchEnabled`, `characterPromptEnabled`
 - `asrConfig` / `ttsConfig` / `tts` / `characterPackEditor`: no payload
 - `windowAnimationEditor`: no payload; presets are direct playback actions and are not loaded into this editor

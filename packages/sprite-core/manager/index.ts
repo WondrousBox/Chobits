@@ -34,7 +34,7 @@ export { registerDefaultBehaviors } from './default-behaviors';
 export { MovementCoordinator } from './movement-coordinator';
 export { CharacterStatePersistence } from './persistence';
 export { SpriteManager } from './sprite-manager';
-export { mapStateToEventType } from './state-mapping';
+export { mapStateToTrigger } from './state-mapping';
 export type {
   CharacterStatePersistenceRow,
   SpriteBehaviorScheduler,

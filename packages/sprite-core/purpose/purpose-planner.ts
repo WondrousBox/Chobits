@@ -1,4 +1,3 @@
-import type { SpriteAnimationTrigger } from '../types';
 import type { SpriteRoutinePresetDefinition } from './routine-presets';
 import type { SpritePurpose, SpritePurposeHistoryEntry, SpritePurposeRuntimeEventSource, SpriteRoutine, SpriteRoutineStep, SpriteRoutineStepType, StartSpritePurposeRequest } from './types';
 
@@ -143,7 +142,7 @@ export const DEFAULT_SPRITE_PURPOSE_PLANNER_STEP_TYPES = [
 
 export const DEFAULT_SPRITE_PURPOSE_PLANNER_WINDOWS = [] as const;
 
-export const DEFAULT_SPRITE_PURPOSE_PLANNER_EVENTS = ['fileAction:resolved'] as const;
+export const DEFAULT_SPRITE_PURPOSE_PLANNER_EVENTS = [] as const;
 
 const STEP_SCHEMA_DESCRIPTIONS: Record<SpriteRoutineStepType, string> = {
   playAnimation:
@@ -710,5 +709,3 @@ function normalizeBoundedInteger(value: unknown, fallback: number, min: number, 
   const normalized = normalizePositiveInteger(value, fallback);
   return Math.min(max, Math.max(min, normalized));
 }
-
-export type SpritePurposePlannerAnimationTrigger = SpriteAnimationTrigger;

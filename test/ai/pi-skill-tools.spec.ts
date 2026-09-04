@@ -37,7 +37,7 @@ name: subtitle-translate
 description: Reliable subtitle translation workflow.
 when_to_use: When the user wants subtitle translation.
 allowed-tools:
-  - pushCardTool
+  - appWindowTool
   - webSearchTool
 activation-tools:
   - webSearchTool
@@ -71,7 +71,7 @@ arguments:
     expect(searchResult.results).toHaveLength(1);
     expect(searchResult.results[0]).toMatchObject({
       activationToolIds: ['web-search'],
-      allowedToolIds: ['push-card', 'web-search'],
+      allowedToolIds: ['app-window', 'web-search'],
       executionContext: 'inline',
       isDiscovered: true,
       name: 'subtitle-translate'

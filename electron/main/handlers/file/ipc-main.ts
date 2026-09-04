@@ -1,6 +1,3 @@
-import * as fs from 'node:fs/promises';
-import * as path from 'node:path';
-
 import { dialog, ipcMain, shell } from 'electron';
 
 // Generic file/directory selection handlers
@@ -23,32 +20,6 @@ export function initFileHandlers(_win: Electron.BrowserWindow): void {
     });
     if (result.canceled || result.filePaths.length === 0) return { ok: false };
     return { ok: true, paths: result.filePaths, path: result.filePaths[0] };
-  });
-
-  // 混合选择：支持同时选择文件和文件夹，支持多选
-  ipcMain.handle('file:pick-any', async (_event, options?: { defaultPath?: string }) => {
-    const result = await dialog.showOpenDialog({
-      properties: ['openFile', 'openDirectory', 'multiSelections'],
-      defaultPath: options?.defaultPath
-    });
-    if (result.canceled || result.filePaths.length === 0) return { ok: false };
-
-    const paths = await Promise.all(
-      result.filePaths.map(async (filePath) => {
-        try {
-          const stat = await fs.stat(filePath);
-          return {
-            path: filePath,
-            name: path.basename(filePath),
-            isDirectory: stat.isDirectory()
-          };
-        } catch {
-          return null;
-        }
-      })
-    );
-
-    return { ok: true, paths: paths.filter(Boolean) };
   });
 
   // 保存文件对话框：选择输出文件夹和文件名
@@ -104,59 +75,6 @@ export function initFileHandlers(_win: Electron.BrowserWindow): void {
       return { ok: true };
     } catch (e: any) {
       return { ok: false, error: String(e?.message || e) };
-    }
-  });
-
-  // 读取文件内容（用于文本类资源预览）
-  ipcMain.handle('file:read-content', async (_event, filePath: string) => {
-    console.log('file:read-content from ', filePath);
-
-    if (!filePath) return { ok: false, error: 'EMPTY_PATH' };
-
-    try {
-      // 检查文件是否存在
-      const stats = await fs.stat(filePath);
-      if (!stats.isFile()) {
-        return { ok: false, error: 'NOT_A_FILE' };
-      }
-
-      // 读取完整文件，不限制大小
-      const content = await fs.readFile(filePath, 'utf8');
-      return {
-        ok: true,
-        content,
-        wasTruncated: false,
-        originalSize: stats.size
-      };
-    } catch (e: any) {
-      return { ok: false, error: String(e?.message || e) };
-    }
-  });
-
-  // 递归读取文件夹内容
-  ipcMain.handle('file:read-dir-recursive', async (_event, dirPath: string) => {
-    if (!dirPath) return { ok: false, error: 'EMPTY_PATH' };
-    try {
-      const entries: Array<{ name: string; path: string; isDirectory: boolean; relativePath: string }> = [];
-
-      async function traverse(currentPath: string, relativeBase: string): Promise<void> {
-        const dirents = await fs.readdir(currentPath, { withFileTypes: true });
-        for (const dirent of dirents) {
-          const fullPath = path.join(currentPath, dirent.name);
-          const relPath = path.join(relativeBase, dirent.name);
-          if (dirent.isDirectory()) {
-            entries.push({ name: dirent.name, path: fullPath, isDirectory: true, relativePath: relPath });
-            await traverse(fullPath, relPath);
-          } else {
-            entries.push({ name: dirent.name, path: fullPath, isDirectory: false, relativePath: relPath });
-          }
-        }
-      }
-
-      await traverse(dirPath, '');
-      return { ok: true, data: entries };
-    } catch (e: any) {
-      return { ok: false, error: e.message };
     }
   });
 }

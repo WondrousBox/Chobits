@@ -13,7 +13,7 @@ import type { ChatInputWithServiceProps } from './ChatInputWithService';
 import SpeechInputButton from './SpeechInputButton';
 import { mergeTranscriptWithInput, useSpeechInput } from './useSpeechInput';
 
-export interface AssistantMiniInputWithServiceProps {
+export interface ChatMiniInputWithServiceProps {
   onStart: ChatInputWithServiceProps['onStart'];
   isLoading?: boolean;
   disabled?: boolean;
@@ -24,7 +24,7 @@ export interface AssistantMiniInputWithServiceProps {
   onMenuOpenPrepare?: () => void;
 }
 
-export default function AssistantMiniInputWithService({
+export default function ChatMiniInputWithService({
   onStart,
   isLoading = false,
   disabled = false,
@@ -33,7 +33,7 @@ export default function AssistantMiniInputWithService({
   className,
   onMenuOpenChange,
   onMenuOpenPrepare
-}: AssistantMiniInputWithServiceProps): JSX.Element {
+}: ChatMiniInputWithServiceProps): JSX.Element {
   const { providerId, modelId, presetId, agentId, codingWorkspaceRoot, codingWorkspaceLabel, webSearchEnabled, characterPromptEnabled, setProviderId, setModelId } = useChatSelection();
   const [draft, setDraft] = useState('');
   // 语音识别中的临时文字（仅展示，未写入草稿）

@@ -1,5 +1,4 @@
 import { ChatRepo } from '../../../common/db';
-import { pushCardToWindows } from '../../card-push';
 import type { UserChoiceRequest, UserChoiceResponse } from '../../types';
 import type { PiCodingWorkspaceContext, ResolvedPiRequest } from './contracts';
 import type { SkillExecutionResult, SkillRegistry, SkillSessionState } from './skills';
@@ -29,7 +28,6 @@ export interface PiSessionToolContext {
   chatRepo: typeof ChatRepo;
   coding?: PiCodingWorkspaceContext;
   conversationId?: string;
-  pushCardToWindows: typeof pushCardToWindows;
   reportProgress?: (callId: string, progress: number, message?: string) => void;
   resolved: ResolvedPiRequest;
   targetWindowId?: number;
@@ -72,7 +70,6 @@ export function createPiSessionToolContext(resolved: ResolvedPiRequest): PiSessi
     chatRepo: ChatRepo,
     coding: resolved.coding,
     conversationId: resolveConversationId(resolved),
-    pushCardToWindows,
     resolved,
     targetWindowId: resolveTargetWindowId(resolved)
   };

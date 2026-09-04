@@ -1,17 +1,7 @@
 import { ipcRenderer } from 'electron';
 
 import { normalizeProviderPreset } from './provider-preset';
-import type {
-  ConversationRecord,
-  EmbeddingRequest,
-  ProviderPresetCreatePayload,
-  ProviderPresetUpdatePatch,
-  PushedCard,
-  SpeechSynthesisRequest,
-  SpeechSynthesisStreamEvent,
-  TranscriptionRequest,
-  UserChoiceResponse
-} from './types';
+import type { ConversationRecord, ProviderPresetCreatePayload, SpeechSynthesisRequest, SpeechSynthesisStreamEvent, TranscriptionRequest, UserChoiceResponse } from './types';
 
 export type StreamCallback = (event: { type: string; data?: any }) => void;
 
@@ -21,9 +11,6 @@ export const aiBridge = {
   },
   async getAgents() {
     return ipcRenderer.invoke('ai:get-agents');
-  },
-  async listTools(): Promise<Array<{ id: string; name: string; description: string }>> {
-    return ipcRenderer.invoke('ai:list-tools');
   },
   async listSkills(payload?: { agentId?: string; workspaceRoot?: string }) {
     return ipcRenderer.invoke('ai:list-skills', payload || {});
@@ -37,27 +24,9 @@ export const aiBridge = {
   async setProviderSecrets(providerId: string, secrets: Record<string, string>) {
     return ipcRenderer.invoke('ai:set-provider-secrets', { providerId, secrets });
   },
-  async clearProviderSecrets(providerId: string) {
-    return ipcRenderer.invoke('ai:clear-provider-secrets', { providerId });
-  },
   // Multiple API Keys Management
   async getProviderApiKeys(providerId: string, key: string) {
     return ipcRenderer.invoke('ai:get-provider-api-keys', { providerId, key });
-  },
-  async setProviderApiKeys(providerId: string, key: string, keys: Array<{ name: string; value: string; isDefault?: boolean }>) {
-    return ipcRenderer.invoke('ai:set-provider-api-keys', { providerId, key, keys });
-  },
-  async addProviderApiKey(providerId: string, key: string, apiKey: { name: string; value: string }) {
-    return ipcRenderer.invoke('ai:add-provider-api-key', { providerId, key, apiKey });
-  },
-  async updateProviderApiKey(providerId: string, key: string, apiKeyName: string, updates: Partial<{ name: string; value: string; isDefault: boolean }>) {
-    return ipcRenderer.invoke('ai:update-provider-api-key', { providerId, key, apiKeyName, updates });
-  },
-  async removeProviderApiKey(providerId: string, key: string, apiKeyName: string) {
-    return ipcRenderer.invoke('ai:remove-provider-api-key', { providerId, key, apiKeyName });
-  },
-  async setDefaultProviderApiKey(providerId: string, key: string, apiKeyName: string) {
-    return ipcRenderer.invoke('ai:set-default-provider-api-key', { providerId, key, apiKeyName });
   },
   async clearAllSecrets() {
     return ipcRenderer.invoke('ai:clear-all-secrets');
@@ -136,9 +105,6 @@ export const aiBridge = {
   async chat(payload: any) {
     return ipcRenderer.invoke('ai:chat', normalizeProviderPreset(payload));
   },
-  async chatEphemeral(payload: any) {
-    return ipcRenderer.invoke('ai:chat-ephemeral', normalizeProviderPreset(payload));
-  },
   async chatStream(payload: any, onEvent?: StreamCallback) {
     const normalizedPayload = normalizeProviderPreset({
       ...payload,
@@ -197,9 +163,6 @@ export const aiBridge = {
 
     return api;
   },
-  async embed(payload: EmbeddingRequest) {
-    return ipcRenderer.invoke('ai:embed', normalizeProviderPreset(payload));
-  },
   // Presets
   async listPresets(providerId?: string) {
     return ipcRenderer.invoke('ai:list-presets', { providerId });
@@ -209,9 +172,6 @@ export const aiBridge = {
   },
   async createPreset(payload: ProviderPresetCreatePayload) {
     return ipcRenderer.invoke('ai:create-preset', payload);
-  },
-  async updatePreset(id: string, patch: ProviderPresetUpdatePatch) {
-    return ipcRenderer.invoke('ai:update-preset', { id, patch });
   },
   async deletePreset(id: string) {
     return ipcRenderer.invoke('ai:delete-preset', { id });
@@ -245,12 +205,6 @@ export const aiBridge = {
   async renameConversation(id: string, title: string): Promise<{ ok: boolean; row?: ConversationRecord }> {
     return ipcRenderer.invoke('ai:rename-conversation', { id, title });
   },
-  async deleteConversation(id: string) {
-    return ipcRenderer.invoke('ai:delete-conversation', { id });
-  },
-  async restoreConversation(id: string) {
-    return ipcRenderer.invoke('ai:restore-conversation', { id });
-  },
   async hardDeleteConversation(id: string) {
     return ipcRenderer.invoke('ai:hard-delete-conversation', { id });
   },
@@ -259,12 +213,6 @@ export const aiBridge = {
     const handler = (_: any, data: any): void => callback(data);
     ipcRenderer.on('ai:conversation-title-updated', handler);
     return () => ipcRenderer.removeListener('ai:conversation-title-updated', handler);
-  },
-  /** Subscribe to card push events from main process */
-  onCardPushed(callback: (card: PushedCard) => void) {
-    const handler = (_: any, card: PushedCard): void => callback(card);
-    ipcRenderer.on('ai:card-pushed', handler);
-    return () => ipcRenderer.removeListener('ai:card-pushed', handler);
   },
   /** Send user's choice response back to main process (for ask-user tool) */
   async sendUserChoiceResponse(response: UserChoiceResponse) {

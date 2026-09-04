@@ -13,7 +13,7 @@
 | `sessionMode` | 含义                       | 常见来源                                                           |
 | ------------- | -------------------------- | ------------------------------------------------------------------ |
 | `state-bound` | 由状态机状态解析出来的动画 | `transitionTo()` / `playOnce()` / 回 idle                          |
-| `trigger`     | 显式事件触发的动画         | `trigger()` / `triggerById()` / routine `playAnimation` / feedback |
+| `trigger`     | 显式事件触发的动画         | `trigger()` / `triggerById()` / routine `playAnimation`            |
 
 判断“角色现在是什么行为状态”看 `getState()` / `getSubState()`；判断“屏幕上现在播放的是什么”看 `getCurrentAnimation()`。
 
@@ -22,14 +22,13 @@
 | 入口                                                                                        | 是否触发状态变更 | 播放方式                                                             | 说明                                                                                                                                                               |
 | ------------------------------------------------------------------------------------------- | ---------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `SpriteManager.transitionTo(state, options)`                                                | 是               | 状态变化后调用 `resolveAndSendAnimation()`                           | 进入持久状态，例如 `walking`、`dragging`、`sleeping`、`bored`。动画按状态映射解析，`sessionMode = 'state-bound'`。如果状态和子状态没有变化且未 `force`，不会播放。 |
-| `SpriteManager.playOnce(subState, options)`                                                 | 是               | 内部 `transitionTo('reacting', { subState, force: true })`，定时回退 | 用于真实临时反应，例如点击、文件 drop、sleepy。会先进入 `reacting/<subState>`，再回到 fallback 状态。                                                              |
+| `SpriteManager.playOnce(subState, options)`                                                 | 是               | 内部 `transitionTo('reacting', { subState, force: true })`，定时回退 | 用于真实临时反应，例如点击、sleepy。会先进入 `reacting/<subState>`，再回到 fallback 状态。                                                              |
 | `SpriteManager.trigger(trigger, options)`                                                   | 否               | 直接查 `AnimationRegistry` 并 `playAnimationEntry()`                 | 显式事件动画。会替换 `currentAnimation`，但不会修改 `SpriteState`。`sessionMode = 'trigger'`。                                                                     |
 | `SpriteManager.triggerById(animationId, options)` / `window.chobits.sprite.testAnimation()` | 否               | 直接按动画 id `playAnimationEntry()`                                 | 开发测试或精确播放资源用。不走状态机，也不按 trigger fallback。                                                                                                    |
-| `SpriteManager.playFeedbackAnimation(request)` / `window.chobits.sprite.playFeedback()`     | 否               | 校验 feedback 请求和展示锁后调用 `trigger()`                         | feedback 本质仍是显式 trigger 动画，不改状态。                                                                                                                     |
 | `SpriteManager.resolveAndSendAnimation(state, subState, options)`                           | 否，本身不改     | 根据状态映射 trigger 后 `playAnimationEntry()`                       | 这是状态机变化后的内部播放函数。状态已经在调用它之前被改掉。                                                                                                       |
 | `SpriteManager.transitionToIdleAnimation(options)`                                          | 条件触发         | 非 idle 时 `transitionTo('idle')`；已 idle 时直接重播 idle 动画      | 常用于动画完成后回 idle。当前已经是 `idle/null` 时不会改状态，只会重新解析并播放 idle。                                                                            |
 | `SpriteManager.handleAnimationComplete(animId, phase, playId)`                              | 条件触发         | 可能推进 playlist，或调用 `transitionToIdleAnimation()`              | 渲染进程上报 `full/outro` 后触发。若当前动画 `autoIdle !== false`，会回到 idle 展示；如果当时状态不是 idle，会产生状态变更。                                       |
-| `SpriteManager.speak(text, options)` / `window.chobits.sprite.speak()`                      | 否               | 显示气泡并走 TTS；真实音频播放前可能触发 `talk`                      | `talk` 是系统级语音播放伴随动画，不是状态。只有 TTS 成功并准备下发 `sprite:speak` 音频播放事件时才会尝试播放。                                                     |
+| `SpriteManager.speak(text, options)` / `window.chobits.sprite.speak()`                      | 否               | 显示气泡并走 TTS；真实音频播放前可能触发 `talk`                      | `talk` 是系统级语音播放伴随动画，不是状态。只有 TTS 成功并准备下发 `sprite:speak-started` 音频播放事件时才会尝试播放。                                              |
 
 所有真正发送给渲染进程的动画播放命令都会经过 `playAnimationEntry()`，该函数会更新 `currentAnimation`、设置 `sessionMode`、下发 `sprite:play`，但它自己不调用状态机。
 
@@ -41,7 +40,7 @@
 
 ## 状态机到动画 trigger 的映射
 
-状态驱动动画会通过 `manager/state-mapping.ts` 的 `mapStateToEventType()` 转成动画 trigger：
+状态驱动动画会通过 `manager/state-mapping.ts` 的 `mapStateToTrigger()` 转成动画 trigger：
 
 | 状态                           | trigger        |
 | ------------------------------ | -------------- |
@@ -64,7 +63,6 @@
 | ---------------------------------------------------------------- | ----------------------------------------- | ---------------- | ----------------------------------------------------------------------------------- |
 | `window.chobits.sprite.trigger()` / `sprite:trigger`             | `SpriteManager.trigger()`                 | 否               | 显式事件播放。                                                                      |
 | `window.chobits.sprite.testAnimation()` / `sprite:trigger-by-id` | `SpriteManager.triggerById()`             | 否               | 按动画 id 测试播放。                                                                |
-| `window.chobits.sprite.playFeedback()` / `sprite:feedback:play`  | `SpriteManager.playFeedbackAnimation()`   | 否               | feedback 入口，最终走 `trigger()`。                                                 |
 | `window.chobits.sprite.animComplete()` / `sprite:anim-complete`  | `SpriteManager.handleAnimationComplete()` | 条件触发         | 可能因 `autoIdle` 回 idle，也可能只推进 playlist。                                  |
 | `window.chobits.sprite.ready()` / `sprite:ready`                 | `SpriteManager.handleRendererReady()`     | 否               | 下发初始状态/当前动画，并延迟 `trigger('welcome')`；`welcome` 本身不改状态。        |
 | `window.chobits.sprite.speak()` / `sprite:speak`                 | `SpriteManager.speak()`                   | 否               | 说话和显示气泡；TTS 成功播放时由系统级 speech hook 尝试播放 `talk`。                |
@@ -89,7 +87,7 @@
 
 - `SpriteManager.speak()` 会显示气泡并请求 TTS 播放。
 - `showToast()` / `showNotice()` 在允许自动朗读时也会请求 TTS 播放。
-- `SpeakService.speak()` 只有在合成成功且即将下发 `sprite:speak` 音频播放事件时，才会回调 `SpriteManager` 尝试播放 `talk`。
+- `SpeakService.speak()` 只有在合成成功且即将下发 `sprite:speak-started` 音频播放事件时，才会回调 `SpriteManager` 尝试播放 `talk`。
 - `synthesizeSpeech()` 只是预合成，不播放音频，也不会触发 `talk`。
 
 系统级 `talk` 的视觉保护条件是：
@@ -110,31 +108,27 @@ const canUseTalkForSpeech =
 例如：
 
 ```ts
-('playAnimation welcome silent',
+// 以现存的 daily.rest-reminder preset 的前两步为例：
+('playAnimation wave silent',
   {
-    id: 'speak-workspace-assistant-intro',
+    id: 'speak',
     type: 'speak',
-    text: '你好，我是你的专属桌面助手。',
-    bubbleDuration: 3600,
-    waitAfter: true
+    text: '差不多该休息一下了。',
+    bubbleDuration: 3600
   });
 ```
 
-第一步 `welcome` 会让 `currentAnimation.trigger = 'welcome'`，`sessionMode = 'trigger'`，但状态仍是 `idle`。第二步 `speak` 会发现当前视觉不是 idle-like，因此只说话，不播放 `talk`，避免覆盖 `welcome`。
+第一步 `wave` 会让 `currentAnimation.trigger = 'wave'`，`sessionMode = 'trigger'`，但状态仍是 `idle`。第二步 `speak` 会发现当前视觉不是 idle-like，因此只说话，不播放 `talk`，避免覆盖 `wave`。
 
 ## 交互、移动和默认行为
 
 | 场景                                                                | 是否触发状态变更 | 说明                                                                                                                                                                                                             |
 | ------------------------------------------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `reportInteraction('click')`                                        | 是               | `playOnce('click', { durationMs: 800 })`。                                                                                                                                                                       |
-| `reportInteraction('file-drop')`                                    | 是               | `playOnce('file-drop', { durationMs: 800 })`。                                                                                                                                                                   |
-| `reportInteraction('file-drag-over')`                               | 是               | 非拖拽状态下 `transitionTo('reacting', { subState: 'file-drag-over', force: true })`。                                                                                                                           |
-| `reportInteraction('file-drag-leave')`                              | 条件触发         | 当前正处于 `reacting/file-drag-over` 时 `transitionTo('idle', { force: true })`。                                                                                                                                |
 | `reportInteraction('double-click' / 'hover-enter' / 'hover-leave')` | 否               | 只发 EventBus 事件。                                                                                                                                                                                             |
 | `reportInteraction('context-menu')`                                 | 否               | 只切换 movement suspension，不播放动画。                                                                                                                                                                         |
 | `startDrag()` / `endDrag()`                                         | 是               | 分别进入 `dragging` 和 `idle`。                                                                                                                                                                                  |
 | `walkTo()` / `runBehaviorMovement()`                                | 是               | 通过 `WindowController` 的 `onWalkStart/onWalkEnd` 进入 `walking` 并回 idle。                                                                                                                                    |
-| `previewMovement()`                                                 | 条件触发         | `movement.mode === 'walkTo'` 时会走 `walkTo()`；方向自动移动只移动精灵窗口，`windowAnimation` 只触发主窗口动画预设。若配置了 `windowAnimationPlayPosition`，主进程会在播放前先放置目标窗口；这些动作都不改状态。 |
 | 动画自带 `playback.movement`                                        | 否               | `direction` 会启动方向自动移动，`windowAnimation` 会通过主进程 adapter 播放窗口动画预设，并可在播放前先放置目标窗口；都不会因此改 `SpriteState`。`walkTo` 仍只作为 behavior movement 执行。                      |
 | 默认 sleepy 行为                                                    | 是               | fallback 时 `playOnce('sleepy')`。                                                                                                                                                                               |
 | 默认 bored 行为                                                     | 是               | `transitionTo('bored')`。                                                                                                                                                                                        |

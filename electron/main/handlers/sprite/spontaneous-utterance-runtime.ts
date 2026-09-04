@@ -4,7 +4,6 @@ import { buildNonReasoningTaskRuntimeRequest } from '../../../../packages/ai/run
 export type SpontaneousUtteranceRuntimeContext = {
   providerId: string;
   providerPresetId?: string;
-  workspaceId?: string;
 };
 
 export const SPONTANEOUS_UTTERANCE_MAX_TOKENS = 260;
@@ -13,7 +12,6 @@ export const SPONTANEOUS_UTTERANCE_TEMPERATURE = 0.9;
 export function buildSpontaneousUtteranceRuntimeRequest(context: SpontaneousUtteranceRuntimeContext): CreatePiTaskRuntimeRequest {
   return buildNonReasoningTaskRuntimeRequest({
     agentId: 'chat',
-    ...(context.workspaceId ? { extras: { workspaceId: context.workspaceId } } : {}),
     maxTokens: SPONTANEOUS_UTTERANCE_MAX_TOKENS,
     providerId: context.providerId,
     providerPresetId: context.providerPresetId,

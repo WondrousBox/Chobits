@@ -1,3 +1,4 @@
+import type { ASRResultPayload } from '@packages/sherpa/ipc-renderer';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -137,6 +138,7 @@ export function useSpeechInput({ onTranscriptFinal, onTranscriptInterim, onStopp
   const endpointArrivedRef = useRef(false);
   const cloudSegmentArrivedRef = useRef(false);
   const interimRef = useRef('');
+  const unsubscribeASRResultRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     onStoppedRef.current = onStopped;
@@ -149,8 +151,6 @@ export function useSpeechInput({ onTranscriptFinal, onTranscriptInterim, onStopp
   useEffect(() => {
     onTranscriptInterimRef.current = onTranscriptInterim;
   }, [onTranscriptInterim]);
-  // eslint-disable-next-line react-hooks/purity -- useRef 初始值仅首次渲染生效,随机 handler 名用于避免多实例冲突
-  const handlerNameRef = useRef(`chat-speech:${Math.random().toString(36).slice(2)}`);
 
   const updateInterim = useCallback((text: string): void => {
     interimRef.current = text;
@@ -187,8 +187,9 @@ export function useSpeechInput({ onTranscriptFinal, onTranscriptInterim, onStopp
     }
   }, []);
 
-  const detachMessageHandler = useCallback((): void => {
-    window.chobits.removeMessageHandler(handlerNameRef.current);
+  const unsubscribeASRResult = useCallback((): void => {
+    unsubscribeASRResultRef.current?.();
+    unsubscribeASRResultRef.current = null;
   }, []);
 
   const handleCloudSegment = useCallback(
@@ -239,14 +240,15 @@ export function useSpeechInput({ onTranscriptFinal, onTranscriptInterim, onStopp
     [rememberTranscript, updateInterim]
   );
 
-  const attachMessageHandler = useCallback((): void => {
-    const handleASRMessage = (_event: any, payload: { type: string; data: any }): void => {
-      if (!isActiveRef.current || payload.type !== 'sherpa:message') {
+  const subscribeASRResult = useCallback((): void => {
+    unsubscribeASRResult();
+
+    const handleASRResult = (data: ASRResultPayload): void => {
+      if (!isActiveRef.current) {
         return;
       }
 
       const asrConfig = asrConfigRef.current;
-      const data = payload.data;
       if (!asrConfig || !data) {
         return;
       }
@@ -275,8 +277,8 @@ export function useSpeechInput({ onTranscriptFinal, onTranscriptInterim, onStopp
       onTranscriptInterimRef.current?.(partialText);
     };
 
-    window.chobits.handleMessage(handleASRMessage, handlerNameRef.current);
-  }, [handleCloudSegment, rememberTranscript, updateInterim]);
+    unsubscribeASRResultRef.current = window.chobits.sherpa.onASRResult(handleASRResult);
+  }, [handleCloudSegment, rememberTranscript, unsubscribeASRResult, updateInterim]);
 
   const buildRecorder = useCallback((deviceId?: string): WebRecorder => {
     const recorder = new WebRecorder({
@@ -337,7 +339,7 @@ export function useSpeechInput({ onTranscriptFinal, onTranscriptInterim, onStopp
       updateInterim('');
       onTranscriptInterimRef.current?.('');
       asrConfigRef.current = null;
-      detachMessageHandler();
+      unsubscribeASRResult();
       setStatus('idle');
 
       if (!shouldSend) {
@@ -352,7 +354,7 @@ export function useSpeechInput({ onTranscriptFinal, onTranscriptInterim, onStopp
         toast.warning('按住时间太短，未发送');
       }
     },
-    [detachMessageHandler, teardownRecorder, updateInterim]
+    [unsubscribeASRResult, teardownRecorder, updateInterim]
   );
 
   const start = useCallback(async (): Promise<void> => {
@@ -392,15 +394,24 @@ export function useSpeechInput({ onTranscriptFinal, onTranscriptInterim, onStopp
         return recorder;
       });
 
-      const [asrStatus, asrConfig, recorder] = await Promise.all([asrStatusPromise, asrConfigPromise, recorderPromise]);
+      const [asrStatus, asrConfigResult, recorder] = await Promise.all([asrStatusPromise, asrConfigPromise, recorderPromise]);
 
-      if (!asrStatus.running) {
+      if (!asrStatus.ok || !asrStatus.running) {
         await recorder.destroy();
         toast.error('请先启动语音识别服务');
         window.chobits.window['window:open']('asrConfig');
         setStatus('idle');
         return;
       }
+
+      if (!asrConfigResult.ok || !asrConfigResult.config) {
+        await recorder.destroy();
+        toast.error('读取语音识别配置失败');
+        setStatus('idle');
+        return;
+      }
+
+      const asrConfig = asrConfigResult.config;
 
       if (asrConfig.backend === 'cloud' && (!asrConfig.cloud?.providerId || !asrConfig.cloud?.providerPresetId)) {
         await recorder.destroy();
@@ -412,7 +423,7 @@ export function useSpeechInput({ onTranscriptFinal, onTranscriptInterim, onStopp
 
       asrConfigRef.current = asrConfig as SpeechInputASRConfig;
       isActiveRef.current = true;
-      attachMessageHandler();
+      subscribeASRResult();
 
       recorderRef.current = recorder;
       sessionStartedAtRef.current = Date.now();
@@ -428,7 +439,7 @@ export function useSpeechInput({ onTranscriptFinal, onTranscriptInterim, onStopp
       console.error('[SpeechInput] 启动语音输入失败:', error);
       isActiveRef.current = false;
       asrConfigRef.current = null;
-      detachMessageHandler();
+      unsubscribeASRResult();
       await teardownRecorder();
       updateInterim('');
       setStatus('idle');
@@ -443,7 +454,7 @@ export function useSpeechInput({ onTranscriptFinal, onTranscriptInterim, onStopp
         toast.error('启动语音输入失败');
       }
     }
-  }, [attachMessageHandler, buildRecorder, detachMessageHandler, status, stopSession, teardownRecorder, updateInterim]);
+  }, [subscribeASRResult, buildRecorder, unsubscribeASRResult, status, stopSession, teardownRecorder, updateInterim]);
 
   const stop = useCallback(async (): Promise<void> => {
     if (status === 'idle' || status === 'stopping') {
@@ -488,10 +499,10 @@ export function useSpeechInput({ onTranscriptFinal, onTranscriptInterim, onStopp
     return () => {
       isActiveRef.current = false;
       pendingCloudTasksRef.current = 0;
-      detachMessageHandler();
+      unsubscribeASRResult();
       void teardownRecorder();
     };
-  }, [detachMessageHandler, teardownRecorder]);
+  }, [unsubscribeASRResult, teardownRecorder]);
 
   return {
     interimText,

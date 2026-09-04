@@ -84,7 +84,7 @@ function createManager() {
   const controlled = createControlledRunner();
   const manager = new SpritePurposeManager({
     runner: controlled.runner,
-    presets: new SpriteRoutinePresetRegistry([holdPreset('idle.presence', 'idle.presence', 10), holdPreset('file.drop.intake', 'file.drop.intake', 100)]),
+    presets: new SpriteRoutinePresetRegistry([holdPreset('idle.presence', 'idle.presence', 10), holdPreset('custom.demo', 'custom.demo', 100)]),
     history: {
       append(entry) {
         history.push(entry);
@@ -119,17 +119,17 @@ describe('idle presence purpose', () => {
     const { manager, history, hasActiveRun, completeCurrent } = createManager();
     const originalIdleId = manager.getSnapshot().current?.id;
 
-    const filePurpose = await manager.start({
-      kind: 'file.drop.intake',
-      reason: '用户拖入文件',
+    const demoPurpose = await manager.start({
+      kind: 'custom.demo',
+      reason: '演示目的触发',
       source: 'user-event',
-      correlationId: 'drop-1'
+      correlationId: 'demo-1'
     });
 
-    expect(filePurpose.status).toBe('started');
+    expect(demoPurpose.status).toBe('started');
     expect(manager.getSnapshot().current).toMatchObject({
-      id: filePurpose.purpose.id,
-      kind: 'file.drop.intake'
+      id: demoPurpose.purpose.id,
+      kind: 'custom.demo'
     });
 
     await waitFor(hasActiveRun);
@@ -144,20 +144,20 @@ describe('idle presence purpose', () => {
     });
     expect(history).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ eventType: 'purpose:superseded', purposeId: originalIdleId, result: { supersededBy: filePurpose.purpose.id } }),
-        expect.objectContaining({ eventType: 'purpose:completed', purposeId: filePurpose.purpose.id, status: 'completed' })
+        expect.objectContaining({ eventType: 'purpose:superseded', purposeId: originalIdleId, result: { supersededBy: demoPurpose.purpose.id } }),
+        expect.objectContaining({ eventType: 'purpose:completed', purposeId: demoPurpose.purpose.id, status: 'completed' })
       ])
     );
   });
 
-  it('queues idle presence requests while a file purpose is active', async () => {
+  it('queues idle presence requests while a custom purpose is active', async () => {
     const { manager, hasActiveRun, completeCurrent } = createManager();
 
-    const filePurpose = await manager.start({
-      kind: 'file.drop.intake',
-      reason: '用户拖入文件',
+    const demoPurpose = await manager.start({
+      kind: 'custom.demo',
+      reason: '演示目的触发',
       source: 'user-event',
-      correlationId: 'drop-2'
+      correlationId: 'demo-2'
     });
     const idleRequest = await manager.start({
       kind: 'idle.presence',
@@ -165,9 +165,9 @@ describe('idle presence purpose', () => {
       source: 'behavior'
     });
 
-    expect(filePurpose.status).toBe('started');
+    expect(demoPurpose.status).toBe('started');
     expect(idleRequest.status).toBe('queued');
-    expect(manager.getSnapshot().current?.kind).toBe('file.drop.intake');
+    expect(manager.getSnapshot().current?.kind).toBe('custom.demo');
     expect(manager.getSnapshot().queue.map((purpose) => purpose.kind)).toEqual(['idle.presence']);
 
     await waitFor(hasActiveRun);

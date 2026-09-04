@@ -43,11 +43,11 @@ const ShortcutsSettings: React.FC = () => {
       }
     })();
 
-    const listener = (_: any, data: ShortcutsConfig): void => setConfig(data);
-    window.ipcRenderer?.on('shortcuts:config-updated', listener);
+    const listener = (data: ShortcutsConfig): void => setConfig(data);
+    const unsubscribeConfigUpdated = window.chobits.shortcuts.onConfigUpdated(listener);
     return () => {
       mounted = false;
-      window.ipcRenderer?.off('shortcuts:config-updated', listener as any);
+      unsubscribeConfigUpdated();
     };
   }, []);
 

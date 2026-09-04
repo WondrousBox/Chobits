@@ -15,7 +15,7 @@ export type ThemeUpdatePayload = {
   shouldUseDarkColors: boolean;
 };
 
-export type ThemeIpcType = {
+export type ThemeBridgeType = {
   'theme:get': () => Promise<ThemeBridgeResponse>;
   'theme:set': (theme: ThemeSource) => Promise<ThemeBridgeResponse>;
   'theme:onChange': (callback: (payload: ThemeUpdatePayload) => void) => () => void;
@@ -30,7 +30,7 @@ const onChange = (callback: (payload: ThemeUpdatePayload) => void): (() => void)
   return () => ipcRenderer.off('theme:updated', listener);
 };
 
-export const themeIpcRenderer: ThemeIpcType = {
+export const themeBridge: ThemeBridgeType = {
   'theme:get': get,
   'theme:set': set,
   'theme:onChange': onChange

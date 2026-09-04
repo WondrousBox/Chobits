@@ -93,7 +93,7 @@ export const CHARACTER_MESSAGE_SPECS = [
     key: 'tip',
     label: '小提示',
     maxItems: 12,
-    neutral: () => ['右键可以打开菜单。', '可以把文件拖到我这里。', '需要我的时候点一下我就好。']
+    neutral: () => ['右键可以打开菜单。', '需要我的时候点一下我就好。']
   },
   {
     field: 'message',
@@ -178,13 +178,6 @@ export const CHARACTER_MESSAGE_SPECS = [
     key: 'pluginRemove',
     label: '插件移除',
     neutral: () => ['插件已移除。']
-  },
-  {
-    field: 'pluginUpdate',
-    section: 'events',
-    key: 'pluginUpdate',
-    label: '插件更新',
-    neutral: () => ['插件已更新。']
   },
   {
     field: 'dailyRestReminder',

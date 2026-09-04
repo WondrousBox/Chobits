@@ -26,27 +26,27 @@ describe('PurposeRetrospectivePanel', () => {
             completedCount: 1,
             cancelledCount: 0,
             failedCount: 1,
-            kindCounts: { 'file.drop': 1, 'chat.guide': 1 },
+            kindCounts: { 'custom.demo': 1, 'chat.guide': 1 },
             memoryCandidateCount: 1,
-            recallCues: ['- [event] Sprite purpose file.drop completed'],
+            recallCues: ['- [event] Sprite purpose custom.demo completed'],
             items: [
               {
-                purposeId: 'purpose-file',
-                purposeKind: 'file.drop',
+                purposeId: 'purpose-demo',
+                purposeKind: 'custom.demo',
                 status: 'completed',
                 source: 'user-event',
                 priority: 100,
                 startedAt: 100,
                 endedAt: 1100,
                 durationMs: 1000,
-                summary: '用户把文件拖给角色处理',
+                summary: '用户触发了一个演示目的',
                 outcome: 'completed after 1000ms with 6 steps',
                 stepCount: 6,
                 completedStepIds: ['wait-menu-result'],
                 failedStepIds: [],
                 memoryWorthiness: 0.82,
                 memoryCandidate: true,
-                recallCue: '- [event] Sprite purpose file.drop completed'
+                recallCue: '- [event] Sprite purpose custom.demo completed'
               },
               {
                 purposeId: 'purpose-guide',
@@ -73,7 +73,7 @@ describe('PurposeRetrospectivePanel', () => {
     });
 
     expect(env.container.textContent).toContain('今日目的');
-    expect(env.container.textContent).toContain('文件投递');
+    expect(env.container.textContent).toContain('custom.demo');
     expect(env.container.textContent).toContain('完成');
     expect(env.container.textContent).toContain('chat.guide');
     expect(env.container.textContent).toContain('失败');

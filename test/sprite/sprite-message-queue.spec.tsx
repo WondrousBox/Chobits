@@ -260,17 +260,17 @@ describe('useMessageQueue', () => {
 
     await act(async () => {
       messageContext?.showNotice({
-        id: 'onboarding.workspace.create.invite',
-        content: '先创建工作空间吧',
+        id: 'custom.demo.invite',
+        content: '看看这条演示提醒',
         persistent: true,
-        routineId: 'routine-workspace-create',
-        buttons: [{ id: 'focus-wizard', label: '立即创建', action: 'purpose:open-wizard' }]
+        routineId: 'routine-demo',
+        buttons: [{ id: 'open-demo', label: '立即查看', action: 'purpose:demo-open' }]
       });
       await Promise.resolve();
     });
 
     await act(async () => {
-      const button: MessageButton = { id: 'focus-wizard', label: '立即创建', action: 'purpose:open-wizard' };
+      const button: MessageButton = { id: 'open-demo', label: '立即查看', action: 'purpose:demo-open' };
       await messageContext?.handleButtonClick(button);
       await Promise.resolve();
     });
@@ -279,14 +279,14 @@ describe('useMessageQueue', () => {
       source: 'purpose-event',
       event: 'bubble:action',
       payload: {
-        messageId: 'onboarding.workspace.create.invite',
-        actionId: 'focus-wizard',
-        purposeAction: 'open-wizard',
-        routineId: 'routine-workspace-create'
+        messageId: 'custom.demo.invite',
+        actionId: 'open-demo',
+        purposeAction: 'demo-open',
+        routineId: 'routine-demo'
       }
     });
     expect(openWindow).not.toHaveBeenCalled();
-    expect((env.container.firstChild as any).getAttribute('data-content')).toBe('先创建工作空间吧');
+    expect((env.container.firstChild as any).getAttribute('data-content')).toBe('看看这条演示提醒');
 
     await act(async () => {
       root.unmount();

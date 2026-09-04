@@ -60,7 +60,7 @@ const DEFAULT_QUEUE_POLICY: Required<SpritePurposeQueuePolicyOptions> = {
 };
 
 const SINGLETON_PURPOSE_KINDS = new Set(['idle.presence', 'daily.rest-reminder']);
-const CONTEXT_COALESCE_KEYS = ['correlationId', 'workflowRunId', 'runId', 'dropId'];
+const CONTEXT_COALESCE_KEYS = ['correlationId', 'runId'];
 
 interface CurrentRoutineStepState {
   purposeId: string;
@@ -728,7 +728,7 @@ export class SpritePurposeManager {
     if (!context) return undefined;
 
     const digest: Record<string, unknown> = {};
-    const includeKeys = ['source', 'fileCount', 'fileNames', 'resourceIds', 'primaryResourceName', 'workflowRunId', 'runId', 'workflowId', 'workflowName', 'resourceId', 'routineKind', 'severity'];
+    const includeKeys = ['source', 'routineKind', 'severity'];
     for (const key of includeKeys) {
       const value = context[key];
       if (value == null) continue;

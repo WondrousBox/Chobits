@@ -114,7 +114,7 @@ export default function SpriteAnimationMetaPopover({ disabled = false, meta, onS
           <Textarea
             value={triggerAliasesInput}
             onChange={(event) => setTriggerAliasesInput(event.target.value)}
-            placeholder="多个 trigger 用逗号或换行分隔，例如 workflow:complete, character:daily-login"
+            placeholder="多个 trigger 用逗号或换行分隔，例如 character:daily-login, sprite:anim-complete"
             className="min-h-[78px] resize-y text-xs"
           />
         </div>

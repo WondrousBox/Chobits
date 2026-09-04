@@ -8,15 +8,12 @@ function createCoordinatorHarness(options?: { canUseMovement?: () => boolean; ge
   coordinator: MovementCoordinator;
   getConfig: () => SpriteConfig;
   walkTo: ReturnType<typeof vi.fn>;
-  stopWalk: ReturnType<typeof vi.fn>;
   startAutoMove: ReturnType<typeof vi.fn>;
   stopAutoMove: ReturnType<typeof vi.fn>;
-  setWindowSize: ReturnType<typeof vi.fn>;
-  emitConfigChanged: ReturnType<typeof vi.fn>;
   emitWalkState: ReturnType<typeof vi.fn>;
   playWindowAnimation: ReturnType<typeof vi.fn>;
 } {
-  let config: SpriteConfig = {
+  const config: SpriteConfig = {
     width: 200,
     height: 200,
     padding: 100,
@@ -26,9 +23,6 @@ function createCoordinatorHarness(options?: { canUseMovement?: () => boolean; ge
   let autoMoveDirection: 'left' | 'right' | null = null;
 
   const walkTo = vi.fn(async () => undefined);
-  const stopWalk = vi.fn();
-  const setWindowSize = vi.fn();
-  const emitConfigChanged = vi.fn();
   const emitWalkState = vi.fn();
   const playWindowAnimation = vi.fn(async () => undefined);
   const startAutoMove = vi.fn((movement: SpriteMovementConfig) => {
@@ -53,18 +47,12 @@ function createCoordinatorHarness(options?: { canUseMovement?: () => boolean; ge
     getPosition: () => [320, 240],
     getSpriteConfig: () => config,
     getAvoidRegions: options?.getAvoidRegions,
-    setSpriteMetrics: (metrics) => {
-      config = { ...config, ...metrics };
-    },
-    setWindowSize,
     walkTo,
-    stopWalk,
     startAutoMove,
     stopAutoMove,
     isAutoMoving: () => autoMoving,
     getAutoMoveDirection: () => autoMoveDirection,
     emitWalkState,
-    emitConfigChanged,
     playWindowAnimation
   });
 
@@ -72,11 +60,8 @@ function createCoordinatorHarness(options?: { canUseMovement?: () => boolean; ge
     coordinator,
     getConfig: () => config,
     walkTo,
-    stopWalk,
     startAutoMove,
     stopAutoMove,
-    setWindowSize,
-    emitConfigChanged,
     emitWalkState,
     playWindowAnimation
   };
@@ -100,35 +85,6 @@ describe('MovementCoordinator', () => {
       speed: 48
     });
     expect(harness.emitWalkState).toHaveBeenCalledWith({ active: true, direction: 'left' });
-  });
-
-  it('restores live sprite metrics after a direction preview session ends', () => {
-    const harness = createCoordinatorHarness();
-
-    harness.coordinator.previewMovement({
-      width: 320,
-      height: 260,
-      padding: 24,
-      movement: {
-        enabled: true,
-        mode: 'direction',
-        direction: 'right',
-        speed: 72
-      }
-    });
-
-    expect(harness.getConfig()).toMatchObject({ width: 320, height: 260, padding: 24 });
-    expect(harness.setWindowSize).toHaveBeenCalledWith(320, 260, 24);
-    expect(harness.startAutoMove).toHaveBeenCalledOnce();
-    expect(harness.emitWalkState).toHaveBeenCalledWith({ active: true, direction: 'right' });
-
-    harness.coordinator.stopMovementPreview();
-
-    expect(harness.stopWalk).toHaveBeenCalledOnce();
-    expect(harness.stopAutoMove).toHaveBeenCalledOnce();
-    expect(harness.emitWalkState).toHaveBeenLastCalledWith({ active: false });
-    expect(harness.getConfig()).toMatchObject({ width: 200, height: 200, padding: 100 });
-    expect(harness.setWindowSize).toHaveBeenLastCalledWith(200, 200, 100);
   });
 
   it('resolves behavior direction movement into a bounded walk target', async () => {
@@ -232,47 +188,8 @@ describe('MovementCoordinator', () => {
     expect(harness.playWindowAnimation).toHaveBeenCalledWith(movement, playbackSize);
   });
 
-  it('previews window animation presets without resizing the sprite window', () => {
-    const harness = createCoordinatorHarness();
-    const movement: SpriteMovementConfig = {
-      enabled: true,
-      mode: 'windowAnimation',
-      windowAnimationPresetId: 'shake',
-      windowAnimationDirection: 'top'
-    };
-
-    harness.coordinator.previewMovement({
-      width: 320,
-      height: 260,
-      padding: 24,
-      movement
-    });
-
-    expect(harness.playWindowAnimation).toHaveBeenCalledWith(movement);
-    expect(harness.setWindowSize).not.toHaveBeenCalled();
-    expect(harness.emitConfigChanged).not.toHaveBeenCalled();
-    expect(harness.getConfig()).toMatchObject({ width: 200, height: 200, padding: 100 });
-  });
-
-  it('keeps movement suspension as the shared gate for preview, animation and behavior movement', async () => {
+  it('keeps movement suspension as the shared gate for animation and behavior movement', async () => {
     const harness = createCoordinatorHarness({ canUseMovement: () => false });
-
-    harness.coordinator.previewMovement({
-      width: 320,
-      height: 260,
-      padding: 24,
-      movement: {
-        enabled: true,
-        mode: 'direction',
-        direction: 'right',
-        speed: 72
-      }
-    });
-
-    expect(harness.getConfig()).toMatchObject({ width: 320, height: 260, padding: 24 });
-    expect(harness.setWindowSize).toHaveBeenCalledWith(320, 260, 24);
-    expect(harness.startAutoMove).not.toHaveBeenCalled();
-    expect(harness.walkTo).not.toHaveBeenCalled();
 
     harness.coordinator.applyAnimationMovement({
       enabled: true,

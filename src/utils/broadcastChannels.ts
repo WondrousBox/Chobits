@@ -9,47 +9,9 @@ export type PreferencesMessage = {
   previewMode: 'window' | 'panel';
 };
 
-// 媒体播放同步消息类型
-export type MediaSyncMessage =
-  | {
-      type: 'playback-progress';
-      resourceId: string;
-      currentTime: number;
-    }
-  | {
-      type: 'play-started';
-      source: 'window' | 'panel';
-      resourceId: string;
-    }
-  | {
-      type: 'pause';
-      source: 'window' | 'panel';
-      resourceId: string;
-    }
-  | {
-      type: 'stop';
-      source: 'window' | 'panel';
-      resourceId: string;
-    };
-
-// 工作流事件消息类型
-export type WorkflowEventMessage =
-  | {
-      type: 'definition-upserted';
-      def?: unknown;
-      id?: string;
-    }
-  | {
-      type: 'run-started';
-      defId: string;
-      resourceId?: string;
-    };
-
 // Channel 名称常量
 export const CHANNEL_NAMES = {
-  PREFERENCES: 'preferences',
-  MEDIA_SYNC: 'media-playback-sync',
-  WF_EVENTS: 'wf-events'
+  PREFERENCES: 'preferences'
 } as const;
 
 type ChannelName = (typeof CHANNEL_NAMES)[keyof typeof CHANNEL_NAMES];
@@ -97,7 +59,7 @@ class BroadcastChannelManagerClass {
    * 发送消息（一次性，不需要持有引用）
    * 适用于只需要发送消息而不需要监听的场景
    */
-  postMessage(name: ChannelName, message: PreferencesMessage | MediaSyncMessage | WorkflowEventMessage): void {
+  postMessage(name: ChannelName, message: PreferencesMessage): void {
     const channel = this.acquire(name);
     channel.postMessage(message);
     this.release(name);

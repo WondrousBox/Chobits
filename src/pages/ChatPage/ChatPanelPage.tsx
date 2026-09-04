@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { TbX } from 'react-icons/tb';
 import { toast } from 'sonner';
 
-import { AssistantMiniInputWithService, ChatInputWithService, type ChatInputWithServiceProps } from '@/components/chat';
+import { ChatInputWithService, type ChatInputWithServiceProps, ChatMiniInputWithService } from '@/components/chat';
 import { Button } from '@/components/ui/button';
 import { ensureChatApiConfigGoal, guideChatApiConfigIfNeeded } from '@/lib/chat-api-config-guide';
 
@@ -53,7 +53,7 @@ const ChatPanelPage: React.FC<ChatPanelPageProps> = ({ mode = 'standard' }) => {
   }, []);
 
   useEffect(() => {
-    const handleVisibilityChange = (_event: any, data: { visible: boolean; key: string }): void => {
+    const handleVisibilityChange = (data: { visible: boolean; key: string }): void => {
       if (data.key !== windowKey || !data.visible) return;
       if (visibilityOpenTimerRef.current) {
         window.clearTimeout(visibilityOpenTimerRef.current);
@@ -66,13 +66,13 @@ const ChatPanelPage: React.FC<ChatPanelPageProps> = ({ mode = 'standard' }) => {
       }, 180);
     };
 
-    window.ipcRenderer?.on('window:visibility-changed', handleVisibilityChange);
+    const unsubscribeVisibility = window.chobits.window.onVisibilityChanged(handleVisibilityChange);
     return () => {
       if (visibilityOpenTimerRef.current) {
         window.clearTimeout(visibilityOpenTimerRef.current);
         visibilityOpenTimerRef.current = null;
       }
-      window.ipcRenderer?.off('window:visibility-changed', handleVisibilityChange);
+      unsubscribeVisibility();
     };
   }, [windowKey]);
 
@@ -294,7 +294,7 @@ const ChatPanelPage: React.FC<ChatPanelPageProps> = ({ mode = 'standard' }) => {
           <div ref={inputBlockRef} className="flex items-start gap-3 relative">
             <div className="flex-1 relative">
               {isMini ? (
-                <AssistantMiniInputWithService
+                <ChatMiniInputWithService
                   autoFocus
                   isLoading={isLoading}
                   placeholder="问点什么..."

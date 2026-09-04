@@ -4,9 +4,8 @@ import { BrowserWindow, ipcMain } from 'electron';
 
 import { ChatRepo } from '../common/db';
 import { AppEvent, eventManager } from '../event';
-import { pushCardToWindows } from './card-push';
 import { ChatService } from './chat-service';
-import { createPreset, deletePreset, getPreset, getPresetSecrets, listPresets, resolveUsablePreset, setPresetSecrets, updatePreset } from './preset-service';
+import { createPreset, deletePreset, getPreset, getPresetSecrets, listPresets, resolveUsablePreset, setPresetSecrets } from './preset-service';
 import { PromptsStore } from './prompts-store';
 import { normalizeProviderPreset } from './provider-preset';
 import { registerBuiltInProviders } from './providers/catalog';
@@ -23,20 +22,8 @@ import {
 import { getProvider, listAgents, listProviders } from './registry';
 import { PiExecutionService } from './runtime/pi/execution-service';
 import { createSkillRegistry, getSkillSourceInfo } from './runtime/pi/skills';
-import {
-  addApiKey,
-  clearAllSecrets,
-  clearProviderSecrets as clearSecretsStore,
-  getAllSecrets,
-  getApiKeys,
-  removeApiKey,
-  setApiKeys,
-  setDefaultApiKey,
-  setProviderSecrets as setSecretsStore,
-  updateApiKey
-} from './settings-store';
-import { listToolInfos } from './tools';
-import type { ProviderPresetCreatePayload, ProviderPresetUpdatePatch, PushedCard, SpeechSynthesisRequest, TranscriptionRequest } from './types';
+import { clearAllSecrets, getAllSecrets, getApiKeys, setProviderSecrets as setSecretsStore } from './settings-store';
+import type { ProviderPresetCreatePayload, SpeechSynthesisRequest, TranscriptionRequest } from './types';
 import { registerUserChoiceIpc } from './user-choice-registry';
 
 async function hasUsablePreset(providerId: string): Promise<boolean> {
@@ -111,76 +98,9 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
     return { ok: true };
   });
 
-  ipcMain.handle('ai:clear-provider-secrets', async (_event, payload: { providerId: string }) => {
-    await clearSecretsStore(payload.providerId);
-    const p = getProvider(payload.providerId);
-    // 同步清掉 adapter 内存里的秘钥，否则聊天链路会继续用旧 key 直到重启；
-    // 未实现 clearSecrets 的外部插件 adapter 退化为 setSecrets({})（合并语义，尽力而为）
-    if (p?.clearSecrets) await Promise.resolve(p.clearSecrets());
-    else if (p?.setSecrets) await Promise.resolve(p.setSecrets({}));
-    eventManager.emit(AppEvent.AI_PROVIDER_CONFIG_UPDATED, {
-      providerId: payload.providerId,
-      action: 'provider-secrets-cleared'
-    });
-    return { ok: true };
-  });
-
   // Multiple API Keys Management
   ipcMain.handle('ai:get-provider-api-keys', async (_event, payload: { providerId: string; key: string }) => {
     return await getApiKeys(payload.providerId, payload.key);
-  });
-
-  ipcMain.handle('ai:set-provider-api-keys', async (_event, payload: { providerId: string; key: string; keys: Array<{ name: string; value: string; isDefault?: boolean }> }) => {
-    await setApiKeys(payload.providerId, payload.key, payload.keys);
-    eventManager.emit(AppEvent.AI_PROVIDER_CONFIG_UPDATED, {
-      providerId: payload.providerId,
-      field: payload.key,
-      action: 'provider-api-keys-updated'
-    });
-    return { ok: true };
-  });
-
-  ipcMain.handle('ai:add-provider-api-key', async (_event, payload: { providerId: string; key: string; apiKey: { name: string; value: string } }) => {
-    await addApiKey(payload.providerId, payload.key, payload.apiKey);
-    eventManager.emit(AppEvent.AI_PROVIDER_CONFIG_UPDATED, {
-      providerId: payload.providerId,
-      field: payload.key,
-      action: 'provider-api-key-added'
-    });
-    return { ok: true };
-  });
-
-  ipcMain.handle(
-    'ai:update-provider-api-key',
-    async (_event, payload: { providerId: string; key: string; apiKeyName: string; updates: Partial<{ name: string; value: string; isDefault: boolean }> }) => {
-      await updateApiKey(payload.providerId, payload.key, payload.apiKeyName, payload.updates);
-      eventManager.emit(AppEvent.AI_PROVIDER_CONFIG_UPDATED, {
-        providerId: payload.providerId,
-        field: payload.key,
-        action: 'provider-api-key-updated'
-      });
-      return { ok: true };
-    }
-  );
-
-  ipcMain.handle('ai:remove-provider-api-key', async (_event, payload: { providerId: string; key: string; apiKeyName: string }) => {
-    await removeApiKey(payload.providerId, payload.key, payload.apiKeyName);
-    eventManager.emit(AppEvent.AI_PROVIDER_CONFIG_UPDATED, {
-      providerId: payload.providerId,
-      field: payload.key,
-      action: 'provider-api-key-removed'
-    });
-    return { ok: true };
-  });
-
-  ipcMain.handle('ai:set-default-provider-api-key', async (_event, payload: { providerId: string; key: string; apiKeyName: string }) => {
-    await setDefaultApiKey(payload.providerId, payload.key, payload.apiKeyName);
-    eventManager.emit(AppEvent.AI_PROVIDER_CONFIG_UPDATED, {
-      providerId: payload.providerId,
-      field: payload.key,
-      action: 'provider-api-key-default-updated'
-    });
-    return { ok: true };
   });
 
   ipcMain.handle('ai:clear-all-secrets', async () => {
@@ -200,11 +120,6 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
 
   ipcMain.handle('ai:get-agents', async () => {
     return listAgents().map((a) => ({ id: a.id, label: a.label, description: a.description }));
-  });
-
-  // 列出所有可用工具
-  ipcMain.handle('ai:list-tools', async () => {
-    return listToolInfos();
   });
 
   ipcMain.handle('ai:list-skills', async (_event, payload?: { agentId?: string; workspaceRoot?: string }) => {
@@ -411,17 +326,6 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
     });
     return preset;
   });
-  ipcMain.handle('ai:update-preset', async (_event, payload: { id: string; patch: ProviderPresetUpdatePatch }) => {
-    const preset = updatePreset(payload.id, payload.patch);
-    if (preset) {
-      eventManager.emit(AppEvent.AI_PROVIDER_CONFIG_UPDATED, {
-        providerId: preset.providerId,
-        presetId: preset.id,
-        action: 'preset-updated'
-      });
-    }
-    return preset;
-  });
   ipcMain.handle('ai:delete-preset', async (_event, payload: { id: string }) => {
     const preset = getPreset(payload.id);
     const ok = await deletePreset(payload.id);
@@ -466,27 +370,8 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
     const row = await ChatRepo.renameConversation(payload.id, payload.title);
     return row ? { ok: true, row } : { ok: false };
   });
-  ipcMain.handle('ai:delete-conversation', async (_event, payload: { id: string }) => {
-    const row = await ChatRepo.softDeleteConversation(payload.id);
-    return row ? { ok: true } : { ok: false };
-  });
-  ipcMain.handle('ai:restore-conversation', async (_event, payload: { id: string }) => {
-    const row = await ChatRepo.restoreConversation(payload.id);
-    return row ? { ok: true } : { ok: false };
-  });
   ipcMain.handle('ai:hard-delete-conversation', async (_event, payload: { id: string }) => {
     const ok = await ChatRepo.deleteConversation(payload.id);
     return { ok };
-  });
-
-  // ==================== 卡片推送 ====================
-
-  /**
-   * Push a card to chat window(s)
-   * Can target specific conversation or broadcast to all windows
-   */
-  ipcMain.handle('ai:push-card', async (_event, payload: { card: Omit<PushedCard, 'timestamp'>; targetWindowId?: number }) => {
-    pushCardToWindows(payload.card, payload.targetWindowId);
-    return { ok: true };
   });
 }

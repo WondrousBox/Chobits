@@ -6,6 +6,8 @@ import { Env, getResourcePath } from '@packages/common/utils';
 import { notifySpriteCapabilityChanged } from '@packages/sprite-core/handlers/capability-broadcast';
 import { app, ipcMain, shell, systemPreferences } from 'electron';
 
+import { checkForUpdatesManually } from '../../updater';
+
 /**
  * System-level handlers: database paths/open and logs paths/open.
  * Central place to extend for other common system actions later.
@@ -79,23 +81,9 @@ export function initSystemHandlers(): void {
     }
   });
 
-  ipcMain.handle('app:open-external-url', async (_event, url: string) => {
-    try {
-      const target = typeof url === 'string' ? url.trim() : '';
-      if (!target) {
-        return { ok: false, error: 'URL is required' } as const;
-      }
-
-      const parsed = new URL(target);
-      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-        return { ok: false, error: 'Only HTTP(S) URLs can be opened externally' } as const;
-      }
-
-      await shell.openExternal(parsed.toString());
-      return { ok: true } as const;
-    } catch (error) {
-      return { ok: false, error: String(error) } as const;
-    }
+  // ---------------- App Update ----------------
+  ipcMain.handle('app:update:check', async () => {
+    return checkForUpdatesManually();
   });
 
   // ---------------- Logs ----------------

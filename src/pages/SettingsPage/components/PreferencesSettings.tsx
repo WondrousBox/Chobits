@@ -6,6 +6,7 @@ import FolderSetting from './FolderSetting';
 import KeyManagementSettings from './KeyManagementSettings';
 import LaunchAtLoginSettings from './LaunchAtLoginSettings';
 import PreviewSettings from './PreviewSettings';
+import UpdateSettings from './UpdateSettings';
 
 const PreferencesSettings: React.FC = () => {
   return (
@@ -16,6 +17,7 @@ const PreferencesSettings: React.FC = () => {
       <FolderSetting />
       <DatabaseBackupSettings />
       <KeyManagementSettings />
+      <UpdateSettings />
     </div>
   );
 };

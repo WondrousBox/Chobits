@@ -6,7 +6,7 @@ describe('skill source policy', () => {
   it('tracks only truly sensitive tool ids for guarded plugin skills', () => {
     const policy = buildSkillSourcePolicy({
       activationToolIds: [],
-      allowedToolIds: ['query-resources', 'shell-exec'],
+      allowedToolIds: ['skill-search', 'shell-exec'],
       source: 'plugin'
     });
 
@@ -18,13 +18,13 @@ describe('skill source policy', () => {
       sensitiveToolCategories: ['shell'],
       sensitiveToolIds: ['shell-exec']
     });
-    expect(policy.message).not.toContain('query-resources');
+    expect(policy.message).not.toContain('skill-search');
   });
 
   it('keeps tool-level sensitive ids empty when guarded only by fork execution', () => {
     const policy = buildSkillSourcePolicy({
       activationToolIds: [],
-      allowedToolIds: ['query-resources'],
+      allowedToolIds: ['skill-search'],
       executionContext: 'fork',
       source: 'plugin'
     });

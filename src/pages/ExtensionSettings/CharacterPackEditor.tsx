@@ -290,7 +290,7 @@ export function CharacterPackEditorContent({ editor, setEditor, className, extra
           <div className="space-y-1">
             <Label>事件台词</Label>
             <div className="text-xs text-muted-foreground">
-              每行一条，会随机选一句。可使用 {'{workflowName}'}、{'{count}'}、{'{progress}'} 这类占位符。
+              每行一条，会随机选一句。可使用 {'{count}'}、{'{progress}'} 这类占位符。
             </div>
           </div>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">

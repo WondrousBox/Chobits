@@ -3,11 +3,11 @@
   "typescript.tsc.autoDetect": "off",
   "json.schemas": [
     {
-      "fileMatch": ["/*electron-builder.json5", "/*electron-builder.json"],
+      "fileMatch": ["/*electron-builder.json"],
       "url": "https://json.schemastore.org/electron-builder"
     }
   ],
-  "cSpell.words": ["Chobits", "ffprobe", "huggingface", "reactflow", "ytdlp"],
+  "cSpell.words": ["Chobits", "ffprobe", "huggingface", "ytdlp"],
   "editor.codeActionsOnSave": {
     "source.fixAll.eslint": "explicit"
   },

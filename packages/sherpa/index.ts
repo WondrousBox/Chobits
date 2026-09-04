@@ -3,7 +3,7 @@ import { PluginDefinition } from '@packages/plugins/types';
 import { ASRType, createASRInstance, freeASRInstance, sendASRData } from './asr-instance-manager';
 import { CommonConfig, FORCE_ONLINE_MODELS, SherpaModel, StreamInstances, TTSInstances } from './common';
 import { getDefaultSherpaModels } from './model';
-import { createTTSInstance, CreateTTSInstanceOptions, destroyTTSInstance, generateSpeech, GenerateSpeechOptions, TTSResult } from './tts-instance-manager';
+import { createTTSInstance, CreateTTSInstanceOptions, destroyTTSInstance, generateSpeech, GenerateSpeechOptions } from './tts-instance-manager';
 
 let openedModel: PluginDefinition | undefined;
 export async function ASR_createInstance(data: {
@@ -87,6 +87,3 @@ export function TTS_generateSpeech(options: GenerateSpeechOptions): void {
 export function TTS_destroyInstance(data: { uuid: string }): void {
   return destroyTTSInstance(data.uuid);
 }
-
-// 导出类型
-export type { CreateTTSInstanceOptions, GenerateSpeechOptions, TTSResult };

@@ -3,8 +3,6 @@
  *
  * 管理精灵动画资源的 CRUD：
  *   sprite:list        — 列出全部动画
- *   sprite:list-by-trigger — 按 trigger 筛选
- *   sprite:get         — 获取单个动画
  *   sprite:register    — 注册新动画
  *   sprite:remove      — 删除动画
  *   sprite:update-config — 更新动画播放/触发配置
@@ -21,15 +19,7 @@ import { app, ipcMain } from 'electron';
 
 import { isResolvedPathContainedByRoot, resolveContainedRelativeAssetPath } from '../character-pack-paths';
 import { type CharacterPackRuntimeSource, getCharacterPackAssetPath, getCharacterPackRootDir, getCharacterPackSource } from '../character-service';
-import {
-  getSpriteAnimationTriggers,
-  hasSpriteAnimationTrigger,
-  normalizeSpriteAnimationMeta,
-  normalizeSpriteAnimationMetaPatch,
-  type SpriteAnimation,
-  type SpriteAnimationMetaInput,
-  type SpriteListByTriggerRequest
-} from '../types';
+import { getSpriteAnimationTriggers, hasSpriteAnimationTrigger, normalizeSpriteAnimationMeta, normalizeSpriteAnimationMetaPatch, type SpriteAnimation, type SpriteAnimationMetaInput } from '../types';
 
 type SpriteIndex = {
   version: 1;
@@ -47,7 +37,7 @@ interface SpriteIndexReadOptions {
   containmentRootDirs?: string[];
 }
 
-type SpriteAssetsChangeReason = 'register' | 'registerFromData' | 'remove' | 'updateConfig' | 'updateMeta';
+type SpriteAssetsChangeReason = 'register' | 'remove' | 'updateConfig' | 'updateMeta';
 
 export interface SpriteAssetsChangeEvent {
   reason: SpriteAssetsChangeReason;
@@ -537,18 +527,6 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
 
   ipcMain.handle('sprite:list', () => listSprites());
 
-  const handleListByTrigger = async (_e: unknown, payload: SpriteListByTriggerRequest = {}): Promise<SpriteAnimation[]> => {
-    const trigger = payload.trigger;
-    const all = await listSprites();
-    return trigger ? all.filter((a) => hasSpriteAnimationTrigger(a.meta, trigger)) : all;
-  };
-
-  ipcMain.handle('sprite:list-by-trigger', handleListByTrigger);
-
-  ipcMain.handle('sprite:get', async (_event, payload: { id: string }) => {
-    return (await listSprites()).find((item) => item.meta.id === payload.id);
-  });
-
   ipcMain.handle('sprite:register', async (_event, payload: (Partial<SpriteAnimation> & { filePath?: string }) | { animation?: Partial<SpriteAnimation> & { filePath?: string } }) => {
     ensureAssetAuthoringCapability();
 
@@ -635,83 +613,6 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
     notifySpriteAssetsChanged({ reason: 'register', id });
     return normalizeSpriteAnimationItem(newItem);
   });
-
-  // 从 ArrayBuffer 数据注册精灵（用于 Canvas 录制导出）
-  ipcMain.handle(
-    'sprite:register-from-data',
-    async (
-      _e,
-      payload: {
-        data: ArrayBuffer | Buffer;
-        meta?: Partial<SpriteAnimation['meta']>;
-        loopStartMs?: number;
-        loopEndMs?: number;
-        durationMs?: number;
-        loop?: boolean;
-        loopCount?: number;
-        autoIdle?: boolean;
-        width?: number;
-        height?: number;
-        padding?: number;
-        movement?: SpriteAnimation['movement'];
-      }
-    ) => {
-      ensureAssetAuthoringCapability();
-
-      const { data, meta, loopStartMs, loopEndMs, durationMs, loop, loopCount, autoIdle, width, height, padding, movement } = payload || ({} as any);
-      if (!data || !(data instanceof ArrayBuffer || Buffer.isBuffer(data))) {
-        throw new Error('[sprite:register-from-data] data is required (ArrayBuffer or Buffer)');
-      }
-
-      const id = meta?.id || randomUUID();
-      const title = meta?.title || id;
-      const defaultIndex = await getDefaultSpritesIndexTarget();
-      const writableIndex = await getWritableSpritesIndexTarget(defaultIndex);
-      const spritesDir = path.dirname(writableIndex.indexPath);
-
-      const baseName = `${id}.webm`;
-      let finalPath = path.join(spritesDir, baseName);
-      let counter = 1;
-      while (fscb.existsSync(finalPath)) {
-        finalPath = path.join(spritesDir, `${id}-${counter}.webm`);
-        counter++;
-      }
-
-      // Write buffer to file
-      const buf = Buffer.isBuffer(data) ? data : Buffer.from(data);
-      await fs.writeFile(finalPath, buf);
-
-      const newItem: SpriteAnimation = {
-        meta: normalizeIncomingSpriteMeta(meta, { id, title, deletable: true }),
-        source: { localPath: finalPath, type: 'video/webm' },
-        width: width ?? 180,
-        height: height ?? 240,
-        padding: padding ?? 100,
-        autoplay: true,
-        muted: true,
-        playsInline: true,
-        loop: loop ?? false,
-        loopCount,
-        autoIdle: autoIdle ?? true,
-        loopStartMs,
-        loopEndMs,
-        durationMs,
-        movement
-      };
-
-      const idx = await readIndex(writableIndex.indexPath, { containmentRootDirs: getWritableIndexContainmentRoots(writableIndex, defaultIndex) });
-      const existedIdx = idx.items.findIndex((i) => i.meta.id === id);
-      const previousLocalPath = existedIdx >= 0 ? idx.items[existedIdx]?.source?.localPath : undefined;
-      if (existedIdx >= 0) idx.items.splice(existedIdx, 1, newItem);
-      else idx.items.push(newItem);
-      await writeSpriteIndex(writableIndex, idx);
-      if (previousLocalPath && path.resolve(previousLocalPath) !== path.resolve(finalPath)) {
-        await removeUnreferencedLocalFile(writableIndex.containmentRootDir, idx, previousLocalPath);
-      }
-      notifySpriteAssetsChanged({ reason: 'registerFromData', id });
-      return normalizeSpriteAnimationItem(newItem);
-    }
-  );
 
   ipcMain.handle('sprite:remove', async (_event, payload: { id: string; deleteFile?: boolean }) => {
     ensureAssetAuthoringCapability();

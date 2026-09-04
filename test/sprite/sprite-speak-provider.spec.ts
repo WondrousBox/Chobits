@@ -120,8 +120,7 @@ describe('Sprite speak AI Provider config', () => {
         channels: 1
       },
       scopes: {
-        mainChat: true,
-        resourceChatSidebar: true
+        mainChat: true
       }
     });
   });
@@ -152,8 +151,7 @@ describe('Sprite speak AI Provider config', () => {
     expect(config.realtimeSpeech).toMatchObject({
       enabled: true,
       scopes: {
-        mainChat: false,
-        resourceChatSidebar: true
+        mainChat: false
       }
     });
 
@@ -162,8 +160,7 @@ describe('Sprite speak AI Provider config', () => {
     expect(persisted.realtimeSpeech).toMatchObject({
       enabled: true,
       scopes: {
-        mainChat: false,
-        resourceChatSidebar: true
+        mainChat: false
       }
     });
     expect(persisted.chatRealtimeSpeech).toBeUndefined();
@@ -404,7 +401,7 @@ describe('Sprite speak AI Provider synthesis', () => {
     );
   });
 
-  it('treats chat realtime speech as one unified switch across scopes', async () => {
+  it('treats chat realtime speech as one unified switch', async () => {
     const dataDir = makeTempDir();
     const stream = vi.fn<NonNullable<SpriteSpeechSynthesisExecutor['stream']>>(async (request, onEvent) => {
       onEvent({
@@ -441,17 +438,14 @@ describe('Sprite speak AI Provider synthesis', () => {
         ...service.getConfig().realtimeSpeech,
         enabled: true,
         scopes: {
-          mainChat: true,
-          resourceChatSidebar: false
+          mainChat: true
         }
       }
     });
 
-    expect(service.isRealtimeSpeechEnabled({ source: 'chat', scope: 'resourceChatSidebar' })).toBe(true);
-
     const events: unknown[] = [];
-    const session = await service.startRealtimeSession({ source: 'chat', scope: 'resourceChatSidebar' }, (event) => events.push(event));
-    await session.appendText('资源侧栏也说话');
+    const session = await service.startRealtimeSession({ source: 'chat', scope: 'mainChat' }, (event) => events.push(event));
+    await session.appendText('主聊天区也说话');
     await session.finish();
 
     await vi.waitFor(() => {

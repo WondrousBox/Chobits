@@ -340,16 +340,18 @@ describe('sprite assets pack manifest integration', () => {
       }
     });
 
-    const registerFromData = electronState.handlers.get('sprite:register-from-data') as ((_: unknown, payload: { data: Buffer; meta: Record<string, unknown> }) => Promise<any>) | undefined;
+    const registerSprite = electronState.handlers.get('sprite:register') as ((_: unknown, payload: { filePath: string; meta: Record<string, unknown> }) => Promise<any>) | undefined;
     const updateConfig = electronState.handlers.get('sprite:update-config') as ((_: unknown, payload: { id: string; patch: Record<string, unknown> }) => Promise<any>) | undefined;
     const removeSprite = electronState.handlers.get('sprite:remove') as ((_: unknown, payload: { id: string; deleteFile?: boolean }) => Promise<any>) | undefined;
 
-    expect(registerFromData).toBeDefined();
+    expect(registerSprite).toBeDefined();
     expect(updateConfig).toBeDefined();
     expect(removeSprite).toBeDefined();
 
-    const item = await registerFromData!(undefined, {
-      data: Buffer.from('custom-webm'),
+    const customWavePath = path.join(installedRoot, 'animations/custom-wave.webm');
+    writeFileSync(customWavePath, 'custom-webm', 'utf-8');
+    const item = await registerSprite!(undefined, {
+      filePath: customWavePath,
       meta: {
         id: 'custom-wave',
         title: 'Custom Wave',
@@ -357,11 +359,12 @@ describe('sprite assets pack manifest integration', () => {
       }
     });
 
-    expect(item.source.localPath).toBe(path.join(installedRoot, 'animations/custom-wave.webm'));
+    expect(item.source.localPath).toBe(customWavePath);
     expect(item.meta.deletable).toBe(true);
 
-    const editedItem = await registerFromData!(undefined, {
-      data: Buffer.from('custom-webm-edited'),
+    writeFileSync(customWavePath, 'custom-webm-edited', 'utf-8');
+    const editedItem = await registerSprite!(undefined, {
+      filePath: customWavePath,
       meta: {
         id: 'custom-wave',
         title: 'Custom Wave Edited',
@@ -369,13 +372,12 @@ describe('sprite assets pack manifest integration', () => {
       }
     });
     expect(editedItem.meta.title).toBe('Custom Wave Edited');
-    expect(editedItem.source.localPath).toBe(path.join(installedRoot, 'animations/custom-wave-1.webm'));
+    expect(editedItem.source.localPath).toBe(customWavePath);
 
     const storedIndex = JSON.parse(readFileSync(path.join(installedRoot, 'animations/index.json'), 'utf-8'));
     expect(storedIndex.items).toHaveLength(1);
-    expect(storedIndex.items[0].source.localPath).toBe('custom-wave-1.webm');
-    expect(existsSync(path.join(installedRoot, 'animations/custom-wave.webm'))).toBe(false);
-    expect(readFileSync(path.join(installedRoot, 'animations/custom-wave-1.webm'), 'utf-8')).toBe('custom-webm-edited');
+    expect(storedIndex.items[0].source.localPath).toBe('custom-wave.webm');
+    expect(readFileSync(customWavePath, 'utf-8')).toBe('custom-webm-edited');
     expect(existsSync(path.join(userDataDir!, 'data', 'sprites', 'index.json'))).toBe(false);
 
     const configResult = await updateConfig!(undefined, {
@@ -417,14 +419,14 @@ describe('sprite assets pack manifest integration', () => {
         primaryTrigger: 'celebrate'
       },
       source: {
-        localPath: path.join(installedRoot, 'animations/custom-wave-1.webm')
+        localPath: customWavePath
       }
     });
     const configuredIndex = JSON.parse(readFileSync(path.join(installedRoot, 'animations/index.json'), 'utf-8'));
     expect(configuredIndex.items).toHaveLength(1);
-    expect(configuredIndex.items[0].source.localPath).toBe('custom-wave-1.webm');
-    expect(existsSync(path.join(installedRoot, 'animations/custom-wave-1.webm'))).toBe(true);
-    expect(readFileSync(path.join(installedRoot, 'animations/custom-wave-1.webm'), 'utf-8')).toBe('custom-webm-edited');
+    expect(configuredIndex.items[0].source.localPath).toBe('custom-wave.webm');
+    expect(existsSync(customWavePath)).toBe(true);
+    expect(readFileSync(customWavePath, 'utf-8')).toBe('custom-webm-edited');
 
     const sprites = await spriteAssets.listSprites();
     expect(sprites.map((sprite) => sprite.meta.id)).toEqual(['custom-wave', 'builtin-idle']);
@@ -438,11 +440,13 @@ describe('sprite assets pack manifest integration', () => {
     });
     expect(removed).toEqual({ ok: true });
     expect(JSON.parse(readFileSync(path.join(installedRoot, 'animations/index.json'), 'utf-8')).items).toEqual([]);
-    expect(existsSync(path.join(installedRoot, 'animations/custom-wave-1.webm'))).toBe(false);
+    expect(existsSync(customWavePath)).toBe(false);
     expect((await spriteAssets.listSprites()).map((sprite) => sprite.meta.id)).toEqual(['builtin-idle']);
 
-    await registerFromData!(undefined, {
-      data: Buffer.from('custom-idle-webm'),
+    const customIdlePath = path.join(installedRoot, 'animations/custom-idle.webm');
+    writeFileSync(customIdlePath, 'custom-idle-webm', 'utf-8');
+    await registerSprite!(undefined, {
+      filePath: customIdlePath,
       meta: {
         id: 'custom-idle',
         title: 'Custom Idle',
@@ -648,42 +652,6 @@ describe('sprite assets pack manifest integration', () => {
     });
   });
 
-  it('keeps legacy eventType-only input compatible on sprite:register-from-data without persisting a mirror field', async () => {
-    const rootDir = spritesRoot!;
-
-    const spriteAssets = await import('../../packages/sprite-core/handlers/sprite-assets');
-    spriteAssets.initSpriteHandlers({
-      addAllowedResourceRoot: vi.fn(),
-      getResourcePath: () => rootDir
-    });
-
-    const registerFromData = electronState.handlers.get('sprite:register-from-data') as
-      ((_: unknown, payload: { data: Buffer; meta: Record<string, unknown>; loop?: boolean; loopCount?: number }) => Promise<any>) | undefined;
-
-    expect(registerFromData).toBeDefined();
-
-    const item = await registerFromData!(undefined, {
-      data: Buffer.from('fake-webm'),
-      loop: true,
-      loopCount: 2,
-      meta: {
-        id: 'legacy-event-type-only',
-        title: 'Legacy Event Type Only',
-        eventType: 'idle'
-      }
-    });
-
-    expect(item.meta).toMatchObject({
-      id: 'legacy-event-type-only',
-      title: 'Legacy Event Type Only',
-      primaryTrigger: 'idle',
-      deletable: true
-    });
-    expect(item.meta).not.toHaveProperty('eventType');
-    expect(item.loop).toBe(true);
-    expect(item.loopCount).toBe(2);
-  });
-
   it('requires spriteManage capability for sprite asset authoring writes', async () => {
     const rootDir = spritesRoot!;
     const sourcePath = path.join(rootDir, 'locked-authoring.webm');
@@ -700,17 +668,15 @@ describe('sprite assets pack manifest integration', () => {
     });
 
     const registerSprite = electronState.handlers.get('sprite:register') as ((_: unknown, payload: { filePath: string; meta: Record<string, unknown> }) => Promise<any>) | undefined;
-    const registerFromData = electronState.handlers.get('sprite:register-from-data') as ((_: unknown, payload: { data: Buffer; meta: Record<string, unknown> }) => Promise<any>) | undefined;
     const updateConfig = electronState.handlers.get('sprite:update-config') as ((_: unknown, payload: { id: string; patch: Record<string, unknown> }) => Promise<any>) | undefined;
     const updateMeta = electronState.handlers.get('sprite:update-meta') as ((_: unknown, payload: { id: string; meta: Record<string, unknown> }) => Promise<any>) | undefined;
     const removeSprite = electronState.handlers.get('sprite:remove') as ((_: unknown, payload: { id: string }) => Promise<any>) | undefined;
 
     await expect(registerSprite!(undefined, { filePath: sourcePath, meta: { id: 'locked-authoring' } })).rejects.toThrow('locked:spriteManage');
-    await expect(registerFromData!(undefined, { data: Buffer.from('fake-webm'), meta: { id: 'locked-from-data' } })).rejects.toThrow('locked:spriteManage');
     await expect(updateConfig!(undefined, { id: 'locked-authoring', patch: { width: 200 } })).rejects.toThrow('locked:spriteManage');
     await expect(updateMeta!(undefined, { id: 'locked-authoring', meta: { title: 'Locked' } })).rejects.toThrow('locked:spriteManage');
     await expect(removeSprite!(undefined, { id: 'locked-authoring' })).rejects.toThrow('locked:spriteManage');
-    expect(assertCapabilityUnlocked).toHaveBeenCalledTimes(5);
+    expect(assertCapabilityUnlocked).toHaveBeenCalledTimes(4);
     expect(assertCapabilityUnlocked).toHaveBeenCalledWith('spriteManage');
   });
 });

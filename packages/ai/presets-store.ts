@@ -5,7 +5,7 @@ import path from 'node:path';
 import { app } from 'electron';
 
 import { toCanonicalProviderId } from './providers/service';
-import type { ProviderPresetCreatePayload, ProviderPresetOverrides, ProviderPresetRecord, ProviderPresetUpdatePatch } from './types';
+import type { ProviderPresetCreatePayload, ProviderPresetOverrides, ProviderPresetRecord } from './types';
 
 type StoreShape = { presets: ProviderPresetRecord[] };
 type LegacyProviderPresetRecord = ProviderPresetRecord & { model?: string };
@@ -121,24 +121,6 @@ export function createStoredPreset(payload: ProviderPresetCreatePayload & { id?:
   d.presets.push(item);
   write(d);
   return item;
-}
-
-export function updateStoredPreset(id: string, patch: ProviderPresetUpdatePatch): ProviderPresetRecord | undefined {
-  const d = read();
-  const idx = d.presets.findIndex((preset) => preset.id === id);
-  if (idx < 0) return undefined;
-  const nextOverrides = hasOwn(patch, 'overrides') || hasOwn(patch, 'config') ? resolvePresetOverrides(patch) : resolvePresetOverrides(d.presets[idx]);
-  const next = normalizePreset({
-    ...d.presets[idx],
-    ...patch,
-    config: nextOverrides,
-    overrides: nextOverrides,
-    ...(patch.providerId ? { providerId: toCanonicalProviderId(patch.providerId) } : {}),
-    updatedAt: Date.now()
-  } as ProviderPresetRecord);
-  d.presets[idx] = next;
-  write(d);
-  return next;
 }
 
 export function deleteStoredPreset(id: string): boolean {
