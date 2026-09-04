@@ -1,0 +1,77 @@
+name: Release
+
+# 正式发布流程：推送 v* tag（如 v1.0.0）触发三平台构建并发布到 GitHub Releases。
+# 发布版本号以 package.json 的 version 为准，打 tag 前记得 bump 并保持两者一致。
+on:
+  push:
+    tags:
+      - 'v*'
+
+# GITHUB_TOKEN 需要创建/上传 Release 的权限
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          # 拉取 Git LFS 对象（webm/png/onnx 等二进制资源），否则 checkout 出来的是 LFS 指针文件
+          lfs: true
+
+      # Windows 上 standalone 安装 pnpm.exe：app-builder（electron-builder）会直接 exec pnpm 二进制，
+      # 非 standalone 的 pnpm.mjs 无法直接执行（%1 is not a valid Win32 application）
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          standalone: ${{ runner.os == 'Windows' }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # postinstall（electron-builder install-app-deps）会在 Linux 上编译 keytar/uiohook-napi 等原生依赖
+      - name: Install Native Build Dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsecret-1-dev libx11-dev libxtst-dev libxinerama-dev libxkbcommon-dev libxrandr-dev libxi-dev libxt-dev libx11-xcb-dev libxkbfile-dev
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Download Platform Resources (macOS)
+        if: runner.os == 'macOS'
+        run: pnpm run download-7zip-darwin-arm64
+
+      - name: Download Platform Resources (Windows)
+        if: runner.os == 'Windows'
+        run: pnpm run download-7zip-win32-x64
+
+      - name: Download Platform Resources (Linux)
+        if: runner.os == 'Linux'
+        run: pnpm run download-7zip-linux-x64
+
+      # electron-builder --publish always：按 publish 配置（GitHub Releases）创建/更新
+      # 与 tag 同版本的 Release，上传安装包与 latest*.yml 自动更新元数据。
+      # 三个平台 job 并发向同一 Release 上传，electron-builder 自带冲突重试。
+      - name: Build & Publish Release
+        run: pnpm run release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release_on_${{ matrix.os }}
+          path: release/
+          retention-days: 5

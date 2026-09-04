@@ -27,6 +27,7 @@
     "dev": "node -e \"if (process.platform === 'win32') process.exit(1)\" || chcp 65001 && vite",
     "dev:fresh-voice": "node scripts/clean-speak-cache.js && pnpm dev",
     "build": "tsc && vite build && electron-builder",
+    "release": "tsc && vite build && electron-builder --publish always",
     "postinstall": "electron-builder install-app-deps",
     "build:rebuild": "pnpm rebuild && pnpm build",
     "preview": "vite preview",
