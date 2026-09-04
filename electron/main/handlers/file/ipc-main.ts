@@ -1,4 +1,33 @@
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+
 import { dialog, ipcMain, shell } from 'electron';
+
+// shell.openPath 在 macOS 上 open 一个 .app 即启动该程序，带执行位的文件也会被运行。
+// 渲染端调用点（角色包目录 / 插件目录 / 下载目录）均为打开文件夹，且插件目录允许用户自定义到
+// 任意位置，因此不做 userData 白名单，改为拒绝可执行目标：
+// - 任何 .app 包（含包内路径）
+// - 可执行/脚本扩展名
+// - 带执行位的普通文件（无扩展名的 Mach-O、脚本等）
+const EXECUTABLE_EXTENSIONS = new Set(['.exe', '.bat', '.cmd', '.com', '.scr', '.msi', '.ps1', '.sh', '.command', '.workflow', '.action']);
+
+function getOpenPathBlockReason(resolvedPath: string): string | null {
+  if (resolvedPath.split(path.sep).some((segment) => segment.toLowerCase().endsWith('.app'))) {
+    return 'APP_BUNDLE_NOT_ALLOWED';
+  }
+  if (EXECUTABLE_EXTENSIONS.has(path.extname(resolvedPath).toLowerCase())) {
+    return 'EXECUTABLE_NOT_ALLOWED';
+  }
+  try {
+    const stat = fs.statSync(resolvedPath);
+    if (!stat.isDirectory() && (stat.mode & 0o111) !== 0) {
+      return 'EXECUTABLE_NOT_ALLOWED';
+    }
+  } catch {
+    // 路径不存在时交给 openPath 自身报错
+  }
+  return null;
+}
 
 // Generic file/directory selection handlers
 export function initFileHandlers(_win: Electron.BrowserWindow): void {
@@ -49,7 +78,9 @@ export function initFileHandlers(_win: Electron.BrowserWindow): void {
 
   // 打开/显示系统中的路径（文件或目录）
   ipcMain.handle('file:open-path', async (_event, targetPath: string) => {
-    if (!targetPath) return { ok: false, error: 'EMPTY_PATH' };
+    if (!targetPath || typeof targetPath !== 'string') return { ok: false, error: 'EMPTY_PATH' };
+    const blockReason = getOpenPathBlockReason(path.resolve(targetPath));
+    if (blockReason) return { ok: false, error: blockReason };
     try {
       // 优先尝试直接打开目录；openPath 返回空字符串表示成功
       const result = await shell.openPath(targetPath);

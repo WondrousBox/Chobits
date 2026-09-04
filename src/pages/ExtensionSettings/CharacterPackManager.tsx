@@ -943,7 +943,7 @@ export default function CharacterPackManager({ afterRuntimeChange, editorExtra, 
               取消
             </Button>
             <Button onClick={() => void handleSaveEditor()} disabled={busyKey === 'editor-save'}>
-              {busyKey === 'editor-save' && <TbLoader2 className="h-4 w-4 animate-spin mr-1" />}
+              {busyKey === 'editor-save' && <TbLoader2 className="animate-spin" />}
               保存角色包
             </Button>
           </DialogFooter>

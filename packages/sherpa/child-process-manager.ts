@@ -73,13 +73,9 @@ class ChildProcessManager extends EventEmitter {
       console.log(`[child] 未处理的 Promise 拒绝: ${reason}`);
     });
 
-    // Listen to stdout and stderr of the child process
-    this.childProcess.stdout?.on('data', (data: string) => {
-      console.log(`[child stdout]: ${data}`);
-    });
-
+    // 只转发错误级输出：stdout 可能包含识别文本等隐私内容，不回传日志
     this.childProcess.stderr?.on('data', (data: string) => {
-      console.log(`[child stderr]: ${data}`);
+      console.error(`[child stderr]: ${data}`);
     });
 
     this.emit('started');

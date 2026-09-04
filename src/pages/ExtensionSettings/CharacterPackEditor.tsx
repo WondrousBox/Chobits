@@ -269,7 +269,7 @@ export function CharacterPackEditorContent({ editor, setEditor, className, extra
           <div className="flex items-center justify-between">
             <Label>对话示例</Label>
             <Button type="button" size="sm" variant="outline" onClick={addEditorExample}>
-              <TbPlus className="h-4 w-4 mr-1" />
+              <TbPlus />
               添加示例
             </Button>
           </div>
@@ -279,7 +279,7 @@ export function CharacterPackEditorContent({ editor, setEditor, className, extra
                 <Input placeholder="场景" value={example.situation} onChange={(event) => updateEditorExample(index, { situation: event.target.value })} />
                 <Input placeholder="回应" value={example.response} onChange={(event) => updateEditorExample(index, { response: event.target.value })} />
                 <Button type="button" size="sm" variant="outline" onClick={() => removeEditorExample(index)}>
-                  <TbTrash className="h-4 w-4" />
+                  <TbTrash />
                 </Button>
               </div>
             ))}

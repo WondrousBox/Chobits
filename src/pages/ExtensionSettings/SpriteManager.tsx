@@ -743,7 +743,7 @@ export function SpriteAnimationManager({
                   )}
                   {cat !== 'uncategorized' && (
                     <Button size="sm" variant="ghost" onClick={() => window.chobits.sprite.trigger(cat)} title={`触发 ${cat} 事件：播放动画 + 显示气泡`}>
-                      <TbPlayerPlay className="h-3 w-3 mr-1" />
+                      <TbPlayerPlay />
                       测试
                     </Button>
                   )}
@@ -784,7 +784,7 @@ export function SpriteAnimationManager({
                                 disabled={testingId === item.meta.id}
                                 title="测试播放：在桌面精灵上预览此动画"
                               >
-                                <TbPlayerPlay className="h-4 w-4" />
+                                <TbPlayerPlay />
                               </Button>
                               <SpriteTriggerPicker
                                 value={primaryTrigger || ''}
@@ -814,7 +814,7 @@ export function SpriteAnimationManager({
                                   disabled={!canAuthorAnimations}
                                   title={canAuthorAnimations ? '编辑此精灵属性' : authoringLockedTitle}
                                 >
-                                  <TbPencil className="h-4 w-4" />
+                                  <TbPencil />
                                 </Button>
                               )}
                               {item.meta.deletable !== false && (

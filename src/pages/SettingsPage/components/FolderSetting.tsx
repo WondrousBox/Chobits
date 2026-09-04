@@ -217,7 +217,7 @@ function FolderSetting(): JSX.Element {
                 <Button size="sm" variant="outline" onClick={pickPluginsDir} disabled={isMoving}>
                   {isMoving ? (
                     <>
-                      <TbLoader className="h-4 w-4 mr-1 animate-spin" />
+                      <TbLoader className="animate-spin" />
                       移动中
                     </>
                   ) : (

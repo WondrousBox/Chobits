@@ -91,7 +91,7 @@ export default function PromptSetting(): JSX.Element {
         <div className="p-3 flex items-center gap-2">
           <Input className="h-8 flex-1" placeholder="搜索..." value={tmplSearch} onChange={(e) => setTmplSearch(e.target.value)} />
           <Button size="icon" className="w-8 h-8 flex-shrink-0" onClick={openCreate}>
-            <TbPlus className="h-4 w-4" />
+            <TbPlus />
           </Button>
         </div>
         <ScrollArea className="flex-1">
@@ -119,7 +119,7 @@ export default function PromptSetting(): JSX.Element {
                         void deleteTemplate(t.id);
                       }}
                     >
-                      <TbTrash className="h-3.5 w-3.5" />
+                      <TbTrash />
                     </Button>
                   </div>
                 ))}

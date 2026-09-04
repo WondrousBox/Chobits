@@ -177,11 +177,10 @@ export default function AISettings({ initialProviderId, initialPresetId, focusRe
     const parsed = schema.safeParse(vals.secrets);
     if (!parsed.success) {
       const errs: Record<string, string> = {};
-      if (!parsed.success)
-        parsed.error.issues.forEach((i) => {
-          const k = i.path[0] as string;
-          errs[k] = i.message;
-        });
+      parsed.error.issues.forEach((i) => {
+        const k = i.path[0] as string;
+        errs[k] = i.message;
+      });
       setErrors((prev) => ({ ...prev, __new__: errs }));
       return;
     }
@@ -327,7 +326,7 @@ export default function AISettings({ initialProviderId, initialPresetId, focusRe
                                 setExpandedPresetId(preset.id);
                               }}
                             >
-                              {isExpanded ? <TbChevronDown className="w-4 h-4" /> : <TbChevronRight className="w-4 h-4" />}
+                              {isExpanded ? <TbChevronDown /> : <TbChevronRight />}
                               {isExpanded ? '收起' : '编辑'}
                             </Button>
                             <Button size="sm" variant="outline" onClick={() => handleQuickTest(preset)}>
@@ -361,7 +360,7 @@ export default function AISettings({ initialProviderId, initialPresetId, focusRe
 
               {presets.length > 0 && !isCreateFormVisible && (
                 <Button size="sm" variant="outline" className="w-fit" onClick={openCreatePresetForm}>
-                  <TbPlus className="w-4 h-4" />
+                  <TbPlus />
                   新增预设
                 </Button>
               )}

@@ -371,7 +371,7 @@
         "deletable": true
       },
       "source": {
-        "localPath": "./dance_00.webm",
+        "localPath": "./dance_01.webm",
         "type": "video/webm"
       },
       "width": 180,

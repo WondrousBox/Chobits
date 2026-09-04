@@ -45,12 +45,12 @@ export default function CodingWorkspaceButton({
         onClick={() => void onPick()}
         title={workspaceRoot || '选择项目目录'}
       >
-        <TbFolderCode className={cn('h-4 w-4 shrink-0', iconClassName)} />
+        <TbFolderCode className={cn('shrink-0', iconClassName)} />
         <span className="truncate">{workspaceLabel || defaultLabel}</span>
       </Button>
       {workspaceRoot && onClear && (
         <Button type="button" variant={clearVariant} size={clearSize} disabled={disabled} className={clearClassName} onClick={onClear} title="清除项目目录">
-          <TbX className={cn('h-4 w-4', iconClassName)} />
+          <TbX className={iconClassName} />
         </Button>
       )}
     </>

@@ -829,12 +829,12 @@ export default function WindowAnimationEditor(): JSX.Element {
             <Button variant="outline" size="sm" className="h-8 text-xs" onClick={copyTimelineJson}>
               {jsonCopied ? (
                 <>
-                  <TbCheck className="h-3.5 w-3.5" />
+                  <TbCheck />
                   已复制
                 </>
               ) : (
                 <>
-                  <TbCopy className="h-3.5 w-3.5" />
+                  <TbCopy />
                   复制
                 </>
               )}
@@ -978,7 +978,7 @@ function PlacementEditor({
               <Tooltip key={option.anchor}>
                 <TooltipTrigger asChild>
                   <Button type="button" size="icon" variant={activeAnchor === option.anchor ? 'default' : 'outline'} className="h-9 w-full" onClick={() => onSelectAnchor(option.anchor)}>
-                    <Icon className="h-4 w-4" />
+                    <Icon />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="left">{option.label}</TooltipContent>

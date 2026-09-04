@@ -250,7 +250,7 @@ const ProxySettings: React.FC = () => {
             description={systemProxyInfo ? `${systemProxyInfo.host}:${systemProxyInfo.port}` : '未检测到系统代理'}
             action={
               <Button size="sm" variant="outline" onClick={loadSystemProxy}>
-                <TbRefresh className="h-4 w-4 mr-1" />
+                <TbRefresh />
                 刷新
               </Button>
             }
@@ -265,7 +265,7 @@ const ProxySettings: React.FC = () => {
               <TbNetwork className="w-10 h-10 mx-auto mb-2 text-muted-foreground opacity-50" />
               <p className="text-sm text-muted-foreground mb-3">暂无代理配置</p>
               <Button size="sm" onClick={handleAddProxy}>
-                <TbPlus className="h-4 w-4 mr-1" />
+                <TbPlus />
                 添加代理
               </Button>
             </div>
@@ -286,18 +286,18 @@ const ProxySettings: React.FC = () => {
                     <Input className="flex-1 h-8" value={proxy.hostname} onChange={(e) => handleUpdateProxyDebounced(index, { hostname: e.target.value })} placeholder="127.0.0.1" />
                     <Input className="w-20 h-8" type="number" value={proxy.port} onChange={(e) => handleUpdateProxyDebounced(index, { port: parseInt(e.target.value) || 0 })} placeholder="7890" />
                     <Button size="sm" variant={proxy.isActive ? 'default' : 'outline'} onClick={() => handleUpdateProxyImmediate(index, { isActive: true })} disabled={proxy.isActive}>
-                      {proxy.isActive && <TbCheck className="h-4 w-4 mr-1" />}
+                      {proxy.isActive && <TbCheck />}
                       {proxy.isActive ? '已启用' : '启用'}
                     </Button>
                     <Button size="icon" variant="ghost" className="w-8 h-8 text-muted-foreground hover:text-destructive" onClick={() => handleRemoveProxy(index)}>
-                      <TbTrash className="h-4 w-4" />
+                      <TbTrash />
                     </Button>
                   </div>
                 </div>
               ))}
               <div className="px-4 py-3 border-t border-border">
                 <Button size="sm" variant="outline" onClick={handleAddProxy}>
-                  <TbPlus className="h-4 w-4 mr-1" />
+                  <TbPlus />
                   添加代理
                 </Button>
               </div>
@@ -314,7 +314,7 @@ const ProxySettings: React.FC = () => {
             <div className="flex items-center gap-3">
               {testResult && <span className={`text-xs ${testResult.ok ? 'text-green-600' : 'text-destructive'}`}>{testResult.message}</span>}
               <Button size="sm" variant="outline" onClick={handleTestProxy} disabled={isTesting}>
-                {isTesting ? <TbLoader className="h-4 w-4 mr-1 animate-spin" /> : <TbTestPipe className="h-4 w-4 mr-1" />}
+                {isTesting ? <TbLoader className="animate-spin" /> : <TbTestPipe />}
                 {isTesting ? '测试中...' : '测试'}
               </Button>
             </div>

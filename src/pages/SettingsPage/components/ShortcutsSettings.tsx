@@ -190,11 +190,11 @@ const ShortcutsSettings: React.FC = () => {
 
       <div className="flex justify-end gap-2 px-2">
         <Button size="sm" variant="outline" onClick={restoreDefaults} disabled={isSaving}>
-          <TbRefresh className="h-4 w-4 mr-1" />
+          <TbRefresh />
           恢复默认
         </Button>
         <Button size="sm" onClick={persist} disabled={isSaving}>
-          {isSaving ? <TbLoader className="h-4 w-4 mr-1 animate-spin" /> : null}
+          {isSaving ? <TbLoader className="animate-spin" /> : null}
           {isSaving ? '保存中...' : '保存设置'}
         </Button>
       </div>

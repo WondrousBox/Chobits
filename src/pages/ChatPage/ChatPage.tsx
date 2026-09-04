@@ -816,7 +816,7 @@ export default function ChatPage(): JSX.Element {
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button className="opacity-0 group-hover:opacity-100 w-7 h-7 shrink-0" size="icon" variant="ghost" onClick={(e) => e.stopPropagation()}>
-                            <TbDots className="w-4 h-4" />
+                            <TbDots />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="start" side="bottom" className="w-40">
@@ -876,7 +876,7 @@ export default function ChatPage(): JSX.Element {
           {/* 展开/收起历史按钮 */}
           <div className="absolute top-2 left-2 z-10">
             <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setIsHistoryVisible(!isHistoryVisible)} title={isHistoryVisible ? '收起历史' : '展开历史'}>
-              {isHistoryVisible ? <TbChevronRight className="w-4 h-4" /> : <TbHistory className="w-4 h-4" />}
+              {isHistoryVisible ? <TbChevronRight /> : <TbHistory />}
             </Button>
           </div>
           {shouldShowEmptyStart && (

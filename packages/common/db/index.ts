@@ -306,6 +306,39 @@ export interface BackupInfo {
 }
 
 /**
+ * 备份根目录（userDir/data/backups）。
+ * delete/restore 等 handler 只接受该目录内的路径，防止渲染端传入任意路径。
+ */
+function getBackupRootDir(): string {
+  return path.join(app.getPath('userData'), 'data', 'backups');
+}
+
+/**
+ * 判断候选路径是否位于备份根目录内。
+ * 词法与真实路径（realpath，防符号链接逃逸）双重校验，
+ * 参考 character-pack-paths 的 isResolvedPathContainedByRoot 模式。
+ */
+function isPathContainedByBackupRoot(candidatePath: string): boolean {
+  const rootDir = path.resolve(getBackupRootDir());
+  const resolved = path.resolve(candidatePath);
+
+  const relative = path.relative(rootDir, resolved);
+  if (relative === '' || relative.startsWith('..') || path.isAbsolute(relative)) {
+    return false;
+  }
+
+  try {
+    const realRoot = fs.realpathSync(rootDir);
+    const realCandidate = fs.realpathSync(resolved);
+    const realRelative = path.relative(realRoot, realCandidate);
+    return realRelative !== '' && !realRelative.startsWith('..') && !path.isAbsolute(realRelative);
+  } catch {
+    // 根目录或文件不存在（realpath 失败）时拒绝
+    return false;
+  }
+}
+
+/**
  * Create a backup of the database using SQLite's online backup API.
  * This is the safest way to backup a live SQLite database.
  * @param customPath Optional custom directory path for the backup
@@ -391,6 +424,10 @@ export function listBackups(customPath?: string): { ok: true; backups: BackupInf
  */
 export function deleteBackup(backupPath: string): { ok: true } | { ok: false; error: string } {
   try {
+    if (typeof backupPath !== 'string' || !isPathContainedByBackupRoot(backupPath)) {
+      return { ok: false, error: 'Backup path is outside the backup directory' };
+    }
+
     if (!fs.existsSync(backupPath)) {
       return { ok: false, error: 'Backup file not found' };
     }
@@ -415,6 +452,10 @@ export function deleteBackup(backupPath: string): { ok: true } | { ok: false; er
  */
 export async function restoreBackup(backupPath: string): Promise<{ ok: true; requiresRestart: true } | { ok: false; error: string }> {
   try {
+    if (typeof backupPath !== 'string' || !isPathContainedByBackupRoot(backupPath)) {
+      return { ok: false, error: 'Backup path is outside the backup directory' };
+    }
+
     if (!fs.existsSync(backupPath)) {
       return { ok: false, error: 'Backup file not found' };
     }

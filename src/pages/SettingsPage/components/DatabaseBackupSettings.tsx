@@ -162,17 +162,17 @@ const DatabaseBackupSettings: React.FC = () => {
           action={
             <div className="flex items-center gap-2">
               <Button size="sm" variant="outline" onClick={loadBackups} disabled={isLoading}>
-                {isLoading ? <TbLoader2 className="h-4 w-4 animate-spin" /> : <TbRefresh className="h-4 w-4" />}
+                {isLoading ? <TbLoader2 className="animate-spin" /> : <TbRefresh />}
               </Button>
               <Button size="sm" variant="outline" onClick={handleImport} disabled={isImporting}>
                 {isImporting ? (
                   <>
-                    <TbLoader2 className="h-4 w-4 animate-spin mr-1" />
+                    <TbLoader2 className="animate-spin" />
                     导入中...
                   </>
                 ) : (
                   <>
-                    <TbDatabaseImport className="h-4 w-4 mr-1" />
+                    <TbDatabaseImport />
                     导入
                   </>
                 )}
@@ -180,12 +180,12 @@ const DatabaseBackupSettings: React.FC = () => {
               <Button size="sm" onClick={handleBackup} disabled={isBackingUp}>
                 {isBackingUp ? (
                   <>
-                    <TbLoader2 className="h-4 w-4 animate-spin mr-1" />
+                    <TbLoader2 className="animate-spin" />
                     备份中...
                   </>
                 ) : (
                   <>
-                    <TbDatabase className="h-4 w-4 mr-1" />
+                    <TbDatabase />
                     立即备份
                   </>
                 )}
@@ -208,10 +208,10 @@ const DatabaseBackupSettings: React.FC = () => {
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     <Button size="icon" variant="ghost" className="h-6 w-6" title="恢复此备份" onClick={() => setRestoreTarget(backup)}>
-                      <TbRestore className="h-3.5 w-3.5 text-muted-foreground hover:text-primary" />
+                      <TbRestore className="text-muted-foreground hover:text-primary" />
                     </Button>
                     <Button size="icon" variant="ghost" className="h-6 w-6" title="删除" onClick={() => setDeleteTarget(backup)}>
-                      <TbTrash className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+                      <TbTrash className="text-muted-foreground hover:text-destructive" />
                     </Button>
                   </div>
                 </div>
@@ -236,7 +236,7 @@ const DatabaseBackupSettings: React.FC = () => {
             <Button variant="destructive" onClick={handleDelete} disabled={isDeleting}>
               {isDeleting ? (
                 <>
-                  <TbLoader2 className="h-4 w-4 animate-spin mr-1" />
+                  <TbLoader2 className="animate-spin" />
                   删除中...
                 </>
               ) : (
@@ -262,12 +262,12 @@ const DatabaseBackupSettings: React.FC = () => {
             <Button onClick={handleRestore} disabled={isRestoring}>
               {isRestoring ? (
                 <>
-                  <TbLoader2 className="h-4 w-4 animate-spin mr-1" />
+                  <TbLoader2 className="animate-spin" />
                   恢复中...
                 </>
               ) : (
                 <>
-                  <TbRestore className="h-4 w-4 mr-1" />
+                  <TbRestore />
                   确认恢复
                 </>
               )}
@@ -288,7 +288,7 @@ const DatabaseBackupSettings: React.FC = () => {
               稍后重启
             </Button>
             <Button onClick={handleRestart}>
-              <TbRestore className="h-4 w-4 mr-1" />
+              <TbRestore />
               立即重启
             </Button>
           </DialogFooter>

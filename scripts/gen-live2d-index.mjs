@@ -46,8 +46,10 @@ try {
 } catch {
   // index.json 不存在时创建新文件
 }
+// 已有 index.json 可能缺 items 字段，归一化后再使用
+index.items ??= [];
 
-const existingIds = new Set((index.items ?? []).map((item) => item.meta?.id));
+const existingIds = new Set(index.items.map((item) => item.meta?.id));
 let added = 0;
 let updated = 0;
 

@@ -56,7 +56,7 @@ const AppearanceSettings: React.FC = () => {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" disabled={pending !== null} className="min-w-[100px]">
-                {pending !== null ? <TbLoader2 className="h-4 w-4 animate-spin mr-1.5" /> : <CurrentIcon className="h-4 w-4 mr-1.5" />}
+                {pending !== null ? <TbLoader2 className="animate-spin" /> : <CurrentIcon />}
                 {pending !== null ? '切换中...' : currentOption.label}
               </Button>
             </DropdownMenuTrigger>

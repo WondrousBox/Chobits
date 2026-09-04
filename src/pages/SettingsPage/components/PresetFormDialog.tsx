@@ -158,7 +158,7 @@ export function PresetFormDialog(props: {
         >
           <span>可用模型 ({filteredSortedModels.length})</span>
           <span className="flex items-center gap-1 text-xs">
-            {modelsExpanded ? <TbChevronDown className="w-4 h-4" /> : <TbChevronRight className="w-4 h-4" />}
+            {modelsExpanded ? <TbChevronDown /> : <TbChevronRight />}
             {modelsExpanded ? '收起' : '展开'}
           </span>
         </Button>

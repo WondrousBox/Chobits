@@ -18,13 +18,13 @@
   "provenance": {
     "channel": "builtin",
     "publisher": "Chobits",
-    "repository": "https://gitee.com/yu-qian/chobits",
-    "canonicalUrl": "https://gitee.com/yu-qian/chobits"
+    "repository": "https://github.com/chenxin199305/Chobits-Chi-Mascot",
+    "canonicalUrl": "https://github.com/chenxin199305/Chobits-Chi-Mascot"
   },
   "signature": {
     "algorithm": "sha256",
     "keyId": "builtin:chii-default",
-    "digest": "sha256:ccfea20939be6181ebca9136b4e8d0e132efd3ee0e1041639b214375611f498a"
+    "digest": "sha256:6f5ca87bcdf4bcfacbbcf29f9fb971b53059b59fb6a14ad0c9b1ac42162bf2ed"
   },
   "capabilities": {
     "hasVoice": false,

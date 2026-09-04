@@ -166,7 +166,7 @@ export default function UserChoiceCard({ request, onSubmit, submitted, submitted
         <div>
           {!isFirstQuestion && (
             <Button size="sm" variant="ghost" onClick={handlePrev} className="h-7 px-2 text-xs">
-              <TbChevronLeft className="h-3.5 w-3.5 mr-0.5" />
+              <TbChevronLeft />
               上一题
             </Button>
           )}
@@ -174,13 +174,13 @@ export default function UserChoiceCard({ request, onSubmit, submitted, submitted
         <Button size="sm" onClick={handleNext} disabled={!currentHasSelection} className="h-7 px-3 text-xs">
           {isLastQuestion ? (
             <>
-              <TbCheck className="h-3.5 w-3.5 mr-0.5" />
+              <TbCheck />
               确认提交
             </>
           ) : (
             <>
               下一题
-              <TbChevronRight className="h-3.5 w-3.5 ml-0.5" />
+              <TbChevronRight />
             </>
           )}
         </Button>

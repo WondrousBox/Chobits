@@ -45,6 +45,11 @@ const WINDOW_ANIMATION_DIRECTIONS = new Set<WindowAnimationPresetDirection>(['to
 const DEFAULT_WINDOW_ANIMATION_DESIGN_AREA = { width: 1440, height: 900 };
 const spriteSpeechPiExecutionService = new PiExecutionService();
 
+// 当前主窗口引用：全局 handler 的闭包通过它访问主窗口，窗口重建（initHandlers 重跑）后自动指向新窗口
+let currentMainWindow: BrowserWindow | null = null;
+// 全局 handler（AI/sherpa/preferences 等）只允许注册一次，重复 ipcMain.handle 会抛错
+let hasInitializedSharedHandlers = false;
+
 function resolveWindowAnimationDirection(value: string | undefined): WindowAnimationPresetDirection {
   return value && WINDOW_ANIMATION_DIRECTIONS.has(value as WindowAnimationPresetDirection) ? (value as WindowAnimationPresetDirection) : 'left';
 }
@@ -245,7 +250,18 @@ function resolveSpritePlaybackWindowBounds(current: WindowAnimationAdapterBounds
 }
 
 export async function initHandlers(win: BrowserWindow): Promise<void> {
+  // 记录当前主窗口，供全局 handler 的闭包使用（窗口重建后指向新窗口，避免引用已销毁窗口）
+  currentMainWindow = win;
+
+  // 每个窗口都需要的接线（窗口尺寸/padding、hover 监控、window-manager 引导）。
+  // 内部幂等（所有 ipcMain 通道 removeHandler 前置），主窗口重建时可安全重跑。
   initWindowHandlers(win);
+
+  // 以下 handler 全局只需注册一次：ipcMain.handle 重复注册同通道会直接 throw，
+  // 主窗口重建（render-process-gone 自愈 / macOS activate）时必须跳过。
+  if (hasInitializedSharedHandlers) return;
+  hasInitializedSharedHandlers = true;
+
   // Load proxy settings before any handlers that trigger startup network requests.
   await initProxyHandlers(win);
   initFileHandlers(win);
@@ -269,7 +285,7 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
     getPluginDefinitionsPath: () => getResourcePath('plugins')!,
     onProgress: (info: DownloadProgress) => {
       // ttsConfig / asrConfig 内有一键安装卡片，同样需要接收进度
-      const targets = [win, windowManager.get('settings'), windowManager.get('ttsConfig'), windowManager.get('asrConfig')];
+      const targets = [currentMainWindow, windowManager.get('settings'), windowManager.get('ttsConfig'), windowManager.get('asrConfig')];
       for (const w of targets) {
         try {
           if (w && !w.isDestroyed()) {
@@ -393,10 +409,10 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
       history: purposeHistoryStore,
       getScreen: () => {
         const screenSize = screen.getPrimaryDisplay().workAreaSize;
-        if (win.isDestroyed()) {
+        if (!currentMainWindow || currentMainWindow.isDestroyed()) {
           return { screenSize };
         }
-        const bounds = win.getBounds();
+        const bounds = currentMainWindow.getBounds();
         return {
           screenSize,
           spritePosition: { x: bounds.x, y: bounds.y }

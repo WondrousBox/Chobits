@@ -77,7 +77,7 @@ export default function SpriteAnimationConditionBuilder({ conditionInput, onChan
               onClick={() => applyDraftUpdate((draft) => removeSpriteAnimationConditionBuilderNodeAtPath(draft, path))}
               title="删除条件节点"
             >
-              <TbTrash className="h-4 w-4" />
+              <TbTrash />
             </Button>
           )}
         </div>
@@ -252,7 +252,7 @@ export default function SpriteAnimationConditionBuilder({ conditionInput, onChan
                   className="h-8 gap-2 text-xs"
                   onClick={() => applyDraftUpdate((draft) => appendSpriteAnimationConditionBuilderChild(draft, path, createSpriteAnimationConditionBuilderNode(type)))}
                 >
-                  <TbPlus className="h-3.5 w-3.5" />
+                  <TbPlus />
                   添加{type === 'compare' ? '条件' : type === 'group' ? '分组' : 'NOT'}
                 </Button>
               ))}
@@ -325,7 +325,7 @@ export default function SpriteAnimationConditionBuilder({ conditionInput, onChan
                   className="h-8 gap-2 text-xs"
                   onClick={() => applyDraftUpdate((draft) => appendSpriteAnimationConditionBuilderChild(draft, null, createSpriteAnimationConditionBuilderNode(type)))}
                 >
-                  <TbPlus className="h-3.5 w-3.5" />
+                  <TbPlus />
                   添加根{type === 'compare' ? '条件' : type === 'group' ? '分组' : 'NOT'}
                 </Button>
               ))}

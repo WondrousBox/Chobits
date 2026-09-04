@@ -42,6 +42,5 @@ declare global {
         on: (callback: (payload: MessageBridgePayload) => void) => () => void;
       };
     };
-    ipcRenderer: import('electron').IpcRenderer;
   }
 }

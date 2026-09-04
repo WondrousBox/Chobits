@@ -95,7 +95,7 @@ export default function SpriteAnimationMetaPopover({ disabled = false, meta, onS
     >
       <PopoverTrigger asChild>
         <Button size="icon" variant="secondary" className="h-8 w-8 bg-background/90" disabled={disabled} title="编辑 trigger 元数据">
-          <TbAdjustments className="h-4 w-4" />
+          <TbAdjustments />
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-[380px] space-y-3 p-4" onOpenAutoFocus={(event) => event.preventDefault()}>

@@ -130,12 +130,12 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
               </div>
               <div className="flex items-center gap-1 shrink-0">
                 <Button variant="ghost" size="sm" onClick={() => void this.copyText(errorText)} className="h-8 px-2 no-drag" title={this.state.isCopied ? '已复制' : '复制错误信息'}>
-                  {this.state.isCopied ? <TbCheck className="w-4 h-4" /> : <TbCopy className="w-4 h-4" />}
+                  {this.state.isCopied ? <TbCheck /> : <TbCopy />}
                   <span className="ml-1 hidden sm:inline">{this.state.isCopied ? '已复制' : '复制'}</span>
                 </Button>
                 {(errorStack || componentStack) && (
                   <Button variant="ghost" size="sm" onClick={handleToggleExpand} className="h-8 px-2 no-drag" title={this.state.isExpanded ? '收起详情' : '展开详情'}>
-                    {this.state.isExpanded ? <TbChevronUp className="w-4 h-4" /> : <TbChevronDown className="w-4 h-4" />}
+                    {this.state.isExpanded ? <TbChevronUp /> : <TbChevronDown />}
                     <span className="ml-1 hidden sm:inline">{this.state.isExpanded ? '收起' : '详情'}</span>
                   </Button>
                 )}

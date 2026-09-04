@@ -3,10 +3,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { Env, getResourcePath } from '@packages/common/utils';
-import { app, BrowserWindow, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, session, shell } from 'electron';
 
 import { eventManager } from '../../packages/event';
 import { AppEvent } from '../../packages/event/events';
+import { destroyAllSherpaProcesses } from '../../packages/sherpa';
 import { initHandlers } from './handlers';
 import { PreferencesStore } from './handlers/preferences/preferences-store';
 import { logger } from './logger';
@@ -71,6 +72,37 @@ export function getMainWindow(): BrowserWindow | null {
 // splash 不再展示状态/日志文字，仅保留终端日志
 function logStartupStep(text: string): void {
   console.log('>> ' + text);
+}
+
+// 顶层导航放行规则：仅允许本地 file:、自定义 res:、about:/devtools:/chrome-error:，
+// 以及开发模式下的 Vite dev server 源；其余（任意外部 URL）一律阻止。
+function isAllowedTopLevelNavigation(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol === 'file:' || parsed.protocol === 'res:' || parsed.protocol === 'about:' || parsed.protocol === 'devtools:' || parsed.protocol === 'chrome-error:') {
+      return true;
+    }
+    if (VITE_DEV_SERVER_URL) {
+      return parsed.origin === new URL(VITE_DEV_SERVER_URL).origin;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+// 渲染进程崩溃自愈 / macOS activate 重建主窗口的公共逻辑
+function recreateMainWindow(): void {
+  createWindow()
+    .then(() => {
+      if (win && !win.isDestroyed()) win.show();
+      // window-all-closed 时已注销全局快捷键，重建窗口后恢复注册
+      unregisterGlobalShortcuts();
+      registerGlobalShortcuts(getMainWindow);
+    })
+    .catch((error) => {
+      logger.log.error('recreate main window failed', error);
+    });
 }
 
 function createSplashWindow(): Promise<void> {
@@ -158,11 +190,8 @@ async function createWindow(): Promise<void> {
     }
   });
 
-  // Make all links open with the browser, not with the application
-  win.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('https:')) shell.openExternal(url);
-    return { action: 'deny' };
-  });
+  // 所有窗口（含本主窗口）的 setWindowOpenHandler / will-navigate 防护
+  // 统一由 app.on('web-contents-created') 挂载，见 whenReady 开头。
 
   logStartupStep('initializing IPC handlers');
   await initHandlers(win);
@@ -173,13 +202,32 @@ async function createWindow(): Promise<void> {
   win.webContents.on('render-process-gone', (event, details) => {
     logger.log.error('webContents: render-process-gone', details);
     win?.destroy();
-    createWindow().then(() => {
-      if (win && !win.isDestroyed()) win.show();
-    });
+    recreateMainWindow();
   });
 }
 
 app.whenReady().then(async () => {
+  // --- 全局 webContents 安全策略 ---
+  // 统一覆盖所有窗口（主窗口 + window-manager 创建的子窗口 + splash）：
+  // 1. 拒绝渲染进程开出原生窗口，https: 链接改走系统浏览器；
+  // 2. 阻止顶层导航到非预期源（本地 file:/res: 与 dev server 源放行）。
+  app.on('web-contents-created', (_event, contents) => {
+    contents.setWindowOpenHandler(({ url }) => {
+      if (url.startsWith('https:')) void shell.openExternal(url);
+      return { action: 'deny' };
+    });
+    contents.on('will-navigate', (event, url) => {
+      if (isAllowedTopLevelNavigation(url)) return;
+      logger.log.warn('[security] blocked top-level navigation:', url);
+      event.preventDefault();
+    });
+  });
+
+  // 默认 session 权限管控：deny-by-default，仅放行 media（麦克风，本地 ASR 需要）
+  session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
+    callback(permission === 'media');
+  });
+
   // Show splash window first, wait until it's visible
   const splashStartTime = Date.now();
   await createSplashWindow();
@@ -289,14 +337,18 @@ app.on('activate', () => {
   if (allWindows.length) {
     allWindows[0].focus();
   } else {
-    createWindow().then(() => {
-      if (win && !win.isDestroyed()) win.show();
-    });
+    recreateMainWindow();
   }
 });
 
-app.on('will-quit', async () => {
+app.on('will-quit', () => {
   eventManager.emit(AppEvent.SPRITE_SYSTEM_QUIT);
   // Ensure shortcuts are fully unregistered on app quit
   unregisterGlobalShortcuts();
+  // 杀掉 sherpa ASR/TTS fork 子进程，避免退出后孤儿化常驻
+  try {
+    destroyAllSherpaProcesses();
+  } catch (e) {
+    console.warn('[main] destroy sherpa processes failed', e);
+  }
 });

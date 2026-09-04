@@ -336,7 +336,7 @@ const TTSPage: React.FC = () => {
       <div className="flex items-center justify-between p-3 border-b">
         <h2 className="text-sm font-semibold">TTS 语音合成测试</h2>
         <Button variant="ghost" size="icon" className="h-6 w-6 no-drag" onClick={handleClose}>
-          <TbX className="h-4 w-4" />
+          <TbX />
         </Button>
       </div>
 
@@ -356,7 +356,7 @@ const TTSPage: React.FC = () => {
                       <span className="truncate">
                         {currentSpeaker.label} ({currentSpeaker.name})
                       </span>
-                      <TbChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      <TbChevronDown className="shrink-0 opacity-50" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent className="w-[280px] no-drag" align="start">
@@ -409,7 +409,7 @@ const TTSPage: React.FC = () => {
               {/* 确认按钮 */}
               <div className="pt-2">
                 <Button onClick={handleConfirmConfig} className="w-full">
-                  <TbVolume className="mr-2" />
+                  <TbVolume />
                   确认配置
                 </Button>
               </div>
@@ -455,17 +455,17 @@ const TTSPage: React.FC = () => {
                 <Button onClick={handleGenerateAndPlay} disabled={isGenerating || isPlaying} className="flex-1">
                   {isGenerating ? (
                     <>
-                      <TbLoader2 className="animate-spin mr-2" />
+                      <TbLoader2 className="animate-spin" />
                       生成中...
                     </>
                   ) : isPlaying ? (
                     <>
-                      <TbVolume className="mr-2" />
+                      <TbVolume />
                       播放中...
                     </>
                   ) : (
                     <>
-                      <TbPlayerPlay className="mr-2" />
+                      <TbPlayerPlay />
                       生成并播放
                     </>
                   )}

@@ -1,5 +1,5 @@
 import { TbMoodKid, TbSparkles } from 'react-icons/tb';
-import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { HashRouter, Route, Routes } from 'react-router-dom';
 
 import { Toaster } from '@/components/ui/sonner';
 import { SpriteApp, StatusPage } from '@/features/sprite';
@@ -22,6 +22,17 @@ import SettingsPage from './pages/SettingsPage/SettingsPage';
 import SpriteMenuPage from './pages/SpriteMenuPage/SpriteMenuPage';
 import TTSConfigPage from './pages/TTSPage/TTSConfigPage';
 import TTSPage from './pages/TTSPage/TTSPage';
+
+// 兜底路由：未知路由（如 localAI 关闭时打开的 asrConfig/asrTest 窗口）渲染错误页，
+// 而不是 Navigate 到 "/" 把 SpriteApp 挂进非主窗口
+function UnavailablePage(): JSX.Element {
+  return (
+    <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-muted-foreground select-none">
+      <span className="text-sm">页面不可用</span>
+      <span className="text-xs">该页面在当前上下文中不可用</span>
+    </div>
+  );
+}
 
 function StandardAppRoutes(): JSX.Element {
   const { flags, isLoading } = useFeatureFlags();
@@ -72,7 +83,7 @@ function StandardAppRoutes(): JSX.Element {
           <Route path="/character-pack-editor" element={<CharacterPackEditorWindow />} />
           <Route path="/window-animation-editor" element={<WindowAnimationEditor />} />
           <Route path="/sprite-bubble" element={<SpriteBubblePage />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<UnavailablePage />} />
         </Routes>
         <Toaster />
       </div>

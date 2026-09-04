@@ -75,7 +75,7 @@ export default function SpriteTriggerPicker({
                 {presentation.kind === 'builtin' ? '内置' : '自定义'}
               </Badge>
             )}
-            <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-60" />
+            <ChevronsUpDown className="shrink-0 opacity-60" />
           </div>
         </Button>
       </PopoverTrigger>

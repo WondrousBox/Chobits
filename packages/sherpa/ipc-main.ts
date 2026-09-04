@@ -1,5 +1,5 @@
-import * as fscb from 'node:fs';
-import * as fs from 'node:fs/promises';
+import * as fs from 'node:fs';
+import * as fsPromises from 'node:fs/promises';
 import * as path from 'node:path';
 
 import { stripEmoji } from '@packages/tts/common';
@@ -19,26 +19,45 @@ function getRecordingRootDir(): string {
   return path.join(app.getPath('userData'), 'data', 'recordings');
 }
 
+/** 录音 ID 只允许作为文件主名，拒绝路径分隔符与穿越段 */
+function isSafeRecordingId(resourceId: string): boolean {
+  return /^[\w-]+$/.test(resourceId);
+}
+
+/** 校验目标路径解析后仍位于录音根目录内 */
+function isPathInsideRecordingRoot(targetPath: string): boolean {
+  const recRoot = path.resolve(getRecordingRootDir());
+  const resolved = path.resolve(targetPath);
+  return resolved === recRoot || resolved.startsWith(recRoot + path.sep);
+}
+
+/** TTS 生成结果允许的输出目录 */
+function getTTSAudioOutputDir(): string {
+  return path.join(app.getPath('userData'), 'data', 'tts-output');
+}
+
 async function ensureDailyRecordingDir(): Promise<string> {
   const now = new Date();
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const dirPath = path.join(getRecordingRootDir(), today);
-  await fs.mkdir(dirPath, { recursive: true });
+  await fsPromises.mkdir(dirPath, { recursive: true });
   return dirPath;
 }
 
 /** 在 recordings 目录下按录音 ID（文件主名）查找音频文件 */
 async function findRecordingAudioPath(resourceId: string): Promise<string | null> {
+  if (!isSafeRecordingId(resourceId)) return null;
   const recRoot = getRecordingRootDir();
   let dateDirs: string[];
   try {
-    dateDirs = await fs.readdir(recRoot);
+    dateDirs = await fsPromises.readdir(recRoot);
   } catch {
     return null;
   }
   for (const dir of dateDirs) {
     const candidate = path.join(recRoot, dir, `${resourceId}.pcm`);
-    if (fscb.existsSync(candidate)) return candidate;
+    if (!isPathInsideRecordingRoot(candidate)) continue;
+    if (fs.existsSync(candidate)) return candidate;
   }
   return null;
 }
@@ -73,8 +92,8 @@ interface RecordingStream {
   resourceId: string;
   audioFilePath: string;
   subtitleFilePath: string;
-  audioWriteStream: fscb.WriteStream;
-  subtitleWriteStream: fscb.WriteStream;
+  audioWriteStream: fs.WriteStream;
+  subtitleWriteStream: fs.WriteStream;
   startTime: number;
   segmentCount: number; // 字幕片段计数
 }
@@ -151,8 +170,8 @@ function ensureASRConfigLoaded(): void {
 
   const asrConfigFile = getASRConfigFile();
   try {
-    if (fscb.existsSync(asrConfigFile)) {
-      const txt = fscb.readFileSync(asrConfigFile, 'utf8');
+    if (fs.existsSync(asrConfigFile)) {
+      const txt = fs.readFileSync(asrConfigFile, 'utf8');
       const parsed = JSON.parse(txt);
       asrConfig = {
         ...DEFAULT_ASR_CONFIG,
@@ -174,10 +193,10 @@ function persistASRConfig(): void {
   const asrConfigFile = getASRConfigFile();
   try {
     const dir = path.dirname(asrConfigFile);
-    if (!fscb.existsSync(dir)) {
-      fscb.mkdirSync(dir, { recursive: true });
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
     }
-    fscb.writeFileSync(asrConfigFile, JSON.stringify(asrConfig, null, 2), 'utf8');
+    fs.writeFileSync(asrConfigFile, JSON.stringify(asrConfig, null, 2), 'utf8');
   } catch {
     //
   }
@@ -401,10 +420,10 @@ export function initSherpaHandlers(): void {
       const subtitleFilePath = path.join(baseDir, `${resourceId}.srt`);
 
       // 创建音频写入流（Float32 PCM，16kHz）
-      const audioWriteStream = fscb.createWriteStream(audioFilePath);
+      const audioWriteStream = fs.createWriteStream(audioFilePath);
 
       // 创建字幕写入流（SRT 格式，UTF-8）
-      const subtitleWriteStream = fscb.createWriteStream(subtitleFilePath, { encoding: 'utf8' });
+      const subtitleWriteStream = fs.createWriteStream(subtitleFilePath, { encoding: 'utf8' });
 
       // 保存流信息
       const stream: RecordingStream = {
@@ -451,7 +470,7 @@ export function initSherpaHandlers(): void {
 
       // 检查音频文件是否存在
       try {
-        await fs.access(audioFilePath);
+        await fsPromises.access(audioFilePath);
       } catch {
         return { ok: false, error: 'Audio file does not exist' };
       }
@@ -459,7 +478,7 @@ export function initSherpaHandlers(): void {
       // 获取现有字幕的片段数量（用于继续编号）
       let existingSegmentCount = 0;
       try {
-        const srtContent = await fs.readFile(subtitleFilePath, 'utf8');
+        const srtContent = await fsPromises.readFile(subtitleFilePath, 'utf8');
         // 计算现有的片段数量（通过匹配 SRT 序号行）
         const matches = srtContent.match(/^\d+$/gm);
         if (matches) {
@@ -470,13 +489,11 @@ export function initSherpaHandlers(): void {
         existingSegmentCount = 0;
       }
 
-      console.log('[Sherpa] 继续录音，已有字幕片段数:', existingSegmentCount);
-
       // 以追加模式打开音频写入流
-      const audioWriteStream = fscb.createWriteStream(audioFilePath, { flags: 'a' });
+      const audioWriteStream = fs.createWriteStream(audioFilePath, { flags: 'a' });
 
       // 以追加模式打开字幕写入流
-      const subtitleWriteStream = fscb.createWriteStream(subtitleFilePath, { flags: 'a', encoding: 'utf8' });
+      const subtitleWriteStream = fs.createWriteStream(subtitleFilePath, { flags: 'a', encoding: 'utf8' });
 
       // 保存流信息
       const stream: RecordingStream = {
@@ -546,21 +563,19 @@ export function initSherpaHandlers(): void {
           if (!audioEnded || !subtitleEnded) return;
 
           try {
-            // 获取音频文件大小
-            const audioStats = await fs.stat(stream.audioFilePath);
-            console.log('[Sherpa] 音频文件大小:', audioStats.size);
+            // 确认音频文件可访问
+            await fsPromises.stat(stream.audioFilePath);
 
             // 字幕文件有内容则保留（流式写入已落盘），为空则删除
             let srtResourceId: string | undefined;
             try {
-              const subtitleStats = await fs.stat(stream.subtitleFilePath);
-              console.log('[Sherpa] 字幕文件大小:', subtitleStats.size);
+              const subtitleStats = await fsPromises.stat(stream.subtitleFilePath);
 
               if (subtitleStats.size > 0) {
                 srtResourceId = `${stream.resourceId}.srt`;
               } else {
                 console.log('[Sherpa] 字幕文件为空，删除它');
-                await fs.unlink(stream.subtitleFilePath).catch(() => {});
+                await fsPromises.unlink(stream.subtitleFilePath).catch(() => {});
               }
             } catch (error) {
               console.error('[Sherpa] 字幕文件不存在或无法访问:', error);
@@ -641,7 +656,7 @@ export function initSherpaHandlers(): void {
       const recRoot = getRecordingRootDir();
       let dateDirs: string[];
       try {
-        dateDirs = await fs.readdir(recRoot);
+        dateDirs = await fsPromises.readdir(recRoot);
       } catch {
         dateDirs = [];
       }
@@ -650,7 +665,7 @@ export function initSherpaHandlers(): void {
         const dirPath = path.join(recRoot, dir);
         let files: string[];
         try {
-          files = await fs.readdir(dirPath);
+          files = await fsPromises.readdir(dirPath);
         } catch {
           continue;
         }
@@ -661,12 +676,12 @@ export function initSherpaHandlers(): void {
           const timestamp = Number(match[2]);
           const audioFilePath = path.join(dirPath, file);
           try {
-            const stats = await fs.stat(audioFilePath);
+            const stats = await fsPromises.stat(audioFilePath);
             if (stats.size === 0) continue;
             const subtitleFilePath = path.join(dirPath, `${id}.srt`);
             let hasSubtitle = false;
             try {
-              hasSubtitle = (await fs.stat(subtitleFilePath)).size > 0;
+              hasSubtitle = (await fsPromises.stat(subtitleFilePath)).size > 0;
             } catch {
               hasSubtitle = false;
             }
@@ -703,6 +718,9 @@ export function initSherpaHandlers(): void {
   ipcMain.handle('sherpa:delete-recording', async (_event, data: { resourceId: string }) => {
     try {
       const { resourceId } = data;
+      if (!isSafeRecordingId(resourceId)) {
+        return { ok: false, error: 'Invalid resourceId' };
+      }
 
       const audioFilePath = await findRecordingAudioPath(resourceId);
       if (!audioFilePath) {
@@ -711,8 +729,8 @@ export function initSherpaHandlers(): void {
 
       // 删除关联的字幕文件与音频文件
       const subtitleFilePath = audioFilePath.replace(/\.pcm$/, '.srt');
-      await fs.unlink(subtitleFilePath).catch(() => {});
-      await fs.unlink(audioFilePath).catch(() => {});
+      await fsPromises.unlink(subtitleFilePath).catch(() => {});
+      await fsPromises.unlink(audioFilePath).catch(() => {});
 
       console.log('[Sherpa] 录音记录已删除，resourceId:', resourceId);
       return { ok: true };
@@ -726,11 +744,12 @@ export function initSherpaHandlers(): void {
   ipcMain.handle('sherpa:read-subtitle-content', async (_event, data: { filePath: string }) => {
     try {
       const { filePath } = data;
-      if (!filePath || !fscb.existsSync(filePath)) {
+      // 只允许读取录音目录内的文件，防止渲染端任意读文件
+      if (!filePath || !isPathInsideRecordingRoot(filePath) || !fs.existsSync(filePath)) {
         return { ok: false, error: 'File not found' };
       }
 
-      const content = await fs.readFile(filePath, 'utf8');
+      const content = await fsPromises.readFile(filePath, 'utf8');
       return { ok: true, content };
     } catch (error) {
       console.error('[Sherpa] 读取字幕文件失败:', error);
@@ -799,12 +818,23 @@ export function initSherpaHandlers(): void {
       }
     ) => {
       try {
+        // outputPath 只能落在允许的输出目录内，防止渲染端任意写文件
+        let resolvedOutputPath: string | undefined;
+        if (data.outputPath) {
+          resolvedOutputPath = path.resolve(data.outputPath);
+          const outputRoot = getTTSAudioOutputDir();
+          if (resolvedOutputPath !== outputRoot && !resolvedOutputPath.startsWith(outputRoot + path.sep)) {
+            return { ok: false, error: 'Invalid outputPath', requestId: data.requestId };
+          }
+          await fsPromises.mkdir(path.dirname(resolvedOutputPath), { recursive: true });
+        }
+
         TTS_generateSpeech({
           uuid: 'tts-stream',
           text: stripEmoji(data.text),
           sid: data.sid,
           speed: data.speed,
-          outputPath: data.outputPath,
+          outputPath: resolvedOutputPath,
           requestId: data.requestId
         });
 

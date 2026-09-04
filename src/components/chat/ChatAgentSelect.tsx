@@ -57,7 +57,7 @@ export default function ChatAgentSelect({
         >
           {prefix ? <span className="shrink-0">{prefix}</span> : null}
           <span className="min-w-0 truncate">{label}</span>
-          <TbChevronDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
+          <TbChevronDown className="shrink-0 opacity-50" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align={contentAlign} side={contentSide} avoidCollisions={avoidCollisions} className={cn('no-drag pointer-events-auto min-w-[8rem] text-xs', contentClassName)}>

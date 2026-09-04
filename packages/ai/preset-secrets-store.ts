@@ -1,5 +1,3 @@
-import keytar from 'keytar';
-
 import { SERVICE_INST } from '../common/config';
 import { ENABLE_KEYTAR, readSettingsStorage as readStorage, writeSettingsStorage as writeStorage } from './settings-file';
 
@@ -10,6 +8,7 @@ async function setStoredPresetSecret(presetId: string, key: string, value: strin
 
   if (ENABLE_KEYTAR) {
     try {
+      const keytar = await import('keytar');
       await keytar.setPassword(SERVICE_INST, `${presetId}:${key}`, value);
     } catch {
       // ignore keytar errors, file storage is primary
@@ -20,6 +19,7 @@ async function setStoredPresetSecret(presetId: string, key: string, value: strin
 async function getStoredPresetSecret(presetId: string, key: string): Promise<string | undefined> {
   if (ENABLE_KEYTAR) {
     try {
+      const keytar = await import('keytar');
       const value = await keytar.getPassword(SERVICE_INST, `${presetId}:${key}`);
       if (value != null) return value;
     } catch {
@@ -35,6 +35,7 @@ async function deletePresetKeytarEntries(presetId: string): Promise<void> {
   if (!ENABLE_KEYTAR) return;
 
   try {
+    const keytar = await import('keytar');
     const credentials = await keytar.findCredentials(SERVICE_INST);
     const accountPrefix = `${presetId}:`;
 
@@ -77,6 +78,7 @@ export async function clearAllStoredPresetSecrets(): Promise<void> {
   if (!ENABLE_KEYTAR) return;
 
   try {
+    const keytar = await import('keytar');
     const credentials = await keytar.findCredentials(SERVICE_INST);
     for (const cred of credentials) {
       await keytar.deletePassword(SERVICE_INST, cred.account);

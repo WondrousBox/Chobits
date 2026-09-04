@@ -452,7 +452,7 @@ const PluginPage: React.FC = () => {
         <Popover>
           <PopoverTrigger asChild>
             <Button size="sm" variant={selectedCategory ? 'default' : 'ghost'} className="h-8 text-xs">
-              <TbFilter className="h-4 w-4 mr-1" />
+              <TbFilter />
               {selectedCategory ? CATEGORY_CONFIG.find((c) => c.value === selectedCategory)?.label : '分类'}
             </Button>
           </PopoverTrigger>
@@ -476,7 +476,7 @@ const PluginPage: React.FC = () => {
         {/* 清除筛选 */}
         {selectedCategory && (
           <Button size="sm" variant="ghost" className="h-8 text-xs px-2" onClick={() => setSelectedCategory(null)} title="清除筛选">
-            <TbX className="h-4 w-4" />
+            <TbX />
           </Button>
         )}
 

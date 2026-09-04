@@ -30,6 +30,8 @@ if (process.platform === 'linux') {
   });
 
   afterAll(async () => {
+    // beforeAll 失败时 page/electronApp 为 undefined，直接返回避免二次抛错掩盖根因
+    if (!electronApp) return;
     await page.screenshot({ path: 'test/screenshots/e2e.png' });
     await page.close();
     await electronApp.close();

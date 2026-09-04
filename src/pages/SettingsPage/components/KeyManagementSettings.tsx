@@ -34,12 +34,12 @@ const KeyManagementSettings: React.FC = () => {
             <Button size="sm" variant="destructive" disabled={isClearing} onClick={() => setIsConfirmDialogOpen(true)}>
               {isClearing ? (
                 <>
-                  <TbLoader2 className="h-4 w-4 animate-spin mr-1" />
+                  <TbLoader2 className="animate-spin" />
                   清理中...
                 </>
               ) : (
                 <>
-                  <TbTrash className="h-4 w-4 mr-1" />
+                  <TbTrash />
                   一键清理
                 </>
               )}
@@ -61,7 +61,7 @@ const KeyManagementSettings: React.FC = () => {
             <Button variant="destructive" onClick={handleClearAllKeys} disabled={isClearing}>
               {isClearing ? (
                 <>
-                  <TbLoader2 className="h-4 w-4 animate-spin mr-1" />
+                  <TbLoader2 className="animate-spin" />
                   清理中...
                 </>
               ) : (

@@ -36,15 +36,12 @@ export interface TTSResult {
 }
 
 export async function createTTSInstance(data: CreateTTSInstanceOptions): Promise<TTSInstances[string]> {
-  console.log(`[TTS] create tts instance`, data);
-
   if (Ins[data.uuid]) {
     return Ins[data.uuid];
   }
 
   return new Promise((resolve, reject) => {
     const processPath = path.resolve(getResourcePath('sherpa')!, 'tts_process.js');
-    console.log(`[TTS] process path:`, processPath);
 
     // 获取 sherpa-onnx-node 模块的路径
     const sherpaOnnxNodePath = findSherpaOnnxNodePath();
@@ -85,9 +82,6 @@ export async function createTTSInstance(data: CreateTTSInstanceOptions): Promise
       if (res.event === 'tts:complete' || res.event === 'tts:error') {
         Ins[data.uuid]?.handler?.(res.data);
       }
-      if (res.event === 'log') {
-        console.log(res.data);
-      }
     });
 
     ttsProcess.on('exit', (code) => {
@@ -107,8 +101,6 @@ export async function createTTSInstance(data: CreateTTSInstanceOptions): Promise
         numThreads: data.numThreads,
         maxNumSentences: data.maxNumSentences
       });
-
-      console.log(`[TTS] model config:`, JSON.stringify(modelConfig, null, 2));
 
       ttsProcess.send({
         data: { modelConfig },

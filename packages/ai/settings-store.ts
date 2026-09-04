@@ -1,5 +1,3 @@
-import keytar from 'keytar';
-
 import { SERVICE } from '../common/config';
 import { clearAllStoredPresetSecrets } from './preset-secrets-store';
 import { getProviderAliases, toCanonicalProviderId } from './providers/service';
@@ -68,6 +66,7 @@ async function deleteProviderKeytarEntries(providerId: string, key?: string): Pr
   if (!ENABLE_KEYTAR) return;
 
   try {
+    const keytar = await import('keytar');
     const credentials = await keytar.findCredentials(SERVICE);
     const storageIds = listProviderStorageIds(providerId);
 
@@ -101,6 +100,7 @@ async function setSecret(providerId: string, key: string, value: string): Promis
   // 如果启用了 keytar，也同步到 keytar
   if (ENABLE_KEYTAR) {
     try {
+      const keytar = await import('keytar');
       await deleteProviderKeytarEntries(providerId, key);
       await keytar.setPassword(SERVICE, `${toCanonicalProviderId(providerId)}:${key}`, value);
     } catch {
@@ -112,6 +112,7 @@ async function setSecret(providerId: string, key: string, value: string): Promis
 async function getSecret(providerId: string, key: string): Promise<string | undefined> {
   // 如果启用了 keytar，优先从 keytar 读取
   if (ENABLE_KEYTAR) {
+    const keytar = await import('keytar');
     for (const storageId of [...listProviderStorageIds(providerId)].reverse()) {
       let v: string | null = null;
       try {
@@ -154,6 +155,7 @@ export async function clearAllSecrets(): Promise<void> {
   if (ENABLE_KEYTAR) {
     // 清理 SERVICE 的所有 credentials
     try {
+      const keytar = await import('keytar');
       const credentials = await keytar.findCredentials(SERVICE);
       for (const cred of credentials) {
         await keytar.deletePassword(SERVICE, cred.account);

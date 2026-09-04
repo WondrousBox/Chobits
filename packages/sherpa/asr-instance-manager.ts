@@ -26,8 +26,6 @@ export interface CreateInstanceOptions {
 }
 
 export async function createASRInstance(data: CreateInstanceOptions): Promise<StreamInstances[string]> {
-  console.log(`create ${data.type} asr`, data);
-
   if (Ins[data.uuid]) {
     return Ins[data.uuid];
   }
@@ -40,8 +38,6 @@ export async function createASRInstance(data: CreateInstanceOptions): Promise<St
       scriptName = 'vad_process.js';
     }
     const processPath = path.resolve(getResourcePath('sherpa')!, scriptName);
-    console.log(processPath);
-    console.log(getResourcePath('sherpa'));
 
     // 获取 sherpa-onnx-node 模块的路径
     const sherpaOnnxNodePath = findSherpaOnnxNodePath();
@@ -83,9 +79,6 @@ export async function createASRInstance(data: CreateInstanceOptions): Promise<St
       if (res.event === 'asr:progress' || res.event === 'vad:segment') {
         Ins[data.uuid]?.handler?.(res.data);
       }
-      if (res.event === 'log') {
-        console.log(res.data);
-      }
     });
 
     asrProcess.on('exit', (code) => {
@@ -106,7 +99,6 @@ export async function createASRInstance(data: CreateInstanceOptions): Promise<St
           language: data.language,
           commonConfig: data.commonConfig
         });
-        console.log(modelConfig);
       }
 
       const punctuationModelConfigData = data.punctuationModel

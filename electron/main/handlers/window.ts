@@ -17,6 +17,42 @@ const SPRITE_BUBBLE_MAX_WIDTH = 504;
 const SPRITE_BUBBLE_MAX_HEIGHT = 392;
 type SpriteInteractiveRegion = { x: number; y: number; width: number; height: number };
 
+// @aim-packages/window-manager 的 initIpcMain 注册的通道清单（v0.5.3）。
+// 主窗口重建（render-process-gone 自愈 / macOS activate）时 initWindowHandlers 会重跑，
+// 需先移除旧注册，否则 ipcMain.handle 重复注册同通道直接 throw。
+// 升级 window-manager 包时需同步核对本清单。
+const WINDOW_MANAGER_IPC_CHANNELS = [
+  'screen:size:get',
+  'window:click:through',
+  'window:devtools:toggle',
+  'window:open',
+  'window:open:ready',
+  'window:payload:get',
+  'window:payload:clear',
+  'window:close',
+  'window:shake',
+  'window:send',
+  'window:move',
+  'window:position:get',
+  'window:animation:play',
+  'window:animation:stop',
+  'window:animation:state',
+  'window:config:register',
+  'window:config:unregister',
+  'window:config:list',
+  'window:config:get',
+  'window:minimize',
+  'window:maximize',
+  'window:close:self',
+  'window:maximized:get',
+  'window:capabilities:get',
+  'window:size:get',
+  'window:size:set',
+  'window:state:save',
+  'window:state:get',
+  'window:state:clear'
+];
+
 function clampWindowDimension(value: number | undefined, min: number, max: number): number {
   const numericValue = Number(value ?? 0);
   const rounded = Number.isFinite(numericValue) ? Math.round(numericValue) : 0;
@@ -268,6 +304,8 @@ export function initWindowHandlers(win: BrowserWindow): void {
 
   // ---------------- Sprite Size IPC --------------------
   // 渲染进程通过此接口设置窗口大小和 padding
+  // removeHandler 前置：主窗口重建重跑 initWindowHandlers 时避免重复注册抛错
+  ipcMain.removeHandler('sprite:size:set');
   ipcMain.handle('sprite:size:set', (_event: IpcMainInvokeEvent, params: { width: number; height: number; padding: number }) => {
     try {
       if (!win || win.isDestroyed()) return { ok: false };
@@ -318,6 +356,7 @@ export function initWindowHandlers(win: BrowserWindow): void {
     }
   });
 
+  ipcMain.removeHandler('sprite:interactive-regions:set');
   ipcMain.handle('sprite:interactive-regions:set', (_event: IpcMainInvokeEvent, params: { regions?: Array<Partial<SpriteInteractiveRegion>> }) => {
     try {
       spriteInteractiveRegions = (params?.regions ?? []).map(normalizeInteractiveRegion).filter((region): region is SpriteInteractiveRegion => Boolean(region));
@@ -329,6 +368,11 @@ export function initWindowHandlers(win: BrowserWindow): void {
     }
   });
 
+  // 重跑前先清掉 window-manager 包注册的通道与监听器（否则重复注册抛错/事件重复处理）
+  for (const channel of WINDOW_MANAGER_IPC_CHANNELS) {
+    ipcMain.removeHandler(channel);
+  }
+  ipcMain.removeAllListeners('window:command');
   initWindowManagerHandlers(win);
   ipcMain.removeHandler('window:devtools:toggle');
   ipcMain.handle('window:devtools:toggle', (event) => {

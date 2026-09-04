@@ -108,7 +108,7 @@ export default function WebSearchToggle({ isEnabled, contentSide, contentAlign =
               }}
               aria-label={isEnabled ? '关闭联网搜索' : '开启联网搜索'}
             >
-              <TbWorldSearch className="h-4 w-4" />
+              <TbWorldSearch />
             </Button>
           </PopoverTrigger>
         </TooltipTrigger>
@@ -143,7 +143,7 @@ export default function WebSearchToggle({ isEnabled, contentSide, contentAlign =
             </p>
           </div>
           <Button size="sm" className="w-full h-8" onClick={handleSave} disabled={isSaving || !apiKey.trim()}>
-            {isSaving ? <TbLoader2 className="w-3.5 h-3.5 animate-spin" /> : isSaved ? <TbCheck className="w-3.5 h-3.5" /> : null}
+            {isSaving ? <TbLoader2 className="animate-spin" /> : isSaved ? <TbCheck /> : null}
             {isSaving ? '保存中...' : isSaved ? '已保存' : '保存并开启'}
           </Button>
         </div>

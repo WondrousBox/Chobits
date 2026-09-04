@@ -11,3 +11,6 @@ allowBuilds:
   uiohook-napi: true
 
 blockExoticSubdeps: false
+
+# electron-builder 需要拍平的依赖树（原 .npmrc 的 shamefully-hoist，pnpm 10+ 移至此处）
+shamefullyHoist: true
