@@ -40,7 +40,6 @@ export let ModelFileNames: string[] = []; // New array to store model file names
 
 // Function to update model configuration with both directory and file name
 export function updateModelConfig(resourcePath: string, modelDirectory: string, modelFileName: string, kScale?: number) {
-  console.log('Updating model config:', { resourcePath, modelDirectory, modelFileName, kScale });
   ResourcesPath = resourcePath;
   ModelDir = [modelDirectory];
   ModelFileNames = [modelFileName]; // Store the actual model file name

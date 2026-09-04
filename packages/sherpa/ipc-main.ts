@@ -396,19 +396,15 @@ export function initSherpaHandlers(): void {
 
       // 音频文件路径
       const audioFilePath = path.join(baseDir, `${resourceId}.pcm`);
-      console.log('[Sherpa] 音频文件路径:', audioFilePath);
 
       // 字幕文件路径（SRT 格式，流式写入）
       const subtitleFilePath = path.join(baseDir, `${resourceId}.srt`);
-      console.log('[Sherpa] 字幕文件路径:', subtitleFilePath);
 
       // 创建音频写入流（Float32 PCM，16kHz）
       const audioWriteStream = fscb.createWriteStream(audioFilePath);
-      console.log('[Sherpa] 音频写入流已创建');
 
       // 创建字幕写入流（SRT 格式，UTF-8）
       const subtitleWriteStream = fscb.createWriteStream(subtitleFilePath, { encoding: 'utf8' });
-      console.log('[Sherpa] 字幕写入流已创建');
 
       // 保存流信息
       const stream: RecordingStream = {
@@ -422,7 +418,6 @@ export function initSherpaHandlers(): void {
       };
 
       recordingStreams.set('stream', stream);
-      console.log('[Sherpa] 录音流已保存到Map，resourceId:', resourceId);
 
       return { ok: true, resourceId };
     } catch (error) {
@@ -479,11 +474,9 @@ export function initSherpaHandlers(): void {
 
       // 以追加模式打开音频写入流
       const audioWriteStream = fscb.createWriteStream(audioFilePath, { flags: 'a' });
-      console.log('[Sherpa] 音频写入流已创建（追加模式）');
 
       // 以追加模式打开字幕写入流
       const subtitleWriteStream = fscb.createWriteStream(subtitleFilePath, { flags: 'a', encoding: 'utf8' });
-      console.log('[Sherpa] 字幕写入流已创建（追加模式）');
 
       // 保存流信息
       const stream: RecordingStream = {
@@ -497,7 +490,6 @@ export function initSherpaHandlers(): void {
       };
 
       recordingStreams.set('stream', stream);
-      console.log('[Sherpa] 录音流已保存到Map（继续录音），resourceId:', data.resourceId);
 
       return {
         ok: true,
@@ -527,8 +519,6 @@ export function initSherpaHandlers(): void {
       // 将片段转换为 SRT 格式并写入
       const srtEntry = segmentToSrtEntry(stream.segmentCount, data.segment);
       stream.subtitleWriteStream.write(srtEntry);
-
-      console.log('[Sherpa] 字幕片段已追加，序号:', stream.segmentCount, '文本:', data.segment.text.substring(0, 20) + '...');
 
       return { ok: true, segmentIndex: stream.segmentCount };
     } catch (error) {
@@ -573,7 +563,7 @@ export function initSherpaHandlers(): void {
                 await fs.unlink(stream.subtitleFilePath).catch(() => {});
               }
             } catch (error) {
-              console.log('[Sherpa] 字幕文件不存在或无法访问:', error);
+              console.error('[Sherpa] 字幕文件不存在或无法访问:', error);
             }
 
             recordingStreams.delete('stream');
@@ -592,14 +582,12 @@ export function initSherpaHandlers(): void {
 
         // 关闭音频写入流
         stream.audioWriteStream.end(() => {
-          console.log('[Sherpa] 音频写入流已关闭');
           audioEnded = true;
           checkComplete();
         });
 
         // 关闭字幕写入流
         stream.subtitleWriteStream.end(() => {
-          console.log('[Sherpa] 字幕写入流已关闭');
           subtitleEnded = true;
           checkComplete();
         });

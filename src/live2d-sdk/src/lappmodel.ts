@@ -100,10 +100,6 @@ export class LAppModel extends CubismUserModel {
 
     this._modelSetting = setting;
 
-    // Log hit areas information
-    const hitAreasCount = this._modelSetting.getHitAreasCount();
-    console.log(`Model has ${hitAreasCount} hit areas`);
-
     // CubismModel
     if (this._modelSetting.getModelFileName() != '') {
       const modelFileName = this._modelSetting.getModelFileName();
@@ -342,7 +338,6 @@ export class LAppModel extends CubismUserModel {
           // Check if the model actually has this parameter before adding it
           if (this._model && fallbackId && this._model.getParameterIndex(fallbackId) !== -1) {
             this._lipSyncIds.pushBack(fallbackId);
-            console.log('[Fallback] Successfully added "ParamMouthOpenY" as LipSync ID.');
           } else {
             console.warn('[Fallback] Fallback ID "ParamMouthOpenY" not found in the current model or model not loaded.');
           }
@@ -432,8 +427,6 @@ export class LAppModel extends CubismUserModel {
    * テクスチャのセットアップ
    */
   private setupTextures(): void {
-    console.log('Setting up textures for model:', this._modelHomeDir);
-
     // iPhoneでのアルファ品質向上のためTypescriptではpremultipliedAlphaを採用 (Reverted to likely original)
     const usePremultiply = true;
 
@@ -444,7 +437,6 @@ export class LAppModel extends CubismUserModel {
       for (let modelTextureNumber = 0; modelTextureNumber < textureCount; modelTextureNumber++) {
         // テクスチャ名が空文字だった場合はロード・バインド処理をスキップ
         if (this._modelSetting.getTextureFileName(modelTextureNumber) == '') {
-          console.log('getTextureFileName null');
           continue;
         }
 

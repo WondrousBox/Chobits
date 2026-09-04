@@ -13,6 +13,8 @@
  * ファイル読み込みや時刻取得等のプラットフォームに依存する関数をまとめる。
  * 将依赖于平台的功能（如文件读取和时间获取）集中在一起。
  */
+import { DebugLogEnable } from './lappdefine';
+
 export class LAppPal {
   /**
    * ファイルをバイトデータとして読みこむ 读取文件为字节数据
@@ -56,7 +58,9 @@ export class LAppPal {
    * 输出消息
    */
   public static printMessage(message: string): void {
-    console.log(message);
+    if (DebugLogEnable) {
+      console.log(message);
+    }
   }
 
   static lastUpdate = Date.now();

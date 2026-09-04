@@ -97,12 +97,6 @@ export class ChatService {
     // Start the actual streaming on next tick to avoid missing early events
     setTimeout(async () => {
       try {
-        console.log(`
-====  Starting chat stream  =============================
-
-${JSON.stringify(streamReq, null, 2)}
-=========================================================
-`);
         await this.chatStreamWithPi(sender, streamReq, emit, ctrl);
       } catch (error: any) {
         console.error('Stream 错误:', error);

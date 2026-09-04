@@ -1,3 +1,4 @@
+import { MASKED_SECRET_VALUE, splitSecretFormValues } from '@packages/ai/secret-masking';
 import { debounce } from 'lodash-es';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -39,6 +40,8 @@ export default function AIProviderConfigWindow(): JSX.Element {
 
   const [provider, setProvider] = useState<ProviderRow | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
+  // 已有有效值（内置默认或已保存）的 password 字段：值不进入表单，仅以掩码 placeholder 展示
+  const [maskedSecretKeys, setMaskedSecretKeys] = useState<string[]>([]);
   const [errors, setErrors] = useState<FieldError>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -82,8 +85,11 @@ export default function AIProviderConfigWindow(): JSX.Element {
           ? await window.chobits.ai.getPresetSecrets(targetPresetId).catch(() => ({}))
           : await window.chobits.ai.getProviderSecrets(resolvedProviderId).catch(() => ({}));
         if (!mounted) return;
-        // 已保存的值优先，未保存的字段用 provider 内置默认配置预填展示
-        setValues({ ...(p.defaultConfig || {}), ...((scopedSecrets || {}) as Record<string, string>) });
+        // 已保存的值优先，未保存的字段用 provider 内置默认配置预填展示；
+        // password 字段不回显真实值，仅记录为掩码展示项，用户输入新值才覆盖
+        const { editableValues, maskedKeys } = splitSecretFormValues({ ...(p.defaultConfig || {}), ...((scopedSecrets || {}) as Record<string, string>) }, p.schema?.fields);
+        setValues(editableValues);
+        setMaskedSecretKeys(maskedKeys);
       } catch {
         // ignore
       } finally {
@@ -129,9 +135,11 @@ export default function AIProviderConfigWindow(): JSX.Element {
             if (!currentFields.length) return;
             const payload: Record<string, string> = {};
             currentFields.forEach((f) => {
-              if (currentValues[f.key] != null) {
-                payload[f.key] = currentValues[f.key];
-              }
+              const fieldValue = currentValues[f.key];
+              if (fieldValue == null) return;
+              // password 字段留空/掩码即未改动，不写入存储（保留原值或运行时内置默认）
+              if (f.type === 'password' && !fieldValue.trim()) return;
+              payload[f.key] = fieldValue;
             });
             if (Object.keys(payload).length === 0) return;
             setIsSaving(true);
@@ -242,7 +250,13 @@ export default function AIProviderConfigWindow(): JSX.Element {
                       </SelectContent>
                     </Select>
                   ) : (
-                    <Input type={isPassword ? 'password' : 'text'} className="h-8 text-xs" value={value} onChange={(e) => handleChange(f.key, e.target.value)} placeholder={label} />
+                    <Input
+                      type={isPassword ? 'password' : 'text'}
+                      className="h-8 text-xs"
+                      value={value}
+                      onChange={(e) => handleChange(f.key, e.target.value)}
+                      placeholder={isPassword && !value && maskedSecretKeys.includes(f.key) ? MASKED_SECRET_VALUE : label}
+                    />
                   )}
                   {error && <div className="text-xs text-red-500 mt-0.5">{error}</div>}
                 </div>

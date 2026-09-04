@@ -276,7 +276,7 @@ function initSchema(): void {
 
     // drizzle 生成的表重建迁移（如 0023 重建 conversations）内含
     // PRAGMA foreign_keys=OFF，但 migrate() 把所有语句包在单个事务里执行，
-    // 事务内该 PRAGMA 是 no-op；better-sqlite3 默认 foreign_keys=ON，
+    // 事务内该 PRAGMA 是 no-op（SQLite 语义），所以必须改在事务外关闭。
     // 不关闭的话 DROP TABLE 父表会触发 ON DELETE CASCADE 清空 chat_messages。
     // 因此在事务外先关闭 FK，迁移结束后恢复。
     db.pragma('foreign_keys = OFF');
@@ -287,7 +287,9 @@ function initSchema(): void {
     }
     console.log('[db] migrations applied from', migrationsFolder);
   } catch (e) {
-    console.warn('[db] failed to run migrations. Ensure you ran "pnpm run db:generate" or "pnpm run db:push" to create ./drizzle', e);
+    // 不阻断启动以保持行为兼容，但必须以 error 级记录：迁移失败后应用会以旧
+    // schema 继续运行，后续 SQL 报错需能归因到这里。
+    console.error('[db] 数据库迁移失败，应用将以旧 schema 继续运行，后续 SQL 报错可能由此引起。请先执行 "pnpm run db:generate" 或 "pnpm run db:push" 生成 ./drizzle，再排查失败原因:', e);
   }
   ensureChatMessageSequenceIndex();
   setupTriggers();

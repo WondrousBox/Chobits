@@ -8,7 +8,7 @@ export const SpriteCapabilityLockedNotice: React.FC<{
   capability?: SpriteCapabilityState | null;
   hint?: string;
   className?: string;
-}> = ({ capability, hint = '请先在技能树中解锁该能力后再使用。', className }) => {
+}> = ({ capability, hint = '该能力当前不可用，相关功能暂无法使用。', className }) => {
   if (!capability || capability.status !== 'locked') return null;
 
   return (

@@ -82,7 +82,6 @@ const commonConfig = {
 export type CommonConfig = Partial<typeof commonConfig>;
 
 export function getModelConfig(data: { model: SherpaModel; modelDir: string; cpu_numThreads?: number; language?: string; commonConfig?: CommonConfig }): any {
-  console.log(data);
   const modelDir = data.modelDir;
 
   // 合并默认 commonConfig 和传入的 commonConfig
@@ -99,7 +98,7 @@ export function getModelConfig(data: { model: SherpaModel; modelDir: string; cpu
       numThreads: data.cpu_numThreads || 2,
       language: data.language || '',
       provider: 'cpu',
-      debug: 1
+      debug: 0
     },
     ...mergedCommonConfig
   };
@@ -111,7 +110,6 @@ export function getModelConfig(data: { model: SherpaModel; modelDir: string; cpu
       let str = SHERPA_CONFIG[data.model];
       str = Mustache.render(str, configData);
       str = str.replace(/\\/g, '/');
-      console.log(str);
       config = JSON.parse(str);
     } catch (e) {
       console.error(e);
@@ -138,7 +136,7 @@ export function getModelConfig(data: { model: SherpaModel; modelDir: string; cpu
           tokens: path.resolve(modelDir, data.model, 'tokens.txt'),
           numThreads: data.cpu_numThreads || 2,
           provider: 'cpu',
-          debug: 1
+          debug: 0
         },
         ...mergedCommonConfig
       };
@@ -171,7 +169,7 @@ export function getModelConfig(data: { model: SherpaModel; modelDir: string; cpu
           tokens: path.resolve(modelDir, data.model, `${data.model.replace('sherpa-onnx-whisper-', '')}-tokens.txt`),
           numThreads: data.cpu_numThreads || 2,
           provider: 'cpu',
-          debug: 1
+          debug: 0
         },
         ...mergedCommonConfig
       };
@@ -187,7 +185,7 @@ export function getModelConfig(data: { model: SherpaModel; modelDir: string; cpu
           tokens: path.resolve(modelDir, data.model, 'tokens.txt'),
           numThreads: data.cpu_numThreads || 2,
           provider: 'cpu',
-          debug: 1
+          debug: 0
         },
         ...mergedCommonConfig
       };
@@ -203,7 +201,7 @@ export function getModelConfig(data: { model: SherpaModel; modelDir: string; cpu
           tokens: path.resolve(modelDir, data.model, 'tokens.txt'),
           numThreads: data.cpu_numThreads || 2,
           provider: 'cpu',
-          debug: 1
+          debug: 0
         },
         ...mergedCommonConfig
       };
@@ -218,7 +216,7 @@ export function getModelConfig(data: { model: SherpaModel; modelDir: string; cpu
           tokens: path.resolve(modelDir, data.model, 'tokens.txt'),
           numThreads: data.cpu_numThreads || 2,
           provider: 'cpu',
-          debug: 1
+          debug: 0
         },
         ...mergedCommonConfig
       };
@@ -236,7 +234,7 @@ export function punctuationModelConfig(data: { model: SherpaModel; modelDir: str
         model: {
           cnnBilstm: path.resolve(modelDir, data.model, 'model.onnx'),
           bpeVocab: path.resolve(modelDir, data.model, 'bpe.vocab'),
-          debug: true,
+          debug: false,
           numThreads: 1,
           provider: 'cpu'
         }
@@ -245,7 +243,7 @@ export function punctuationModelConfig(data: { model: SherpaModel; modelDir: str
       return {
         model: {
           ctTransformer: path.resolve(modelDir, data.model, 'model.int8.onnx'),
-          debug: true,
+          debug: false,
           numThreads: 1,
           provider: 'cpu'
         }
@@ -254,7 +252,7 @@ export function punctuationModelConfig(data: { model: SherpaModel; modelDir: str
       return {
         model: {
           ctTransformer: path.resolve(modelDir, data.model, 'model.onnx'),
-          debug: true,
+          debug: false,
           numThreads: 1,
           provider: 'cpu'
         }
@@ -263,7 +261,7 @@ export function punctuationModelConfig(data: { model: SherpaModel; modelDir: str
       return {
         model: {
           ctTransformer: path.resolve(modelDir, data.model, 'model.onnx'),
-          debug: true,
+          debug: false,
           numThreads: 1,
           provider: 'cpu'
         }
@@ -288,7 +286,7 @@ export function vadModelConfig(): {
       windowSize: 512
     },
     sampleRate: 16000,
-    debug: true,
+    debug: false,
     numThreads: 1
   };
 
@@ -373,7 +371,7 @@ export function getTTSModelConfig(data: { model: string; modelDir: string; numTh
           dataDir: path.join(modelPath, 'espeak-ng-data'),
           lexicon: lexicons.length > 0 ? lexicons.join(',') : undefined
         },
-        debug: true,
+        debug: false,
         numThreads,
         provider: 'cpu'
       },
@@ -413,7 +411,7 @@ export function getTTSModelConfig(data: { model: string; modelDir: string; numTh
           dataDir: path.join(modelPath, 'espeak-ng-data'),
           lexicon: lexicons.length > 0 ? lexicons.join(',') : undefined
         },
-        debug: true,
+        debug: false,
         numThreads,
         provider: 'cpu'
       },
@@ -434,7 +432,7 @@ export function getTTSModelConfig(data: { model: string; modelDir: string; numTh
           dataDir: path.join(modelPath, 'espeak-ng-data'),
           lexicon: path.join(modelPath, `lexicon-${lang === 'zh' ? 'zh' : 'us-en'}.txt`)
         },
-        debug: true,
+        debug: false,
         numThreads,
         provider: 'cpu'
       },
@@ -452,7 +450,7 @@ export function getTTSModelConfig(data: { model: string; modelDir: string; numTh
           lexicon: path.join(modelPath, 'lexicon.txt'),
           dictDir: path.join(modelPath, 'dict')
         },
-        debug: true,
+        debug: false,
         numThreads,
         provider: 'cpu'
       },
@@ -469,7 +467,7 @@ export function getTTSModelConfig(data: { model: string; modelDir: string; numTh
           tokens: path.join(modelPath, 'tokens.txt'),
           dataDir: path.join(modelPath, 'espeak-ng-data')
         },
-        debug: true,
+        debug: false,
         numThreads,
         provider: 'cpu'
       },
@@ -484,7 +482,7 @@ export function getTTSModelConfig(data: { model: string; modelDir: string; numTh
         model: path.join(modelPath, 'model.onnx'),
         tokens: path.join(modelPath, 'tokens.txt')
       },
-      debug: true,
+      debug: false,
       numThreads,
       provider: 'cpu'
     },

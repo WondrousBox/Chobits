@@ -14,7 +14,6 @@ import {
 describe('chat skill picker helpers', () => {
   it('only enables the picker for assistant skill-enabled agents', () => {
     expect(shouldEnableSkillPicker('assistant')).toBe(true);
-    expect(shouldEnableSkillPicker('assistant-skills')).toBe(true);
     expect(shouldEnableSkillPicker('chat')).toBe(false);
   });
 

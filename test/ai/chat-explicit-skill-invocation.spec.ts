@@ -9,7 +9,7 @@ describe('buildExplicitSkillInvocationInput', () => {
       remainingQuery: 'finalize the current changes',
       source: 'slash-command'
     });
-    expect(buildExplicitSkillInvocationInput('assistant-skills', '/review-pack check the current diff')).toEqual({
+    expect(buildExplicitSkillInvocationInput('assistant', '/review-pack check the current diff')).toEqual({
       matchedReference: 'review-pack',
       remainingQuery: 'check the current diff',
       source: 'slash-command'

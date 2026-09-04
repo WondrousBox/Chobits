@@ -64,7 +64,7 @@ open 'x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone
 
 ### 1. entitlements.plist
 
-确保 `public/entitlements.plist` 包含以下权限：
+确保 `build/entitlements.plist` 包含以下权限：
 
 ```xml
 <key>com.apple.security.device.audio-input</key>

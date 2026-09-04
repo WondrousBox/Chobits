@@ -56,7 +56,6 @@ export function formatRelativeTime(date?: string | number | null | undefined): s
   // // 格式化转换后的时间
   // const formattedTime = localTime.toLocaleString('en-US', { timeZone: userTimezone });
   // // 在用户界面上显示格式化后的时间
-  // console.log(formattedTime);
   // return dayjs.tz(newDate, userTimezone).format("YYYY-MM-DD HH:mm:ss");
   return dayjs.tz(newDate, userTimezone).fromNow();
 }

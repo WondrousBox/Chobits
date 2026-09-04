@@ -102,8 +102,6 @@ const TTSPage: React.FC = () => {
   // 监听 TTS 结果并自动播放
   useEffect(() => {
     const handleTTSResult = async (data: TTSResultPayload): Promise<void> => {
-      console.log('[TTS] Received result:', data);
-
       // 检查是否是当前请求
       if (data.requestId !== requestIdRef.current) {
         return;

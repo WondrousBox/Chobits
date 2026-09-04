@@ -188,13 +188,15 @@ Renderer → Preload → Main：
 
 由 `initAIHandlers` 注册：
 
-- **`ai:get-providers`** → `[{ id, aliases, label, configured, capabilities, defaultModels, kind, defaultModel, schema }]`
+- **`ai:get-providers`** → `[{ id, aliases, label, configured, capabilities, defaultModels, kind, defaultModel, defaultConfig?, schema }]`
   - 这些字段统一由 `ProviderDefinition` / `ProviderService` 派生。
   - `configured` 仍基于当前 adapter 的 `isConfigured()` 判断。
+  - `defaultConfig`（内置默认服务器配置，用于设置页表单预填）中的敏感字段（schema `type: 'password'`）以掩码 `••••••••` 下发，明文不进渲染进程（见 `secret-masking.ts`）。
 - **`ai:get-provider-secrets`** `({ providerId })` → `{ [field]: value }`
   - 使用 `ProviderService` 提供的 schema field key 列表 + `getAllSecrets(providerId, keys)` 读取。
 - **`ai:set-provider-secrets`** `({ providerId, secrets })` → `{ ok: true }`
   - 写入 keytar/回退 JSON，并调用 Provider 的 `setSecrets`。
+  - 值为掩码占位符 `••••••••` 的字段会被丢弃，不落库（渲染端约定空值/掩码即未改动）。
 - **`ai:get-agents`** → `[{ id, label, description }]`
 - **`ai:list-models`** `({ providerId, presetId? })` → `Array<{ id, label? }>`
   - builtin/compat 模型优先来自 `ProviderService`；
@@ -209,6 +211,7 @@ Renderer → Preload → Main：
 - **`ai:get-preset-secrets`** `({ presetId })` → `{ [field]: value }`
   - 通过 `PresetService` 根据预设关联的 Provider schema 取出字段，再从 keytar/JSON 读出值。
 - **`ai:set-preset-secrets`** `({ presetId, secrets })` → `{ ok: true }`
+  - 值为掩码占位符 `••••••••` 的字段会被丢弃，不落库（同 `ai:set-provider-secrets`）。
 - 旧的 instance 风格 IPC alias 已移除。
 
 ### 4.4 Prompt 模板与历史会话

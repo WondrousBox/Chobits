@@ -184,7 +184,7 @@ export class LAppWavFileHandler {
 
           resolveValue(ret);
         } catch (e) {
-          console.log(e);
+          console.error(e);
         }
       })().then(() => {
         resolveValue(ret);

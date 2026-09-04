@@ -38,7 +38,6 @@ export function addAllowedResourceRoot(root: string): void {
   const real = path.resolve(root);
   if (!allowedRoots.includes(real)) {
     allowedRoots.push(real);
-    // console.log('[protocol res] root added:', real)
   }
 }
 
@@ -147,7 +146,7 @@ export async function setupResourceProtocol(): Promise<void> {
         const buf = await fs.readFile(abs);
         return new Response(new Uint8Array(buf), { status: 200, headers: { ...baseHeaders, 'Content-Length': String(buf.byteLength) } });
       } catch (e: any) {
-        console.log(e);
+        console.error(e);
         return new Response('Internal Error', { status: 500 });
       }
     });

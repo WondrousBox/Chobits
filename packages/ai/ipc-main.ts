@@ -22,6 +22,7 @@ import {
 import { getProvider, listAgents, listProviders } from './registry';
 import { PiExecutionService } from './runtime/pi/execution-service';
 import { createSkillRegistry, getSkillSourceInfo } from './runtime/pi/skills';
+import { isMaskedSecretValue, maskSecretConfigValues } from './secret-masking';
 import { clearAllSecrets, getAllSecrets, getApiKeys, setProviderSecrets as setSecretsStore } from './settings-store';
 import type { ProviderPresetCreatePayload, SpeechSynthesisRequest, TranscriptionRequest } from './types';
 import { registerUserChoiceIpc } from './user-choice-registry';
@@ -73,7 +74,8 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
           defaultModels,
           kind: definition.protocol.kind,
           defaultModel: definition.defaults.models.chat || defaultModels.chat,
-          ...(definition.defaults.config ? { defaultConfig: { ...definition.defaults.config } } : {}),
+          // 内置默认配置中的敏感字段（type: 'password'）以掩码下发，明文不进渲染进程
+          ...(definition.defaults.config ? { defaultConfig: maskSecretConfigValues({ ...definition.defaults.config }, schema?.fields) } : {}),
           schema
         };
       })
@@ -88,9 +90,11 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
   });
 
   ipcMain.handle('ai:set-provider-secrets', async (_event, payload: { providerId: string; secrets: Record<string, string> }) => {
-    await setSecretsStore(payload.providerId, payload.secrets);
+    // 掩码占位值不落库（渲染端约定空值/掩码即未改动）
+    const secrets = Object.fromEntries(Object.entries(payload.secrets || {}).filter(([, value]) => !isMaskedSecretValue(value)));
+    await setSecretsStore(payload.providerId, secrets);
     const p = getProvider(payload.providerId);
-    if (p?.setSecrets) await Promise.resolve(p.setSecrets(payload.secrets));
+    if (p?.setSecrets) await Promise.resolve(p.setSecrets(secrets));
     eventManager.emit(AppEvent.AI_PROVIDER_CONFIG_UPDATED, {
       providerId: payload.providerId,
       action: 'provider-secrets-updated'
@@ -124,7 +128,7 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
 
   ipcMain.handle('ai:list-skills', async (_event, payload?: { agentId?: string; workspaceRoot?: string }) => {
     const agentId = typeof payload?.agentId === 'string' ? payload.agentId.trim() : '';
-    if (agentId !== 'assistant' && agentId !== 'assistant-skills') {
+    if (agentId !== 'assistant') {
       return [];
     }
 
@@ -305,7 +309,7 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
       }
       return [];
     } catch (err) {
-      console.log(err);
+      console.error(err);
       return [];
     }
   });
@@ -342,7 +346,9 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
     return await getPresetSecrets(payload.presetId);
   });
   ipcMain.handle('ai:set-preset-secrets', async (_event, payload: { presetId: string; secrets: Record<string, string> }) => {
-    await setPresetSecrets(payload.presetId, payload.secrets);
+    // 掩码占位值不落库（渲染端约定空值/掩码即未改动）
+    const secrets = Object.fromEntries(Object.entries(payload.secrets || {}).filter(([, value]) => !isMaskedSecretValue(value)));
+    await setPresetSecrets(payload.presetId, secrets);
     const preset = getPreset(payload.presetId);
     eventManager.emit(AppEvent.AI_PROVIDER_CONFIG_UPDATED, {
       ...(preset?.providerId ? { providerId: preset.providerId } : {}),

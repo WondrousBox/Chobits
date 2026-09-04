@@ -89,7 +89,7 @@ export function initAutoUpdater(): void {
  */
 export async function checkForUpdatesManually(): Promise<UpdateCheckResult> {
   if (!Env.isProd()) {
-    return { ok: false, status: 'disabled', error: '开发环境不支持自动更新，仅生产构建可用' };
+    return { ok: true, status: 'disabled' };
   }
   await runUpdateCheck();
   return { ok: true, status: updateStatus, version: updateVersion };

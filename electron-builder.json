@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
   "appId": "com.chobits.ai",
   "asar": true,
-  "asarUnpack": ["node_modules/better-sqlite3/**/*", "node_modules/sharp/**/*", "node_modules/@img/sharp-*/**/*", "node_modules/@img/sharp-libvips-*/**/*", "node_modules/sherpa-onnx-node/**/*"],
+  "asarUnpack": ["node_modules/better-sqlite3/**/*", "node_modules/sharp/**/*", "node_modules/@img/sharp-*/**/*", "node_modules/@img/sharp-libvips-*/**/*", "node_modules/sherpa-onnx-node/**/*", "node_modules/uiohook-napi/**/*"],
   "directories": {
     "output": "release/${version}"
   },
@@ -13,7 +13,8 @@
     "node_modules/sharp/**/*",
     "node_modules/@img/sharp-*/**/*",
     "node_modules/@img/sharp-libvips-*/**/*",
-    "node_modules/sherpa-onnx-node/**/*"
+    "node_modules/sherpa-onnx-node/**/*",
+    "node_modules/uiohook-napi/**/*"
   ],
   "extraResources": [
     {
@@ -55,8 +56,8 @@
     "artifactName": "${productName}_${version}_${platform}_${arch}.${ext}",
     "target": ["dmg", "zip"],
     "icon": "build/icons/icon.icns",
-    "entitlements": "public/entitlements.plist",
-    "entitlementsInherit": "public/entitlements.plist",
+    "entitlements": "build/entitlements.plist",
+    "entitlementsInherit": "build/entitlements.plist",
     "extendInfo": {
       "NSMicrophoneUsageDescription": "此应用需要访问麦克风以进行音频录制"
     }
@@ -68,13 +69,16 @@
         "arch": ["x64"]
       }
     ],
+    "icon": "build/icons/icon.ico",
     "artifactName": "${productName}_${version}_${platform}_${arch}.${ext}"
   },
   "nsis": {
     "oneClick": false,
     "perMachine": false,
     "allowToChangeInstallationDirectory": true,
-    "deleteAppDataOnUninstall": false
+    "deleteAppDataOnUninstall": false,
+    "installerIcon": "build/icons/icon.ico",
+    "uninstallerIcon": "build/icons/icon.ico"
   },
   "publish": {
     "provider": "github",

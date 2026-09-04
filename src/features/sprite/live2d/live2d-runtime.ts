@@ -51,7 +51,6 @@ export function loadCubismCore(): Promise<void> {
       const script = document.createElement('script');
       script.src = coreScriptUrl;
       script.onload = () => {
-        console.info('[Live2D] Cubism Core script loaded');
         resolve();
       };
       script.onerror = () => {
@@ -94,11 +93,6 @@ export async function initLive2DRuntime(options: Live2DRuntimeOptions): Promise<
   }
   delegate.run();
 
-  console.info('[Live2D] runtime initialized', {
-    canvasId,
-    modelUrl: `${model.resourcesBaseUrl}${model.modelDir}/${model.modelFileName}.model3.json`
-  });
-
   await waitForModelReady(readyTimeoutMs, generation);
 }
 
@@ -137,7 +131,6 @@ function waitForModelReady(timeoutMs: number, generation: number): Promise<void>
       const model = manager?.getModel(0);
       if (model && model.isInitialized()) {
         window.clearInterval(timer);
-        console.info(`[Live2D] model ready in ${Date.now() - startedAt}ms`);
         resolve();
         return;
       }

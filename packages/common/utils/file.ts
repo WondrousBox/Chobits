@@ -22,7 +22,7 @@ export function unzipFileWith7Z(
       outputFolderPath,
       (err: any) => {
         if (err) {
-          console.log('unzip error', err);
+          console.error('unzip error', err);
           reject(err);
         }
         resolve();

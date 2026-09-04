@@ -727,34 +727,6 @@ export class SpriteManager {
 
     this.sendToRenderer('sprite:play', this.currentAnimation);
     this.registerAnimationMovementSuspension(options.playId, options.allowMovementDuringPlayback);
-    if (options.trigger === 'welcome' || options.trigger === 'idle' || this.currentAnimation.animationId === 'sprite-fx718a5q') {
-      console.log('sprite:play sent: ' + options.trigger);
-      // console.info('❤❤❤❤❤ sprite:play sent', {
-      //   trigger: options.trigger,
-      //   animationId: anim.id,
-      //   title: anim.title,
-      //   playId: options.playId,
-      //   sessionMode: options.sessionMode,
-      //   playlistMode: options.playlistMode,
-      //   playlistCandidateCount,
-      //   loop: this.currentAnimation.playback?.loop,
-      //   loopCount: this.currentAnimation.playback?.loopCount,
-      //   autoIdle: this.currentAnimation.playback?.autoIdle
-      // });
-    }
-    if (options.trigger && this.shouldLogTriggerDebug(options.trigger, { playId: options.playId })) {
-      console.log('sprite:play sent: ' + options.trigger);
-      // this.logTriggerDebug('sprite:play sent', {
-      //   trigger: options.trigger,
-      //   animationId: anim.id,
-      //   title: anim.title,
-      //   playId: options.playId,
-      //   playlistMode: options.playlistMode,
-      //   sessionMode: options.sessionMode,
-      //   durationMs: resolvedDurationMs,
-      //   hasPlayback: Boolean(anim.playback)
-      // });
-    }
     this.handleAnimationMovement(anim.playback?.movement, this.resolveWindowAnimationPlaybackSize(anim.playback));
   }
 
@@ -1720,29 +1692,6 @@ export class SpriteManager {
 
     // 动画播放完成时停止自动移动
     const isCurrentAnimation = this.isCurrentAnimationCompletion(animId, playId);
-    console.info('❤❤❤❤❤ handleAnimationComplete: ' + animId);
-    // console.info('❤❤❤❤❤ handleAnimationComplete', {
-    //   animId,
-    //   phase,
-    //   playId,
-    //   currentAnimationId: this.currentAnimation?.animationId,
-    //   currentPlayId: this.currentAnimation?.playId,
-    //   currentTrigger: this.currentAnimation?.trigger,
-    //   currentState: this.getState(),
-    //   currentSubState: this.getSubState(),
-    //   isCurrentAnimation,
-    //   pendingIdleAfterOutro: this._pendingIdleAfterOutro,
-    //   activePlaylist: this.activeAnimationPlaylist
-    //     ? {
-    //       trigger: this.activeAnimationPlaylist.trigger,
-    //       mode: this.activeAnimationPlaylist.mode,
-    //       currentIndex: this.activeAnimationPlaylist.currentIndex,
-    //       count: this.activeAnimationPlaylist.entries.length,
-    //       playId: this.activeAnimationPlaylist.playId
-    //     }
-    //     : null,
-    //   autoIdle: this.shouldAutoIdleAfterComplete(animId, playId)
-    // });
     if ((phase === 'full' || phase === 'outro') && isCurrentAnimation) {
       this.stopAutoMove();
     }
@@ -1808,15 +1757,6 @@ export class SpriteManager {
     }
 
     this.activeAnimationPlaylist = null;
-    console.log('❤❤❤❤❤ transition to idle after completion: ' + animId);
-
-    // console.info('❤❤❤❤❤ transition to idle after completion', {
-    //   animId,
-    //   phase,
-    //   playId,
-    //   state: this.getState(),
-    //   subState: this.getSubState()
-    // });
     this.transitionToIdleAnimation(this.consumeIdleTransitionPresentationOptions());
   }
 

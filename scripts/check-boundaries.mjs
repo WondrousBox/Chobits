@@ -27,7 +27,11 @@ function grepImports(cwd, pattern) {
   try {
     const out = execFileSync('rg', ['-n', '--no-heading', '-g', '*.ts', '-g', '*.tsx', pattern, cwd], { cwd: root, encoding: 'utf8' });
     return out.trim().split('\n').filter(Boolean);
-  } catch {
+  } catch (err) {
+    if (err && typeof err === 'object' && err.code === 'ENOENT') {
+      console.error('❌ 未找到 ripgrep（rg）命令，请先安装 ripgrep 再运行边界检查。');
+      process.exit(1);
+    }
     return []; // rg 无匹配时退出码 1
   }
 }

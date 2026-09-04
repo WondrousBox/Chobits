@@ -1,6 +1,6 @@
 import type { ExplicitSkillInvocationInput } from '@packages/ai/types';
 
-const EXPLICIT_SKILL_AGENT_IDS = new Set(['assistant', 'assistant-skills']);
+const EXPLICIT_SKILL_AGENT_IDS = new Set(['assistant']);
 
 export function buildExplicitSkillInvocationInput(agentId: string | undefined, content: string): ExplicitSkillInvocationInput | undefined {
   if (!agentId || !EXPLICIT_SKILL_AGENT_IDS.has(agentId)) {

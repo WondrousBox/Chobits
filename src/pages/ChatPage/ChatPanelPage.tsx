@@ -9,12 +9,12 @@ import { ensureChatApiConfigGoal, guideChatApiConfigIfNeeded } from '@/lib/chat-
 import { useChatSelection } from './context/ChatSelectionContext';
 
 const PLACEHOLDERS = [
-  '输入问题，如：总结最近导入的 PDF...',
+  '输入问题开始对话，可开启联网搜索',
   '粘贴一段文字，让我帮你提炼要点',
   '帮我把这段中文翻译成英文',
   '写一个 TypeScript 函数组件示例',
   '分析这个网页并输出摘要',
-  '检索资源库中关于「会议纪要」的内容'
+  '输入 / 开头的指令可快速调用技能'
 ];
 const MENU_RESERVE_HEIGHT = 360;
 

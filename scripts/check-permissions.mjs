@@ -140,13 +140,13 @@ console.log('========================================');
 
 // 检查 entitlements.plist
 try {
-  const entitlementsPath = join(projectRoot, 'public/entitlements.plist');
+  const entitlementsPath = join(projectRoot, 'build/entitlements.plist');
   const entitlements = readFileSync(entitlementsPath, 'utf-8');
 
   if (entitlements.includes('com.apple.security.device.audio-input')) {
-    console.log('✅ public/entitlements.plist 包含音频输入权限');
+    console.log('✅ build/entitlements.plist 包含音频输入权限');
   } else {
-    console.log('❌ public/entitlements.plist 缺少音频输入权限');
+    console.log('❌ build/entitlements.plist 缺少音频输入权限');
   }
 
   if (entitlements.includes('com.apple.security.app-sandbox')) {
@@ -156,7 +156,7 @@ try {
     }
   }
 } catch {
-  console.log('❌ 无法读取 public/entitlements.plist');
+  console.log('❌ 无法读取 build/entitlements.plist');
 }
 
 // 检查 electron-builder.json

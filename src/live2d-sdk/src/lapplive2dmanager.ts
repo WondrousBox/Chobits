@@ -230,7 +230,6 @@ export class LAppLive2DManager {
   _sceneIndex: number; // 表示するシーンのインデックス値
   // モーション再生終了のコールバック関数
   _finishedMotion = (self: ACubismMotion): void => {
-    LAppPal.printMessage('Motion Finished:');
-    console.log(self);
+    LAppPal.printMessage(`Motion Finished: ${self}`);
   };
 }

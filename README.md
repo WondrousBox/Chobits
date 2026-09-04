@@ -12,7 +12,7 @@
 		<a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-green.svg"></a>
 	</p>
 	<p>
-		<img alt="Node" src="https://img.shields.io/badge/Node-%E2%89%A518.x-339933?logo=node.js&logoColor=white" />
+		<img alt="Node" src="https://img.shields.io/badge/Node-%E2%89%A520.x-339933?logo=node.js&logoColor=white" />
 		<img alt="Electron" src="https://img.shields.io/badge/Electron-39-blue?logo=electron&logoColor=white" />
 		<img alt="Vite" src="https://img.shields.io/badge/Vite-5-646CFF?logo=vite&logoColor=white" />
 		<img alt="React" src="https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black" />
@@ -44,7 +44,7 @@
   - 窗口动画编辑器（WindowAnimationEditor），编排精灵的移动与演出。
 
 - **全局快捷键与辅助机能**
-  - 系统级快捷键：唤起助手、开关主窗口、截图等（可在设置中配置）。
+  - 系统级快捷键：唤起助手、开关主窗口等（可在设置中配置）。
   - 右键菜单快速操作；设置页覆盖提供商、快捷键、主题外观、网络代理、数据库备份等。
 
 ## 💡 典型使用场景
@@ -59,8 +59,8 @@
 
 | 依赖      | 版本             | 说明                                                                        |
 | --------- | ---------------- | --------------------------------------------------------------------------- |
-| Node.js   | ≥ 18（建议 LTS） | 运行与构建                                                                  |
-| pnpm      | ≥ 10             | `pnpm-workspace.yaml` 使用了 `allowBuilds` 字段，需要 pnpm 10+              |
+| Node.js   | ≥ 20（建议 LTS） | 运行与构建（`engines` 声明，undici@8 要求 Node ≥ 20）                         |
+| pnpm      | ≥ 11             | `pnpm-workspace.yaml` 使用了 `allowBuilds` 字段，需要 pnpm 11+              |
 | Xcode CLT | 仅 macOS         | 原生模块编译                                                                |
 | libsecret | 仅 Linux         | `keytar` 存取 API Key 所需，桌面版发行版一般自带（gnome-keyring / KWallet） |
 
@@ -77,13 +77,16 @@ pnpm install
 pnpm dev
 ```
 
-> **小叽提示 (・ω・)ノ**：请务必用 **pnpm 10+** 安装依赖——仓库通过 `pnpm-workspace.yaml`
+> **小叽提示 (・ω・)ノ**：请务必用 **pnpm 11+** 安装依赖——仓库通过 `pnpm-workspace.yaml`
 > 的 `allowBuilds` 白名单控制哪些依赖允许跑安装脚本（better-sqlite3、keytar、sharp 等），
 > 旧版 pnpm 不认识这个字段，原生模块可能编译不出来。
 
 ### 打包
 
 ```bash
+# 前置：下载 7zip 二进制到 resources/7zip（不入库，打包时作为 extraResources 打包）
+pnpm download-7zip
+
 pnpm build    # 输出到 release/<version>/，按当前平台生成安装包
 ```
 

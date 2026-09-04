@@ -807,8 +807,6 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
         timeoutController.dispose();
       }
 
-      console.log(raw);
-
       const logContextDigest = this.buildContextDigest(ctx, userProfile, persistentMemory, importantDialogueDigests, purposeRetrospective);
       const parsedPayload = safeParseJson<GeneratedUtterancePayload>(raw);
       const parsedIntent = normalizeIntentCategory(parsedPayload?.intentCategory);

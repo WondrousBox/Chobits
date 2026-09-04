@@ -32,6 +32,12 @@ const UpdateSettings: React.FC = () => {
         case 'not-available':
           toast.success('当前已是最新版本');
           break;
+        case 'disabled':
+          toast.info('开发版本不支持自动更新', { description: '仅生产构建可检查更新' });
+          break;
+        case 'error':
+          toast.error('检查更新失败', { description: '请稍后重试，或查看日志了解详情' });
+          break;
         default:
           toast.info('正在检查更新，请稍后再试');
       }

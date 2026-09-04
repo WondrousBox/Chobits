@@ -27,7 +27,7 @@ export interface AppWindowSummary {
 }
 
 const SETTINGS_CATEGORIES = new Set(['preferences', 'ai', 'prompt', 'features', 'plugins', 'shortcuts', 'proxy']);
-const CHAT_AGENT_IDS = new Set(['assistant', 'chat', 'coder', 'assistant-skills']);
+const CHAT_AGENT_IDS = new Set(['assistant', 'chat', 'coder']);
 const CJK_SEARCH_TERMS = ['设置', '打开', '聊天', '助手', '插件', '窗口', '动画'].sort((a, b) => b.length - a.length);
 
 function isRecord(value: unknown): value is Payload {
@@ -107,7 +107,7 @@ function sanitizeChatPayload(payload: unknown): Payload | undefined {
 
 const chatPayloadFields: AppWindowPayloadField[] = [
   { name: 'initialMessage', type: 'string', description: '打开后立即发送的初始消息' },
-  { name: 'agentId', type: 'assistant | chat | coder | assistant-skills', description: '目标对话角色' },
+  { name: 'agentId', type: 'assistant | chat | coder', description: '目标对话角色' },
   { name: 'providerId', type: 'string', description: 'AI 提供商 ID' },
   { name: 'modelId', type: 'string', description: '模型 ID' },
   { name: 'preferredPresetId', type: 'string', description: '首选提供商预设 ID' },

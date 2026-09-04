@@ -12,7 +12,7 @@
 		<a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-green.svg"></a>
 	</p>
 	<p>
-		<img alt="Node" src="https://img.shields.io/badge/Node-%E2%89%A518.x-339933?logo=node.js&logoColor=white" />
+		<img alt="Node" src="https://img.shields.io/badge/Node-%E2%89%A520.x-339933?logo=node.js&logoColor=white" />
 		<img alt="Electron" src="https://img.shields.io/badge/Electron-39-blue?logo=electron&logoColor=white" />
 		<img alt="Vite" src="https://img.shields.io/badge/Vite-5-646CFF?logo=vite&logoColor=white" />
 		<img alt="React" src="https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black" />
@@ -44,7 +44,7 @@
   - ウィンドウアニメーションエディター（WindowAnimationEditor）で、妖精の動きや演出を編成できます。
 
 - **グローバルショートカットと補助機能**
-  - システムレベルのショートカット：アシスタントの呼び出し、メインウィンドウの表示切替、スクリーンショットなど（設定で変更可能）。
+  - システムレベルのショートカット：アシスタントの呼び出し、メインウィンドウの表示切替など（設定で変更可能）。
   - 右クリックメニューから素早く操作。設定ページではプロバイダー、ショートカット、テーマ、プロキシ、データベースバックアップなどをカバー。
 
 ## 💡 主な利用シーン
@@ -59,8 +59,8 @@
 
 | 依存      | バージョン       | 説明                                                                                                          |
 | --------- | ---------------- | ------------------------------------------------------------------------------------------------------------- |
-| Node.js   | ≥ 18（LTS 推奨） | 実行とビルド                                                                                                  |
-| pnpm      | ≥ 10             | `pnpm-workspace.yaml` が `allowBuilds` フィールドを使用するため、pnpm 10 以上が必要                           |
+| Node.js   | ≥ 20（LTS 推奨） | 実行とビルド（`engines` で宣言、undici@8 は Node ≥ 20 が必要）                                                      |
+| pnpm      | ≥ 11             | `pnpm-workspace.yaml` が `allowBuilds` フィールドを使用するため、pnpm 11 以上が必要                           |
 | Xcode CLT | macOS のみ       | ネイティブモジュールのコンパイル                                                                              |
 | libsecret | Linux のみ       | `keytar` が API キーの保存に必要。デスクトップ版ディストリビューションには通常同梱（gnome-keyring / KWallet） |
 
@@ -77,7 +77,7 @@ pnpm install
 pnpm dev
 ```
 
-> **ちぃのヒント (・ω・)ノ**：依存関係のインストールには必ず **pnpm 10+** を使ってください。
+> **ちぃのヒント (・ω・)ノ**：依存関係のインストールには必ず **pnpm 11+** を使ってください。
 > このリポジトリは `pnpm-workspace.yaml` の `allowBuilds` ホワイトリストで、インストールスクリプトの
 > 実行を許可する依存（better-sqlite3、keytar、sharp など）を制御しています。
 > 古い pnpm ではこのフィールドが認識されず、ネイティブモジュールのビルドに失敗することがあります。
@@ -85,6 +85,9 @@ pnpm dev
 ### パッケージング
 
 ```bash
+# 事前準備：7zip バイナリを resources/7zip にダウンロード（リポジトリ未同梱、extraResources としてパッケージに含まれます）
+pnpm download-7zip
+
 pnpm build    # release/<version>/ に出力、現在のプラットフォーム向けインストーラーを生成
 ```
 

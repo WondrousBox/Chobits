@@ -13,16 +13,6 @@ export function getSpriteCapabilityState(snapshot: SpriteCapabilitySnapshot | nu
   return snapshot?.capabilities[capabilityId] ?? null;
 }
 
-export function getFirstLockedSpriteCapability(snapshot: SpriteCapabilitySnapshot | null | undefined, capabilityIds: string[]): SpriteCapabilityState | null {
-  for (const capabilityId of capabilityIds) {
-    const capability = getSpriteCapabilityState(snapshot, capabilityId);
-    if (capability?.status === 'locked') {
-      return capability;
-    }
-  }
-  return null;
-}
-
 export function getSpriteCapabilityLockedReason(capability?: SpriteCapabilityState | null): string {
   if (!capability || capability.status !== 'locked') return '';
 

@@ -40,7 +40,7 @@ function getOSVersion(): string {
 
       return matches;
     } catch (err) {
-      console.log(err);
+      console.error(err);
       return os.release();
     }
   }

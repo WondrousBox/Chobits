@@ -20,7 +20,7 @@ export const AI_PROMPT_INSPECTOR_SETTINGS = {
    *   - 单次 ChatRequest.extras 里的 debugPrompt / inspectPrompt /
    *     showPrompt 仍可临时打开（用于本地排障单次请求）。
    */
-  enabled: true,
+  enabled: false,
 
   /**
    * 是否在内存中保留最近 MAX_RECENT_INSPECTIONS 条 inspection 记录，
@@ -35,7 +35,7 @@ export const AI_PROMPT_INSPECTOR_SETTINGS = {
    * 调用方也可以通过 inspectAIPrompt(record, { logger }) 自定义
    * 输出目标，那条路径不受本字段影响。
    */
-  printToConsole: true,
+  printToConsole: false,
 
   /**
    * Source 白名单：仅当 inspection record 的 source 在该列表中时才

@@ -65,7 +65,6 @@ export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' 
     () =>
       new VideoSpriteDriver({
         onAnimationComplete: (animationId, phase, playId) => {
-          console.info('[SpriteVideo] animation complete -> ipc', { animationId, phase, playId });
           if (playId) {
             window.chobits.sprite.animComplete(animationId, phase, playId);
             return;
@@ -138,14 +137,6 @@ export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' 
     }
 
     const nextSlot = getInactiveSlot(activeSlot);
-    console.info('[SpriteVideo] queue slot switch', {
-      from: activeSlot,
-      to: nextSlot,
-      currentAnimationId: activePresentation.animId,
-      nextAnimationId: desiredPresentation.animId,
-      nextPlayId: desiredPresentation.playId,
-      src: desiredPresentation.computed.srcUrl
-    });
     pendingSwitchRef.current = { slot: nextSlot, key: desiredPresentation.key };
     setSlotPresentations((prev) => ({ ...prev, [nextSlot]: desiredPresentation }));
   }, [activePresentation, activeSlot, desiredPresentation]);
@@ -202,13 +193,6 @@ export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' 
   const switchToReadySlot = (slot: VideoSlot, presentation: VideoPresentation): void => {
     const previousSlot = activeSlotRef.current;
     pendingSwitchRef.current = null;
-    console.info('[SpriteVideo] switch to ready slot', {
-      from: previousSlot,
-      to: slot,
-      animationId: presentation.animId,
-      playId: presentation.playId,
-      src: presentation.computed.srcUrl
-    });
     setActiveSlot(slot);
     setActivePresentation(presentation);
     setSlotPresentations((prev) => ({ ...prev, [slot]: presentation }));
@@ -227,13 +211,6 @@ export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' 
     if (!presentation || presentation.key !== pending.key) return;
 
     const video = getVideoForSlot(slot);
-    console.info('[SpriteVideo] slot ready', {
-      slot,
-      animationId: presentation.animId,
-      playId: presentation.playId,
-      readyState: video?.readyState,
-      src: presentation.computed.srcUrl
-    });
     try {
       void video?.play()?.catch?.(() => undefined);
     } catch {
@@ -269,13 +246,6 @@ export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' 
     const video = getVideoForSlot(pending.slot);
     if (!isVideoReadyForPresentation(video, presentation)) return;
 
-    console.info('[SpriteVideo] pending slot already has current data', {
-      slot: pending.slot,
-      animationId: presentation.animId,
-      playId: presentation.playId,
-      readyState: video?.readyState,
-      src: presentation.computed.srcUrl
-    });
     switchToReadySlot(pending.slot, presentation);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 有意仅跟随 slotPresentations 变化;switchToReadySlot 每次渲染重建,加入依赖会导致 effect 每次渲染都重跑
   }, [slotPresentations]);

@@ -4,7 +4,6 @@ import log, { LogFunctions } from 'electron-log';
 
 import { LOGGER_SCOPE } from '../config';
 
-console.log('log initialize');
 // It preloads electron-log IPC code in renderer processes
 log.initialize();
 
@@ -19,7 +18,6 @@ export default class Logger {
     this.setFormat('[{level} {h}:{i}:{s}.{ms}]  {text}');
     Object.assign(console, log.functions);
     this.log = log.scope(scope);
-    // console.log = this.log.info;
   }
 
   resolvePath(): void {

@@ -190,14 +190,11 @@ export function initPluginResourceHandlers(win: BrowserWindow, options?: InitOpt
     }
 
     const request = (async (): Promise<{ ok: boolean; data?: any; error?: string; message?: string }> => {
-      console.log('plugin-resource:install', payload);
-
       if (!getPluginDefinitionsPathFn) {
         return { ok: false, error: 'Plugin definitions path not configured' };
       }
       const definitions = await loadPluginDefinitions(getPluginDefinitionsPathFn());
       const pluginDef = definitions.find((p) => p.id === payload.resourceId && p.pluginId === payload.pluginId);
-      console.log(pluginDef);
 
       if (!pluginDef) {
         return { ok: false, error: 'PLUGIN_NOT_FOUND' };
@@ -222,7 +219,6 @@ export function initPluginResourceHandlers(win: BrowserWindow, options?: InitOpt
       }
 
       const platformInfo = getPluginForCurrentPlatform(pluginDef);
-      console.log('platformInfo', platformInfo);
 
       if (!platformInfo) {
         return { ok: false, error: 'PLATFORM_NOT_SUPPORTED' };
@@ -230,20 +226,16 @@ export function initPluginResourceHandlers(win: BrowserWindow, options?: InitOpt
 
       // 构建确定性资源ID：pluginId_version[_sha256]
       const deterministicId = getDeterministicResourceId(pluginDef, platformInfo);
-      console.log('deterministicId', deterministicId);
 
       // 如果已存在同ID资源，避免重复安装
       const existing = PluginResourceStore.get(deterministicId);
-      console.log('existing', existing);
       if (existing) {
         // 已安装则直接返回
         if (existing.status === 'installed' && pluginResourceManager.isInstalled(existing)) {
-          console.log('existing is installed and isInstalled', existing);
           return { ok: true, data: existing, message: 'Resource already installed' };
         }
         // 正在处理中则直接返回
         if (['queued', 'downloading', 'extracting', 'verifying'].includes(existing.status || '') && pluginResourceManager.isActive(existing.id)) {
-          console.log('existing is in progress', existing);
           return { ok: true, data: existing, message: 'Resource already in progress' };
         }
       }
@@ -260,9 +252,6 @@ export function initPluginResourceHandlers(win: BrowserWindow, options?: InitOpt
         PluginResourceStore.upsert(resource);
         return { ok: true, data: resource, message: 'Resource already installed' };
       }
-
-      console.log('resource', resource);
-      console.log('payload', payload);
 
       // 加入下载队列，支持deleteAfterInstall参数（默认为false，不删除下载文件）
       const proxyAgent = getHttpProxyFn ? getHttpProxyFn() : undefined;

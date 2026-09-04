@@ -16,9 +16,6 @@ import { LAppLive2DManager } from './lapplive2dmanager';
  * Initialize the Live2D application
  */
 export function initializeLive2D(): void {
-  console.log('Initializing Live2D with resourcePath:', LAppDefine.ResourcesPath);
-  console.log('Model directories:', LAppDefine.ModelDir);
-
   // Clean up any existing instances first
   if (LAppDelegate.getInstance()) {
     // Release existing model resources
@@ -36,7 +33,6 @@ export function initializeLive2D(): void {
 
   // Make sure LAppAdapter is available globally
   if (!(window as any).getLAppAdapter) {
-    console.log('Setting up getLAppAdapter function');
     const { LAppAdapter } = require('./lappadapter');
     (window as any).getLAppAdapter = () => LAppAdapter.getInstance();
   }
@@ -68,7 +64,9 @@ export function initializeLive2D(): void {
       // Test hit and log result
       const hitAreaName = model?.anyhitTest(x, y);
       const isHit = hitAreaName !== null || model?.isHitOnModel(x, y);
-      console.log('Model clicked:', isHit, hitAreaName ? `in area: ${hitAreaName}` : '');
+      if (isHit && LAppDefine.DebugLogEnable) {
+        console.log('Model clicked in area:', hitAreaName);
+      }
     });
   }
 }

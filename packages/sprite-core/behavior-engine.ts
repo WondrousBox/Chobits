@@ -569,9 +569,7 @@ export class BehaviorEngine {
 
     let error: string | undefined;
     try {
-      console.log('behavior triggered: ❤❤❤❤❤', def.name, '❤❤❤❤❤');
       await def.action(ctx);
-      console.log('behavior completed: ❤❤❤❤❤', def.name, '❤❤❤❤❤');
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
       console.error(`[BehaviorEngine] Action failed for ${def.id}:`, err);

@@ -12,7 +12,7 @@
  * `invalid onRequestStart method`）。正确做法是动态加载 npm undici 包后，
  * 用**同一个包**的 `fetch` + 配套 `Agent` 发请求。
  *
- * 注意：undici 是高版本传递依赖（shamefully-hoist 提升到根 node_modules），
+ * 注意：undici 是直接 dependency（npm 包，版本高于 Node 内置），
  * 且只在显式开启时动态加载，避免给默认路径增加开销与兼容性风险。
  */
 

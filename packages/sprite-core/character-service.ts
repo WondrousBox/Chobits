@@ -457,8 +457,6 @@ export function buildCharacterPrompt(ctx: CharacterPromptContext, options?: Char
     return null;
   }
 
-  console.log('角色的 Prompt ❤❤❤\n', sections.join('\n\n'));
-
   return sections.join('\n\n');
 }
 

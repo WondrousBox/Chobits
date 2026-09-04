@@ -1,3 +1,4 @@
+import { splitSecretFormValues, stripUnchangedSecretValues } from '@packages/ai/secret-masking';
 import { useEffect, useMemo, useState } from 'react';
 import { TbChevronDown, TbChevronRight, TbPlus } from 'react-icons/tb';
 import { z } from 'zod';
@@ -118,11 +119,13 @@ export default function AISettings({ initialProviderId, initialPresetId, focusRe
 
   // duplicated declarations removed
 
-  const schemaForProvider = (p?: ProviderRow | null): z.ZodObject<Record<string, z.ZodTypeAny>> => {
+  const schemaForProvider = (p?: ProviderRow | null, maskedKeys: Set<string> = new Set()): z.ZodObject<Record<string, z.ZodTypeAny>> => {
     const shape: Record<string, z.ZodTypeAny> = {};
     (p?.schema?.fields || []).forEach((f) => {
       const base = z.string().trim();
-      shape[f.key] = f.required ? base.min(1, '必填') : base.optional().transform((v) => v ?? '');
+      // password 字段已有有效值（掩码展示、未改动）时视为已满足必填
+      const isRequired = f.required && !(f.type === 'password' && maskedKeys.has(f.key));
+      shape[f.key] = isRequired ? base.min(1, '必填') : base.optional().transform((v) => v ?? '');
     });
     return z.object(shape);
   };
@@ -144,15 +147,22 @@ export default function AISettings({ initialProviderId, initialPresetId, focusRe
     return `${base}-${createPresetSuffix()}`;
   };
 
-  const emptyPresetValues = (): PresetFormValues => ({
-    // 新建预设时用 provider 的内置默认配置预填（如自托管服务的默认 baseUrl/apiKey）
-    secrets: { ...(selectedProvider?.defaultConfig || {}) }
-  });
+  // password 字段不回显真实值：拆分出可编辑的非敏感字段与需掩码展示的敏感字段
+  const splitPresetSecrets = (rawSecrets: Record<string, string>): { values: PresetFormValues; maskedKeys: string[] } => {
+    const { editableValues, maskedKeys } = splitSecretFormValues(rawSecrets, selectedProvider?.schema?.fields);
+    return { values: { secrets: editableValues }, maskedKeys };
+  };
 
-  const presetFormValues = (preset: Preset): PresetFormValues => ({
+  const emptyPresetForm = (): { values: PresetFormValues; maskedKeys: string[] } =>
+    // 新建预设时用 provider 的内置默认配置预填（如自托管服务的默认 baseUrl）；password 字段仅掩码展示
+    splitPresetSecrets({ ...(selectedProvider?.defaultConfig || {}) });
+
+  const presetFormState = (preset: Preset): { values: PresetFormValues; maskedKeys: string[] } =>
     // 已保存的值优先，未保存的字段回落到内置默认配置做展示
-    secrets: { ...(selectedProvider?.defaultConfig || {}), ...(presetSecrets[preset.id] || {}) }
-  });
+    splitPresetSecrets({ ...(selectedProvider?.defaultConfig || {}), ...(presetSecrets[preset.id] || {}) });
+
+  // 保存时丢弃未改动的 password 字段（空值即未改动），避免把掩码/空值写回存储
+  const stripUnchangedSecrets = (secrets: Record<string, string>): Record<string, string> => stripUnchangedSecretValues(secrets, selectedProvider?.schema?.fields);
 
   const openCreatePresetForm = (): void => {
     setExpandedPresetId(null);
@@ -163,7 +173,7 @@ export default function AISettings({ initialProviderId, initialPresetId, focusRe
 
   const handleCreatePreset = async (vals: PresetFormValues): Promise<void> => {
     if (!selectedProvider) return;
-    const schema = schemaForProvider(selectedProvider);
+    const schema = schemaForProvider(selectedProvider, new Set(emptyPresetForm().maskedKeys));
     const parsed = schema.safeParse(vals.secrets);
     if (!parsed.success) {
       const errs: Record<string, string> = {};
@@ -182,7 +192,7 @@ export default function AISettings({ initialProviderId, initialPresetId, focusRe
       overrides: {}
     });
     if (created?.id) {
-      await window.chobits.ai.setPresetSecrets(created.id, vals.secrets);
+      await window.chobits.ai.setPresetSecrets(created.id, stripUnchangedSecrets(vals.secrets));
       await selectChatDefaultsForProvider({ providerId: selectedProvider.id, presetId: created.id, provider: selectedProvider });
     }
     const list = await window.chobits.ai.listPresets(selectedProvider.id);
@@ -195,7 +205,7 @@ export default function AISettings({ initialProviderId, initialPresetId, focusRe
 
   const handleSavePreset = async (preset: Preset, vals: PresetFormValues): Promise<void> => {
     if (!selectedProvider) return;
-    const schema = schemaForProvider(selectedProvider);
+    const schema = schemaForProvider(selectedProvider, new Set(presetFormState(preset).maskedKeys));
     const parsed = schema.safeParse(vals.secrets || {});
     if (!parsed.success) {
       const errs: Record<string, string> = {};
@@ -207,7 +217,7 @@ export default function AISettings({ initialProviderId, initialPresetId, focusRe
       return;
     }
     setErrors((prev) => ({ ...prev, [preset.id]: {} }));
-    await window.chobits.ai.setPresetSecrets(preset.id, vals.secrets || {});
+    await window.chobits.ai.setPresetSecrets(preset.id, stripUnchangedSecrets(vals.secrets || {}));
     await selectChatDefaultsForProvider({ providerId: preset.providerId, presetId: preset.id, provider: selectedProvider });
     const list = await window.chobits.ai.listPresets(preset.providerId);
     setPresets(list || []);
@@ -245,6 +255,7 @@ export default function AISettings({ initialProviderId, initialPresetId, focusRe
 
   const providerModels: ModelOpt[] = selectedProvider ? models[selectedProvider.id] || [] : [];
   const shouldShowInlineCreateForm = !!selectedProvider && (isCreateFormVisible || presets.length === 0);
+  const createFormState = shouldShowInlineCreateForm ? emptyPresetForm() : null;
 
   return (
     <>
@@ -291,6 +302,7 @@ export default function AISettings({ initialProviderId, initialPresetId, focusRe
                 <div className="grid gap-2">
                   {presets.map((preset) => {
                     const isExpanded = expandedPresetId === preset.id;
+                    const formState = isExpanded ? presetFormState(preset) : null;
 
                     return (
                       <div key={preset.id} className="rounded-xl border bg-background">
@@ -324,13 +336,14 @@ export default function AISettings({ initialProviderId, initialPresetId, focusRe
                           </div>
                         </div>
 
-                        {isExpanded && (
+                        {isExpanded && formState && (
                           <div className="border-t p-3">
                             <PresetFormDialog
                               title={`编辑预设 · ${preset.name}`}
                               provider={selectedProvider}
                               models={models[preset.providerId] || []}
-                              initialValues={presetFormValues(preset)}
+                              initialValues={formState.values}
+                              maskedSecretKeys={formState.maskedKeys}
                               errors={errors[preset.id] || {}}
                               submitLabel="保存预设"
                               cancelLabel="收起"
@@ -353,13 +366,14 @@ export default function AISettings({ initialProviderId, initialPresetId, focusRe
                 </Button>
               )}
 
-              {shouldShowInlineCreateForm && (
+              {shouldShowInlineCreateForm && createFormState && (
                 <PresetFormDialog
                   key={`create-${selectedProvider.id}-${createFormKey}`}
                   title="新增预设"
                   provider={selectedProvider}
                   models={providerModels}
-                  initialValues={emptyPresetValues()}
+                  initialValues={createFormState.values}
+                  maskedSecretKeys={createFormState.maskedKeys}
                   errors={errors.__new__ || {}}
                   submitLabel="保存预设"
                   cancelLabel="取消新增"

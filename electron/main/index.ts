@@ -262,7 +262,6 @@ app.whenReady().then(async () => {
 });
 
 process.on('uncaughtException', function (error) {
-  console.log('uncaughtException');
   logger.log.error(error);
 });
 

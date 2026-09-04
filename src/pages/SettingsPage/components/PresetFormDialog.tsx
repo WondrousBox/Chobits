@@ -1,3 +1,4 @@
+import { MASKED_SECRET_VALUE } from '@packages/ai/secret-masking';
 import { useState } from 'react';
 import { TbChevronDown, TbChevronRight } from 'react-icons/tb';
 
@@ -26,6 +27,8 @@ export function PresetFormDialog(props: {
   provider: ProviderRow;
   models: ModelOpt[];
   initialValues: PresetFormValues;
+  // 已有有效值（内置默认或已保存）的 password 字段：值不进入表单，仅以掩码 placeholder 展示
+  maskedSecretKeys?: string[];
   errors?: Record<string, string>;
   submitLabel?: string;
   cancelLabel?: string;
@@ -33,7 +36,7 @@ export function PresetFormDialog(props: {
   onDelete?: () => void;
   onSubmit: (values: PresetFormValues) => void | Promise<void>;
 }): JSX.Element {
-  const { title, provider, models, initialValues, errors, submitLabel = '保存', cancelLabel = '取消', onCancel, onDelete, onSubmit } = props;
+  const { title, provider, models, initialValues, maskedSecretKeys, errors, submitLabel = '保存', cancelLabel = '取消', onCancel, onDelete, onSubmit } = props;
   const [values, setValues] = useState<PresetFormValues>(() => initialValues);
   const [modelsExpanded, setModelsExpanded] = useState(false);
 
@@ -129,6 +132,7 @@ export function PresetFormDialog(props: {
       <div className="grid gap-4 md:grid-cols-2">
         {(provider.schema?.fields || []).map((field) => {
           const label = locale?.fields?.[field.key] || field.label;
+          const isMaskedSecret = field.type === 'password' && !values.secrets?.[field.key] && (maskedSecretKeys || []).includes(field.key);
 
           return (
             <label key={field.key} className="grid gap-1">
@@ -136,6 +140,7 @@ export function PresetFormDialog(props: {
               <Input
                 type={field.type === 'password' ? 'password' : 'text'}
                 value={values.secrets?.[field.key] || ''}
+                placeholder={isMaskedSecret ? MASKED_SECRET_VALUE : undefined}
                 onChange={(e) => setValues((v) => ({ ...v, secrets: { ...(v.secrets || {}), [field.key]: e.target.value } }))}
               />
               {!!errors?.[field.key] && <span className="text-xs text-red-600">{errors[field.key]}</span>}

@@ -11,8 +11,8 @@ let electronApp: ElectronApplication;
 let page: Page;
 
 if (process.platform === 'linux') {
-  // pass ubuntu
-  test(() => expect(true).true);
+  // e2e 需要启动真实 Electron 窗口，Linux/CI 无显示环境，跳过
+  test.skip('[Chobits] e2e tests (skipped on linux)', () => {});
 } else {
   beforeAll(async () => {
     const { _electron: electron } = await import('playwright');
