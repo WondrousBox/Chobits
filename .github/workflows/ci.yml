@@ -27,7 +27,7 @@ jobs:
       - name: Install Native Build Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libsecret-1-dev libx11-dev libxtst-dev libxinerama-dev libxkbcommon-dev libxrandr-dev libxi-dev
+          sudo apt-get install -y libsecret-1-dev libx11-dev libxtst-dev libxinerama-dev libxkbcommon-dev libxrandr-dev libxi-dev libxt-dev libx11-xcb-dev libxxf86misc-dev libxkbfile-dev
 
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
