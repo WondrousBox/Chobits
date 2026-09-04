@@ -1,7 +1,10 @@
 import { Env } from '@packages/common/utils';
-import { autoUpdater } from 'electron-updater';
+// electron-updater 是 CommonJS 模块，ESM 产物下只能用默认导入
+import electronUpdater from 'electron-updater';
 
 import { logger } from './logger';
+
+const { autoUpdater } = electronUpdater;
 
 /** 启动后首次检查更新的延迟，避免阻塞窗口创建与首屏网络请求 */
 const INITIAL_UPDATE_CHECK_DELAY_MS = 10_000;
