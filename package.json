@@ -40,6 +40,7 @@
     "rebuild": "node scripts/rebuild-native.js",
     "download-7zip": "node scripts/download-7zip.mjs",
     "download-7zip-darwin-arm64": "node scripts/download-7zip.mjs darwin arm64",
+    "download-7zip-darwin-x64": "node scripts/download-7zip.mjs darwin x64",
     "download-7zip-linux-x64": "node scripts/download-7zip.mjs linux x64",
     "download-7zip-win32-x64": "node scripts/download-7zip.mjs win32 x64",
     "db:generate": "drizzle-kit generate",

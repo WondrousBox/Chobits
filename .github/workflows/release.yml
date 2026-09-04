@@ -51,7 +51,8 @@ jobs:
 
       - name: Download Platform Resources (macOS)
         if: runner.os == 'macOS'
-        run: pnpm run download-7zip-darwin-arm64
+        # mac 构建 arm64 + x64 双架构，extraResources 按 ${platform}/${arch} 取 7za，两个目录都要
+        run: pnpm run download-7zip-darwin-arm64 && pnpm run download-7zip-darwin-x64
 
       - name: Download Platform Resources (Windows)
         if: runner.os == 'Windows'

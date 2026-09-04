@@ -33,6 +33,11 @@ const SOURCES = {
     // 官方 mac 包为 universal 二进制(arm64 + x86_64)
     binInArchive: '7zz'
   },
+  'darwin-x64': {
+    url: `https://www.7-zip.org/a/7z${SEVEN_ZIP_VERSION}-mac.tar.xz`,
+    // 与 darwin-arm64 同一份 universal 二进制
+    binInArchive: '7zz'
+  },
   'linux-x64': {
     url: `https://www.7-zip.org/a/7z${SEVEN_ZIP_VERSION}-linux-x64.tar.xz`,
     binInArchive: '7zz'
