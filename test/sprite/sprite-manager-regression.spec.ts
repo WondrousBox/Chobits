@@ -1971,7 +1971,8 @@ describe('sprite manager regression coverage', () => {
     const nightSleepy = registered.get('night-sleepy');
     expect(nightSleepy).toBeTruthy();
 
-    await nightSleepy.action({ now: new Date('2026-05-03T23:00:00+08:00') } as any);
+    const now = new Date('2026-05-03T23:00:00+08:00');
+    await nightSleepy.action({ now } as any);
 
     expect(startPurpose).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1982,7 +1983,8 @@ describe('sprite manager regression coverage', () => {
         coalesceKey: 'night-sleepy',
         context: expect.objectContaining({
           behaviorId: 'night-sleepy',
-          hour: 23
+          // hour 由 ctx.now.getHours() 计算（本地时区），CI 跑在 UTC，动态取值保持时区无关
+          hour: now.getHours()
         })
       })
     );
