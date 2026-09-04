@@ -3,6 +3,7 @@ allowBuilds:
   '@parcel/watcher': true
   better-sqlite3: true
   electron: true
+  electron-winstaller: false
   esbuild: true
   keytar: true
   phantomjs-prebuilt: false
@@ -11,6 +12,15 @@ allowBuilds:
   uiohook-napi: true
 
 blockExoticSubdeps: false
+
+# 安全修复：收敛存在 CVE 的传递依赖（详见 pnpm audit）
+overrides:
+  # vitest 链仍解析到 vite 5，统一到已修复的 vite 6
+  vite: ^6.4.3
+  # pi-coding-agent 锁定的 undici 8.5.0 存在 CVE，提到 8.10.0（同大版本）
+  '@earendil-works/pi-coding-agent>undici': ^8.10.0
+  # drizzle-kit 经 @esbuild-kit 引入的 esbuild 0.18 存在 CVE，提到 0.25
+  '@esbuild-kit/core-utils>esbuild': ^0.25.0
 
 # electron-builder 需要拍平的依赖树（原 .npmrc 的 shamefully-hoist，pnpm 10+ 移至此处）
 shamefullyHoist: true
