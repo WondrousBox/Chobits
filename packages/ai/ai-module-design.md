@@ -190,7 +190,7 @@ Renderer → Preload → Main：
 
 - **`ai:get-providers`** → `[{ id, aliases, label, configured, capabilities, defaultModels, kind, defaultModel, defaultConfig?, schema }]`
   - 这些字段统一由 `ProviderDefinition` / `ProviderService` 派生。
-  - `configured` 仍基于当前 adapter 的 `isConfigured()` 判断。
+  - `configured` 基于是否存在该 provider 的可用 preset（`resolveUsablePreset`）判断；内置自托管 provider（vLLM）在 `initAIHandlers` 启动时会种子一条默认 preset（`preset-seed.ts`），因此新装即视为已配置。
   - `defaultConfig`（内置默认服务器配置，用于设置页表单预填）中的敏感字段（schema `type: 'password'`）以掩码 `••••••••` 下发，明文不进渲染进程（见 `secret-masking.ts`）。
 - **`ai:get-provider-secrets`** `({ providerId })` → `{ [field]: value }`
   - 使用 `ProviderService` 提供的 schema field key 列表 + `getAllSecrets(providerId, keys)` 读取。

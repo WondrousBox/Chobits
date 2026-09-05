@@ -9,6 +9,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSub, D
 import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { resolveProviderIdentity } from '@/lib/ai-provider-identity';
+import { filterUnconfiguredProviders } from '@/lib/ai-provider-visibility';
 
 // 支持的模型类型
 export type ModelType = 'chat' | 'embedding' | 'audio' | 'image' | 'tooling' | 'video' | 'vision' | 'realtime' | 'tool' | string;
@@ -17,6 +18,8 @@ type ProviderRow = {
   id: string;
   aliases?: string[];
   label: string;
+  // 是否已配置（ai:get-providers 返回，基于 hasUsablePreset）；undefined 表示老数据未返回，保持显示
+  configured?: boolean;
   capabilities?: {
     chat: boolean;
     embeddings: boolean;
@@ -240,6 +243,8 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
     const [loadingModels, setLoadingModels] = useState<Record<string, boolean>>({});
     const [searchQuery, setSearchQuery] = useState<string>('');
     const availableProviders = useMemo(() => (providerFilter ? providers.filter((provider) => providerFilter(provider)) : providers), [providerFilter, providers]);
+    // 未配置 key 的服务商在列表与搜索结果中隐藏；已选中值不受影响（显示逻辑回退到完整 providers，缺失时显示原始 id）
+    const selectableProviders = useMemo(() => filterUnconfiguredProviders(availableProviders), [availableProviders]);
     const resolvedProvider = useMemo(() => resolveProviderIdentity(availableProviders, providerId) || resolveProviderIdentity(providers, providerId), [availableProviders, providerId, providers]);
     const resolvedProviderId = resolvedProvider?.id || providerId;
     const currentModelsCacheKey = useMemo(() => getModelsCacheKey(resolvedProviderId, presetId), [resolvedProviderId, presetId]);
@@ -425,17 +430,17 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
       [loadModelsForProvider, loadingModels, modelsMap, onChange, presetId, resolvedProviderId]
     );
 
-    // 当有搜索内容时，自动加载所有服务商的模型（如果还没加载）
+    // 当有搜索内容时，自动加载所有可见服务商的模型（如果还没加载）
     useEffect(() => {
       if (searchQuery.trim()) {
-        availableProviders.forEach((p) => {
+        selectableProviders.forEach((p) => {
           const cacheKey = getModelsCacheKey(p.id, p.id === resolvedProviderId ? presetId : undefined);
           if (!modelsMap[cacheKey] && !loadingModels[cacheKey]) {
             void loadModelsForProvider(p.id);
           }
         });
       }
-    }, [searchQuery, availableProviders, modelsMap, loadingModels, loadModelsForProvider, presetId, resolvedProviderId]);
+    }, [searchQuery, selectableProviders, modelsMap, loadingModels, loadModelsForProvider, presetId, resolvedProviderId]);
 
     // 搜索匹配的模型
     const searchResults = useMemo(() => {
@@ -446,7 +451,7 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
       const query = searchQuery.trim().toLowerCase();
       const results: Array<{ provider: ProviderRow; model: ModelRow }> = [];
 
-      availableProviders.forEach((p) => {
+      selectableProviders.forEach((p) => {
         const cacheKey = getModelsCacheKey(p.id, p.id === resolvedProviderId ? presetId : undefined);
         const models = filterModelsByType(modelsMap[cacheKey] || [], modelTypes);
         models.forEach((model) => {
@@ -459,7 +464,7 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
       });
 
       return results;
-    }, [searchQuery, availableProviders, modelsMap, modelTypes, presetId, resolvedProviderId]);
+    }, [searchQuery, selectableProviders, modelsMap, modelTypes, presetId, resolvedProviderId]);
 
     // 获取当前选中的服务商和模型信息
     const currentProvider = resolvedProvider;
@@ -569,7 +574,7 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
               )}
             </div>
           ) : (
-            availableProviders.map((provider) => {
+            selectableProviders.map((provider) => {
               const providerCacheKey = getModelsCacheKey(provider.id, provider.id === resolvedProviderId ? presetId : undefined);
               const allModels = modelsMap[providerCacheKey] || [];
               const providerModels = filterModelsByType(allModels, modelTypes);

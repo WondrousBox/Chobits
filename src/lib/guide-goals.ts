@@ -4,7 +4,7 @@ import { CHAT_API_CONFIGURED_GUIDE_GOAL, type SpriteRoutineGuideGoalDefinition, 
 import { resolveProviderIdentity } from '@/lib/ai-provider-identity';
 
 const CHAT_API_CONFIG_GUIDE_PURPOSE_ID = 'chat.api-config-guide';
-const DEFAULT_CHAT_PROVIDER_ID = 'openai';
+const DEFAULT_CHAT_PROVIDER_ID = 'vllm';
 const DEFAULT_CHAT_API_FIELDS = ['apiKey'];
 const GUIDE_COOLDOWN_MS = 30_000;
 

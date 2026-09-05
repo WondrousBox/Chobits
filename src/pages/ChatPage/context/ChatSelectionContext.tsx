@@ -46,7 +46,7 @@ export function ChatSelectionProvider({ children }: { children: React.ReactNode 
   const [providerId, setProviderIdState] = useState<string>(() => localStorage.getItem(LS_KEYS.providerId) || DEFAULT_CHAT_PROVIDER_ID);
   const [modelId, setModelId] = useState<string>(() => localStorage.getItem(LS_KEYS.modelId) || '');
   const [presetId, setPresetIdState] = useState<string>(() => localStorage.getItem(LS_KEYS.presetId) || '');
-  const [agentId, setAgentId] = useState<string>(() => localStorage.getItem(LS_KEYS.agentId) || 'assistant');
+  const [agentId, setAgentId] = useState<string>(() => localStorage.getItem(LS_KEYS.agentId) || 'chat');
   const [codingWorkspaceRoot, setCodingWorkspaceRootState] = useState<string>(() => localStorage.getItem(LS_KEYS.codingWorkspaceRoot) || '');
   const [codingWorkspaceLabel, setCodingWorkspaceLabelState] = useState<string>(() => localStorage.getItem(LS_KEYS.codingWorkspaceLabel) || '');
   const [webSearchEnabled, setWebSearchEnabledState] = useState<boolean>(() => localStorage.getItem(LS_KEYS.webSearchEnabled) === 'true');

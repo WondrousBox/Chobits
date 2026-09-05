@@ -5,6 +5,7 @@ import { BrowserWindow, ipcMain } from 'electron';
 import { ChatRepo } from '../common/db';
 import { AppEvent, eventManager } from '../event';
 import { ChatService } from './chat-service';
+import { seedDefaultProviderPreset } from './preset-seed';
 import { createPreset, deletePreset, getPreset, getPresetSecrets, listPresets, resolveUsablePreset, setPresetSecrets } from './preset-service';
 import { PromptsStore } from './prompts-store';
 import { normalizeProviderPreset } from './provider-preset';
@@ -39,6 +40,9 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
     const location = warning.path ? `${warning.path}: ` : '';
     console.warn(`[ai][provider-plugin] ${location}${warning.message}`);
   }
+
+  // 新装用户种子一条内置 vLLM 默认 preset，首开聊天免配置 API Key（幂等）
+  await seedDefaultProviderPreset();
 
   const chat = new ChatService(win);
   const piExecutionService = new PiExecutionService();
