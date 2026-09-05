@@ -1,11 +1,11 @@
 /**
  * 全局功能旗标(主进程与渲染进程共享的纯定义,不依赖 electron)
  *
- * mini 分支只保留本地 AI 推理(sherpa 本地 ASR)开关;
+ * mini 分支保留本地 AI 推理(sherpa 本地 ASR)与调试模式开关;
  * 旗标存储于 preferences-config.json 的 featureFlags 字段。
  */
 
-export type FeatureKey = 'localAI';
+export type FeatureKey = 'localAI' | 'debugMode';
 
 export interface FeatureDefinition {
   key: FeatureKey;
@@ -20,6 +20,12 @@ export const FEATURE_DEFINITIONS: FeatureDefinition[] = [
     labelKey: 'settings:features.items.localAI.label',
     descriptionKey: 'settings:features.items.localAI.description',
     defaultEnabled: true
+  },
+  {
+    key: 'debugMode',
+    labelKey: 'settings:features.items.debugMode.label',
+    descriptionKey: 'settings:features.items.debugMode.description',
+    defaultEnabled: false
   }
 ];
 

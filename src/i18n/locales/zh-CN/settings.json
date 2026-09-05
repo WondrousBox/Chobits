@@ -78,6 +78,10 @@
       "localAI": {
         "label": "本地 AI 推理",
         "description": "本地语音识别(sherpa),无需联网但占用更多磁盘与内存"
+      },
+      "debugMode": {
+        "label": "调试模式",
+        "description": "开启后右键精灵菜单显示语音服务、调试测试等全部选项;关闭时只保留聊天、状态、设置、退出"
       }
     },
     "toast": {

@@ -14,6 +14,9 @@ const menuAnchor: { x: number; y: number } = { x: 300, y: 300 };
 /** 退出动画时长 (ms) */
 const EXIT_ANIMATION_DURATION = 450;
 
+// 调试模式关闭时只保留基础入口;开启后显示语音服务、调试测试等全部选项
+const BASIC_MENU_ITEM_IDS = ['chat', 'status', 'settings', 'quit'];
+
 const SpriteMenuPage: React.FC = () => {
   const { t } = useTranslation('chat');
   // 控制菜单显示状态，初始为 false，等待窗口显示事件后再展开
@@ -24,7 +27,7 @@ const SpriteMenuPage: React.FC = () => {
   const [isASRRunning, setIsASRRunning] = useState(false);
   const [isDebugOverlayEnabled, setIsDebugOverlayEnabled] = useState(false);
   const [bubbleMode, setBubbleMode] = useState<SpriteBubbleMode>('fixed-top');
-  const { isEnabled } = useFeatureFlags();
+  const { isEnabled, reload: reloadFeatureFlags } = useFeatureFlags();
 
   // 查询 ASR 服务状态
   const checkASRStatus = useCallback(async () => {
@@ -81,8 +84,8 @@ const SpriteMenuPage: React.FC = () => {
     }
   }, [isDebugOverlayEnabled, t]);
 
-  const menuItems: RadialMenuItem[] = useMemo(
-    () => [
+  const menuItems: RadialMenuItem[] = useMemo(() => {
+    const items: RadialMenuItem[] = [
       {
         id: 'quit',
         label: t('spriteMenu.quit'),
@@ -185,9 +188,12 @@ const SpriteMenuPage: React.FC = () => {
           window.chobits.window['window:open']('settings');
         }
       }
-    ],
-    [bubbleMode, isDebugOverlayEnabled, isASRRunning, isEnabled, setSpriteBubbleMode, toggleDebugOverlay, t]
-  );
+    ];
+    if (!isEnabled('debugMode')) {
+      return items.filter((item) => BASIC_MENU_ITEM_IDS.includes(item.id));
+    }
+    return items;
+  }, [bubbleMode, isDebugOverlayEnabled, isASRRunning, isEnabled, setSpriteBubbleMode, toggleDebugOverlay, t]);
 
   // 处理菜单关闭请求（播放退出动画后关闭窗口）
   const handleClose = useMemo(
@@ -214,7 +220,8 @@ const SpriteMenuPage: React.FC = () => {
       if (data.key !== 'menu') return;
 
       if (data.visible) {
-        // 窗口显示时，查询 ASR 状态并播放入场动画
+        // 窗口显示时，重新拉取功能旗标（调试模式等开关可能已在设置页变更），查询 ASR 状态并播放入场动画
+        void reloadFeatureFlags();
         void window.chobits.sprite.interact('context-menu', { open: true });
         checkASRStatus();
         checkDebugOverlay();
@@ -229,7 +236,7 @@ const SpriteMenuPage: React.FC = () => {
     };
 
     return window.chobits.window.onVisibilityChanged(handleVisibilityChange);
-  }, [checkASRStatus, checkBubbleMode, checkDebugOverlay]);
+  }, [checkASRStatus, checkBubbleMode, checkDebugOverlay, reloadFeatureFlags]);
 
   useEffect(() => {
     return () => {

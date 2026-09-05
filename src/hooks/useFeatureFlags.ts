@@ -16,34 +16,30 @@ export function useFeatureFlags(): {
   isLoading: boolean;
   isEnabled: (key: FeatureKey) => boolean;
   setFeatureFlag: (key: FeatureKey, enabled: boolean) => Promise<void>;
+  /** 重新拉取旗标（持久窗口再次显示时调用，拿到最新开关状态） */
+  reload: () => Promise<void>;
 } {
   const [flags, setFlags] = useState<Record<FeatureKey, boolean>>(() => resolveFeatureFlags());
   const [isLoading, setIsLoading] = useState(true);
   const { t } = useTranslation('settings');
 
-  useEffect(() => {
-    let disposed = false;
-
-    const load = async (): Promise<void> => {
-      try {
-        const result = await window.chobits.preferences['preferences:get-config']();
-        if (!disposed && result.ok && result.config) {
-          setFlags(resolveFeatureFlags(result.config.featureFlags));
-        }
-      } catch (error) {
-        console.warn('[FeatureFlags] failed to load feature flags:', error);
-      } finally {
-        if (!disposed) {
-          setIsLoading(false);
-        }
+  const load = useCallback(async (): Promise<void> => {
+    try {
+      const result = await window.chobits.preferences['preferences:get-config']();
+      if (result.ok && result.config) {
+        setFlags(resolveFeatureFlags(result.config.featureFlags));
       }
-    };
-
-    void load();
-    return () => {
-      disposed = true;
-    };
+    } catch (error) {
+      console.warn('[FeatureFlags] failed to load feature flags:', error);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 挂载时异步加载旗标,setState 均在 await 之后
+    void load();
+  }, [load]);
 
   const isEnabled = useCallback((key: FeatureKey): boolean => flags[key], [flags]);
 
@@ -69,5 +65,5 @@ export function useFeatureFlags(): {
     [flags, t]
   );
 
-  return { definitions: FEATURE_DEFINITIONS, flags, isLoading, isEnabled, setFeatureFlag };
+  return { definitions: FEATURE_DEFINITIONS, flags, isLoading, isEnabled, setFeatureFlag, reload: load };
 }

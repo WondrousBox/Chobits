@@ -78,6 +78,10 @@
       "localAI": {
         "label": "Local AI Inference",
         "description": "Local speech recognition (sherpa); works offline but uses more disk and memory"
+      },
+      "debugMode": {
+        "label": "Debug Mode",
+        "description": "When enabled, the sprite's right-click menu shows all options including voice service and debug tools; when disabled, only Chat, Status, Settings, and Quit are shown"
       }
     },
     "toast": {
