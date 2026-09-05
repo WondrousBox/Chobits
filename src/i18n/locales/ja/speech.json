@@ -32,6 +32,7 @@
       "auto": "自動（キャラクターの言語に従う）",
       "zh": "中国語",
       "ja": "日本語",
+      "en": "英語",
       "description": "自動の場合はキャラクター定義の言語に従います。テキストの言語と読み上げ言語が一致しない場合は、先に LLM で翻訳してから読み上げます。吹き出しには原文が表示され、会話のリアルタイム読み上げにも適用されます。"
     },
     "volume": {
@@ -103,13 +104,34 @@
       "title": "許可するカテゴリ",
       "hint": "生成できる範囲を失わないよう、少なくとも1つのカテゴリを残してください。",
       "options": {
-        "encouragement": { "label": "励まし", "description": "励まして前に進む内容に重点" },
-        "reminder": { "label": "リマインダー", "description": "タスク、ペース、注意点をさりげなくリマインド" },
-        "empathy": { "label": "共感", "description": "慰めと寄り添いを重視" },
-        "planning": { "label": "計画", "description": "次のステップや計画の提案に重点" },
-        "reflection": { "label": "内省", "description": "気づきや自己観察に重点" },
-        "philosophy": { "label": "哲学的", "description": "短いひとことの気づきに重点" },
-        "playful": { "label": "面白い", "description": "軽い冗談やユーモアのある表現に重点" }
+        "encouragement": {
+          "label": "励まし",
+          "description": "励まして前に進む内容に重点"
+        },
+        "reminder": {
+          "label": "リマインダー",
+          "description": "タスク、ペース、注意点をさりげなくリマインド"
+        },
+        "empathy": {
+          "label": "共感",
+          "description": "慰めと寄り添いを重視"
+        },
+        "planning": {
+          "label": "計画",
+          "description": "次のステップや計画の提案に重点"
+        },
+        "reflection": {
+          "label": "内省",
+          "description": "気づきや自己観察に重点"
+        },
+        "philosophy": {
+          "label": "哲学的",
+          "description": "短いひとことの気づきに重点"
+        },
+        "playful": {
+          "label": "面白い",
+          "description": "軽い冗談やユーモアのある表現に重点"
+        }
       }
     },
     "history": {

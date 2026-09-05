@@ -32,6 +32,7 @@
       "auto": "自动（跟随角色语言）",
       "zh": "中文",
       "ja": "日文",
+      "en": "英文",
       "description": "自动时跟随角色定义的语言；文本语言与朗读语言不一致时先用 LLM 翻译再朗读，气泡仍显示原文；对话实时朗读同样生效。"
     },
     "volume": {
@@ -103,13 +104,34 @@
       "title": "允许类别",
       "hint": "至少保留一个类别，避免精灵失去可生成范围。",
       "options": {
-        "encouragement": { "label": "鼓励", "description": "更偏向打气和继续前进" },
-        "reminder": { "label": "提醒", "description": "轻量提醒任务、节奏和注意点" },
-        "empathy": { "label": "共情", "description": "更关注安抚和陪伴感" },
-        "planning": { "label": "计划", "description": "更偏向下一步和安排建议" },
-        "reflection": { "label": "反思", "description": "更偏向感悟和自我观察" },
-        "philosophy": { "label": "哲思", "description": "更偏向一句短感悟" },
-        "playful": { "label": "有趣", "description": "更偏向轻松玩笑和俏皮表达" }
+        "encouragement": {
+          "label": "鼓励",
+          "description": "更偏向打气和继续前进"
+        },
+        "reminder": {
+          "label": "提醒",
+          "description": "轻量提醒任务、节奏和注意点"
+        },
+        "empathy": {
+          "label": "共情",
+          "description": "更关注安抚和陪伴感"
+        },
+        "planning": {
+          "label": "计划",
+          "description": "更偏向下一步和安排建议"
+        },
+        "reflection": {
+          "label": "反思",
+          "description": "更偏向感悟和自我观察"
+        },
+        "philosophy": {
+          "label": "哲思",
+          "description": "更偏向一句短感悟"
+        },
+        "playful": {
+          "label": "有趣",
+          "description": "更偏向轻松玩笑和俏皮表达"
+        }
       }
     },
     "history": {

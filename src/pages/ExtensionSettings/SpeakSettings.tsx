@@ -259,6 +259,7 @@ export const SpeakDetailContent: React.FC<{ state: SpeakSettingsState }> = ({ st
                 <SelectItem value="auto">{t('speak.speechLanguage.auto')}</SelectItem>
                 <SelectItem value="zh">{t('speak.speechLanguage.zh')}</SelectItem>
                 <SelectItem value="ja">{t('speak.speechLanguage.ja')}</SelectItem>
+                <SelectItem value="en">{t('speak.speechLanguage.en')}</SelectItem>
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">{t('speak.speechLanguage.description')}</p>

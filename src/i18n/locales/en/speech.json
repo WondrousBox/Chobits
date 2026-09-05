@@ -32,6 +32,7 @@
       "auto": "Auto (follow character language)",
       "zh": "Chinese",
       "ja": "Japanese",
+      "en": "English",
       "description": "When set to auto, it follows the language defined by the character. If the text language differs from the reading language, the text is translated with an LLM before being read aloud; the bubble still shows the original text. This also applies to real-time conversation reading."
     },
     "volume": {
@@ -103,13 +104,34 @@
       "title": "Allowed Categories",
       "hint": "Keep at least one category so the sprite retains a generatable scope.",
       "options": {
-        "encouragement": { "label": "Encouragement", "description": "Leans toward cheering you on and keeping you moving" },
-        "reminder": { "label": "Reminder", "description": "Lightly reminds you of tasks, pace, and points to note" },
-        "empathy": { "label": "Empathy", "description": "Focuses more on comfort and companionship" },
-        "planning": { "label": "Planning", "description": "Leans toward next steps and scheduling suggestions" },
-        "reflection": { "label": "Reflection", "description": "Leans toward insights and self-observation" },
-        "philosophy": { "label": "Philosophy", "description": "Leans toward a short insight" },
-        "playful": { "label": "Playful", "description": "Leans toward light jokes and witty expression" }
+        "encouragement": {
+          "label": "Encouragement",
+          "description": "Leans toward cheering you on and keeping you moving"
+        },
+        "reminder": {
+          "label": "Reminder",
+          "description": "Lightly reminds you of tasks, pace, and points to note"
+        },
+        "empathy": {
+          "label": "Empathy",
+          "description": "Focuses more on comfort and companionship"
+        },
+        "planning": {
+          "label": "Planning",
+          "description": "Leans toward next steps and scheduling suggestions"
+        },
+        "reflection": {
+          "label": "Reflection",
+          "description": "Leans toward insights and self-observation"
+        },
+        "philosophy": {
+          "label": "Philosophy",
+          "description": "Leans toward a short insight"
+        },
+        "playful": {
+          "label": "Playful",
+          "description": "Leans toward light jokes and witty expression"
+        }
       }
     },
     "history": {
