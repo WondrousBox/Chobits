@@ -6,9 +6,18 @@ on:
   pull_request:
     branches: [main, develop]
 
+permissions:
+  contents: read
+
+# 同一分支重复推送时取消进行中的旧 run，节省 runner 资源
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   quality:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout Code

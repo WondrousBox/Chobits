@@ -1,0 +1,56 @@
+name: 🐞 Bug report
+description: 报告问题以帮助我们改进
+title: '[Bug] '
+labels: [bug]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: 问题描述
+      description: 清晰描述遇到的问题，以及期望的行为是什么
+    validations:
+      required: true
+
+  - type: input
+    id: app-version
+    attributes:
+      label: App 版本
+      description: 设置页面或关于对话框中显示的版本号
+      placeholder: 1.0.0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: 操作系统
+      options:
+        - macOS
+        - Windows
+        - Linux
+    validations:
+      required: true
+
+  - type: input
+    id: os-version
+    attributes:
+      label: 系统版本
+      description: 如 macOS 15.1 / Windows 11 23H2 / Ubuntu 24.04
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: 复现步骤
+      description: 如何稳定复现该问题
+      placeholder: |
+        1. 打开……
+        2. 点击……
+        3. 出现……
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 相关日志或截图
+      description: 如有报错截图、日志请粘贴在此

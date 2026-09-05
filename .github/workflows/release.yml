@@ -11,11 +11,19 @@ on:
 permissions:
   contents: write
 
+# 同一 tag 重复推送时串行执行；不取消进行中的发布，避免发布到一半被截断
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
 
     strategy:
+      # 三平台并发向同一 Release 上传：任一平台失败不取消其余平台，否则已上传产物的平台无法重跑，留下残缺 Release
+      fail-fast: false
       matrix:
         os: [macos-latest, ubuntu-latest, windows-latest]
 
@@ -25,6 +33,18 @@ jobs:
         with:
           # 拉取 Git LFS 对象（webm/png/onnx 等二进制资源），否则 checkout 出来的是 LFS 指针文件
           lfs: true
+
+      # tag 必须与 package.json 的 version 一致，否则 electron-updater 的 latest*.yml 元数据会错乱
+      # 显式 shell: bash —— Windows runner 的 run 默认是 pwsh，不支持 ${VAR#v} 这种 bash 参数展开
+      - name: Verify Tag Matches package.json Version
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG=$(node -p "require('./package.json').version")
+          if [ "$TAG" != "$PKG" ]; then
+            echo "tag v$TAG 与 package.json version $PKG 不一致，请先 bump version 再打 tag"
+            exit 1
+          fi
 
       # Windows 上 standalone 安装 pnpm.exe：app-builder（electron-builder）会直接 exec pnpm 二进制，
       # 非 standalone 的 pnpm.mjs 无法直接执行（%1 is not a valid Win32 application）

@@ -11,9 +11,18 @@ on:
       - '.github/**'
       - '!.github/workflows/build.yml'
 
+permissions:
+  contents: read
+
+# 同一分支重复推送时取消进行中的旧 run，节省 runner 资源
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
 
     strategy:
       matrix:
@@ -37,6 +46,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: pnpm
 
       # postinstall（electron-builder install-app-deps）会在 Linux 上编译 keytar/uiohook-napi 等原生依赖
       - name: Install Native Build Dependencies
