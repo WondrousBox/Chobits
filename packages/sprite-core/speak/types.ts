@@ -7,8 +7,8 @@ import type { SpeechSynthesisRequest, SpeechSynthesisResponse, SpeechSynthesisSt
 export type SpeakServiceType = 'Edge' | string;
 export type SpriteSpeakEngine = 'edge' | 'ai-provider';
 
-/** 朗读语言：auto = 跟随角色定义的语言（无法识别则不翻译）；zh/ja = 朗读前按需翻译成目标语言（手动覆盖角色语言） */
-export type SpriteSpeechLanguage = 'auto' | 'zh' | 'ja';
+/** 朗读语言：auto = 跟随角色定义的语言（无法识别则不翻译）；zh/ja/en = 朗读前按需翻译成目标语言（手动覆盖角色语言） */
+export type SpriteSpeechLanguage = 'auto' | 'zh' | 'ja' | 'en';
 
 export type SpriteRealtimeSpeechSource = 'chat';
 export type SpriteRealtimeSpeechScope = 'mainChat';
@@ -148,7 +148,7 @@ export interface SpriteSpeechSynthesisExecutor {
 
 /** 说话前文本翻译器（由主进程注入；不可用时 SpeakService 降级为原文合成） */
 export interface SpriteSpeechTextTranslator {
-  translate(req: { text: string; sourceLang: 'zh' | 'ja'; targetLang: 'zh' | 'ja' }): Promise<string>;
+  translate(req: { text: string; sourceLang: 'zh' | 'ja' | 'en'; targetLang: 'zh' | 'ja' | 'en' }): Promise<string>;
   /** 最近一次翻译实际使用的后端（provider/模型），由实现方更新，仅用于日志 */
   lastBackend?: { providerId: string; model?: string };
 }

@@ -66,8 +66,16 @@ describe('normalizeCharacterSpeechLanguage', () => {
     expect(normalizeCharacterSpeechLanguage('Japanese')).toBe('ja');
   });
 
+  it('normalizes English aliases to en', () => {
+    expect(normalizeCharacterSpeechLanguage('en')).toBe('en');
+    expect(normalizeCharacterSpeechLanguage('en-US')).toBe('en');
+    expect(normalizeCharacterSpeechLanguage('EN')).toBe('en');
+    expect(normalizeCharacterSpeechLanguage('English')).toBe('en');
+    expect(normalizeCharacterSpeechLanguage('英语')).toBe('en');
+    expect(normalizeCharacterSpeechLanguage('英文')).toBe('en');
+  });
+
   it('returns undefined for unrecognized or empty values', () => {
-    expect(normalizeCharacterSpeechLanguage('en-US')).toBeUndefined();
     expect(normalizeCharacterSpeechLanguage('Klingon')).toBeUndefined();
     expect(normalizeCharacterSpeechLanguage('')).toBeUndefined();
     expect(normalizeCharacterSpeechLanguage('   ')).toBeUndefined();
@@ -90,8 +98,21 @@ describe('detectSpeechTextLanguage', () => {
     expect(detectSpeechTextLanguage('文件整理好了')).toBe('zh');
   });
 
+  it('detects English when text has Latin letters without kana or CJK', () => {
+    expect(detectSpeechTextLanguage('hello world')).toBe('en');
+    expect(detectSpeechTextLanguage('Good morning, master.')).toBe('en');
+    expect(detectSpeechTextLanguage('version 2.0 released')).toBe('en');
+    expect(detectSpeechTextLanguage('Café au lait')).toBe('en');
+  });
+
+  it('keeps kana/CJK priority over Latin letters', () => {
+    // 日文混英文仍以假名为准
+    expect(detectSpeechTextLanguage('hello おはよう')).toBe('ja');
+    // 中文无假名时优先判 zh，不落入拉丁检测
+    expect(detectSpeechTextLanguage('hello 你好')).toBe('zh');
+  });
+
   it('returns undefined for other or empty text', () => {
-    expect(detectSpeechTextLanguage('hello world')).toBeUndefined();
     expect(detectSpeechTextLanguage('12345')).toBeUndefined();
     expect(detectSpeechTextLanguage('')).toBeUndefined();
     expect(detectSpeechTextLanguage('   ')).toBeUndefined();
@@ -100,7 +121,7 @@ describe('detectSpeechTextLanguage', () => {
 
 describe('SpeakConfigStore speechLanguage normalization', () => {
   it('falls back to auto for missing or invalid speechLanguage values', () => {
-    for (const raw of [undefined, 'auto', 'en', 'JA', '', 123]) {
+    for (const raw of [undefined, 'auto', 'JA', '', 123]) {
       const dataDir = makeTempDir();
       const configDir = path.join(dataDir, 'data');
       mkdirSync(configDir, { recursive: true });
@@ -118,13 +139,14 @@ describe('SpeakConfigStore speechLanguage normalization', () => {
     }
   });
 
-  it('keeps valid zh/ja speechLanguage values', () => {
+  it('keeps valid zh/ja/en speechLanguage values', () => {
     const dataDir = makeTempDir();
     const store = new SpeakConfigStore(dataDir);
     store.load();
 
     expect(store.setConfig({ aiProvider: makeAIProviderConfig({ speechLanguage: 'ja' }) }).aiProvider?.speechLanguage).toBe('ja');
     expect(store.setConfig({ aiProvider: makeAIProviderConfig({ speechLanguage: 'zh' }) }).aiProvider?.speechLanguage).toBe('zh');
+    expect(store.setConfig({ aiProvider: makeAIProviderConfig({ speechLanguage: 'en' }) }).aiProvider?.speechLanguage).toBe('en');
   });
 });
 
@@ -165,6 +187,21 @@ describe('SpeakService speech language translation', () => {
     expect(cached).toMatchObject({ fromCache: true, ok: true });
     expect(translate).toHaveBeenCalledTimes(1);
     expect(synthesize).toHaveBeenCalledTimes(1);
+  });
+
+  it('translates English text before synthesis when speechLanguage is ja', async () => {
+    const dataDir = makeTempDir();
+    const synthesize = makeSynthesize();
+    const translate = vi.fn<SpriteSpeechTextTranslator['translate']>(async () => 'おはよう');
+    const service = new SpeakService(dataDir, { synthesize }, { translate });
+
+    service.setConfig({ engine: 'ai-provider', aiProvider: makeAIProviderConfig({ speechLanguage: 'ja' }) });
+
+    const result = await service.synthesize('Good morning');
+
+    expect(result.ok).toBe(true);
+    expect(translate).toHaveBeenCalledWith({ sourceLang: 'en', targetLang: 'ja', text: 'Good morning' });
+    expect(synthesize).toHaveBeenCalledWith(expect.objectContaining({ language: 'ja', text: 'おはよう' }));
   });
 
   it('skips translation when text already matches the target language', async () => {
@@ -277,6 +314,27 @@ describe('SpeakService character speech language', () => {
       expect(synthesize).toHaveBeenCalledWith(expect.objectContaining({ language: undefined, text: '早上好' }));
     }
   );
+
+  it('translates to en driven by the character language, skipping English text', async () => {
+    const dataDir = makeTempDir();
+    const synthesize = makeSynthesize();
+    const translate = vi.fn<SpriteSpeechTextTranslator['translate']>(async () => 'Good morning');
+    const service = new SpeakService(dataDir, { synthesize }, { translate }, () => 'en-US');
+
+    service.setConfig({ engine: 'ai-provider', aiProvider: makeAIProviderConfig({ speechLanguage: 'auto' }) });
+
+    // 英文文本已是目标语言，不翻译
+    const english = await service.synthesize('Good morning, master');
+    expect(english.ok).toBe(true);
+    expect(translate).not.toHaveBeenCalled();
+    expect(synthesize).toHaveBeenCalledWith(expect.objectContaining({ language: 'en', text: 'Good morning, master' }));
+
+    // 中文文本翻译成英文
+    const chinese = await service.synthesize('早上好');
+    expect(chinese.ok).toBe(true);
+    expect(translate).toHaveBeenCalledWith({ sourceLang: 'zh', targetLang: 'en', text: '早上好' });
+    expect(synthesize).toHaveBeenCalledWith(expect.objectContaining({ language: 'en', text: 'Good morning' }));
+  });
 
   it('manual zh overrides the character ja language', async () => {
     const dataDir = makeTempDir();

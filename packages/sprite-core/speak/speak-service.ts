@@ -396,7 +396,7 @@ class RealtimeSpeechSessionImpl implements SpriteRealtimeSpeechSession {
   private readonly executor: SpriteSpeechSynthesisExecutor;
   private readonly inputQueue = new SpeechTextInputQueue();
   private readonly realtimeConfig: SpriteSpeakRealtimeSpeechConfig;
-  private readonly resolveSpeechLanguage: () => 'zh' | 'ja' | undefined;
+  private readonly resolveSpeechLanguage: () => 'zh' | 'ja' | 'en' | undefined;
   private readonly strategies: RealtimeSpeechStrategy[];
   private readonly source: string;
   private readonly textParser: RealtimeSpeechTextParser;
@@ -417,7 +417,7 @@ class RealtimeSpeechSessionImpl implements SpriteRealtimeSpeechSession {
     emit: (event: SpriteRealtimeSpeechEvent) => void;
     executor: SpriteSpeechSynthesisExecutor;
     realtimeConfig: SpriteSpeakRealtimeSpeechConfig;
-    resolveSpeechLanguage: () => 'zh' | 'ja' | undefined;
+    resolveSpeechLanguage: () => 'zh' | 'ja' | 'en' | undefined;
     scope: SpriteRealtimeSpeechScope;
     sessionId: string;
     source: string;
@@ -1327,12 +1327,12 @@ export class SpeakService {
   }
 
   /**
-   * 有效朗读语言：手动设置 zh/ja 优先（手动覆盖）；
+   * 有效朗读语言：手动设置 zh/ja/en 优先（手动覆盖）；
    * 否则（auto/未设置）跟随角色定义的 speechStyle.language；
    * 都无法识别时视为 auto（不翻译）。
    */
-  private resolveEffectiveSpeechLanguage(aiProvider: SpriteSpeakAIProviderConfig): 'zh' | 'ja' | undefined {
-    if (aiProvider.speechLanguage === 'zh' || aiProvider.speechLanguage === 'ja') {
+  private resolveEffectiveSpeechLanguage(aiProvider: SpriteSpeakAIProviderConfig): 'zh' | 'ja' | 'en' | undefined {
+    if (aiProvider.speechLanguage === 'zh' || aiProvider.speechLanguage === 'ja' || aiProvider.speechLanguage === 'en') {
       return aiProvider.speechLanguage;
     }
     return normalizeCharacterSpeechLanguage(this.characterSpeechLanguageResolver?.());
@@ -1396,7 +1396,7 @@ export class SpeakService {
     }
   }
 
-  private degradeToOriginalText(text: string, sourceLang: 'zh' | 'ja', targetLang: SpriteSpeechLanguage, reason: string): { text: string; language: string } {
+  private degradeToOriginalText(text: string, sourceLang: 'zh' | 'ja' | 'en', targetLang: SpriteSpeechLanguage, reason: string): { text: string; language: string } {
     // 同一进程内降级只 warn 一次，避免刷屏；后续的用 console.log 记录
     const payload = { reason, sourceLang, sourceText: text, targetLang };
     if (this.translationFallbackWarned) {

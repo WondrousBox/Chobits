@@ -5,7 +5,9 @@
  * 不一致时，把原文发给自部署的翻译服务，拿到译文后再送 TTS。
  *
  * 服务端（serve.py 门面）按 OpenAI 兼容协议的 model 名路由：model 固定
- * chi-translate，翻译方向由服务端自动判断（含假名 → ja2zh，否则 zh2ja）；
+ * chi-translate，请求体顶层带 target_lang 显式指定目标语言（zh/ja/en），
+ * 新版服务端按 (source, target) 拼指令；旧版服务端忽略该字段，翻译方向
+ * 由假名启发式自动判断（含假名 → ja2zh，否则 zh2ja）。
  * 翻译的 system prompt 与译名表（ちぃ↔小叽、ひでき↔秀树等）全部收敛在
  * 服务端内部，客户端只做透传。
  *
@@ -83,7 +85,10 @@ export function createSpriteSpeechTextTranslator(): SpriteSpeechTextTranslator {
         body: JSON.stringify({
           messages: [{ content: text, role: 'user' }],
           model: TRANSLATE_MODEL,
-          stream: false
+          stream: false,
+          // 显式目标语言：新版服务端按 (source, target) 拼指令并跳过假名启发式；
+          // 旧版服务端忽略未知字段，退化为假名启发式路由（含假名 → ja2zh，否则 zh2ja）
+          target_lang: targetLang
         }),
         headers: {
           Authorization: `Bearer ${apiKey}`,

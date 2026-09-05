@@ -78,11 +78,12 @@ describe('speech text translator gateway', () => {
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe(GATEWAY_URL);
     expect(init.method).toBe('POST');
-    // 方向由服务端按内容自动判断，客户端只透传原文
+    // 客户端透传原文并显式带上 target_lang；旧版服务端忽略该字段按假名启发式判断方向
     expect(JSON.parse(String(init.body))).toEqual({
       messages: [{ content: '早上好', role: 'user' }],
       model: 'chi-translate',
-      stream: false
+      stream: false,
+      target_lang: 'ja'
     });
     expect(init.headers).toMatchObject({ Authorization: 'Bearer gateway-key' });
     expect(init.signal).toBeInstanceOf(AbortSignal);
