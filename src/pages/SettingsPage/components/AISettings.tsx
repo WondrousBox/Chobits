@@ -25,7 +25,7 @@ type ProviderRow = {
   };
 };
 type Preset = { id: string; providerId: string; name: string; systemPrompt?: string; overrides?: Record<string, any>; enabledTools?: string[]; createdAt?: number };
-type ModelOpt = { id: string; label?: string; type?: string; context?: number; pricing?: any; tags?: string[]; description?: string; free?: boolean };
+type ModelOpt = { id: string; label?: string; type?: string; context?: number; pricing?: any; tags?: string[]; free?: boolean };
 
 // 自托管 provider 置顶分组
 const SELF_HOSTED_PROVIDER_IDS = new Set(['gpt-sovits', 'vllm']);

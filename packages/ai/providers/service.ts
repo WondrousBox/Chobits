@@ -26,7 +26,6 @@ export interface ProviderRuntimeModelInfo {
   };
   capabilities?: Record<string, boolean>;
   tags?: string[];
-  description?: string;
   [k: string]: any;
 }
 
@@ -185,8 +184,7 @@ function toProviderRuntimeModelInfo(providerId: string, model: ProviderModelDefi
     context: model.contextWindowTokens,
     pricing: resolveRuntimeModelPricing(model),
     capabilities: resolveRuntimeModelCapabilities(providerId, model),
-    tags: model.tags || [],
-    description: model.description
+    tags: model.tags || []
   };
 }
 

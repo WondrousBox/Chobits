@@ -185,7 +185,6 @@ const TTSConfigPage: React.FC = () => {
                           {isRecommended && <span className="text-xs text-primary shrink-0">{t('config.recommended')}</span>}
                           {!model.isInstalled && <span className="text-xs text-muted-foreground shrink-0">{t('config.notInstalled')}</span>}
                         </div>
-                        {model.description && <div className="text-xs text-muted-foreground leading-relaxed break-words">{model.description}</div>}
                       </div>
                     </SelectItem>
                   );

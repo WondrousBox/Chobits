@@ -724,7 +724,6 @@ const ASRConfigPage: React.FC = () => {
                                             {!model.isInstalled && <span className="text-xs text-muted-foreground shrink-0">{t('advanced.notInstalled')}</span>}
                                           </div>
                                           {supportedLanguages.length > 0 && <div className="text-xs text-muted-foreground">{t('advanced.supportedLanguages', { languages: languageDisplay })}</div>}
-                                          {model.description && <div className="text-xs text-muted-foreground leading-relaxed break-words">{model.description}</div>}
                                         </div>
                                       </SelectItem>
                                     );
@@ -749,7 +748,6 @@ const ASRConfigPage: React.FC = () => {
                                               {!model.isInstalled && <span className="text-xs text-muted-foreground shrink-0">{t('advanced.notInstalled')}</span>}
                                             </div>
                                             {supportedLanguages.length > 0 && <div className="text-xs text-muted-foreground">{t('advanced.supportedLanguages', { languages: languageDisplay })}</div>}
-                                            {model.description && <div className="text-xs text-muted-foreground leading-relaxed break-words">{model.description}</div>}
                                           </div>
                                         </SelectItem>
                                       );
@@ -863,7 +861,6 @@ const ASRConfigPage: React.FC = () => {
                                               <span className="font-medium break-words">{model.displayName || model.name}</span>
                                               {!model.isInstalled && <span className="text-xs text-muted-foreground shrink-0">{t('advanced.notInstalled')}</span>}
                                             </div>
-                                            {model.description && <div className="text-xs text-muted-foreground leading-relaxed break-words">{model.description}</div>}
                                           </div>
                                         </SelectItem>
                                       ))}
@@ -881,7 +878,6 @@ const ASRConfigPage: React.FC = () => {
                                                 <span className="font-medium break-words">{model.displayName || model.name}</span>
                                                 {!model.isInstalled && <span className="text-xs text-muted-foreground shrink-0">{t('advanced.notInstalled')}</span>}
                                               </div>
-                                              {model.description && <div className="text-xs text-muted-foreground leading-relaxed break-words">{model.description}</div>}
                                             </div>
                                           </SelectItem>
                                         ))}

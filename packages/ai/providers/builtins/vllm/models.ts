@@ -6,7 +6,6 @@ import type { ProviderModelDefinition } from '../../model-types';
 
 const vllmChatModels: ProviderModelDefinition[] = [
   {
-    description: 'Chi 对话模型（serve.py 门面路由：注入 chi_system.md，固定 temp 0.4 / freq_pen 0.8）。',
     displayName: 'Chi Chat',
     enabled: true,
     id: 'chi-chat',
@@ -14,7 +13,6 @@ const vllmChatModels: ProviderModelDefinition[] = [
     type: 'chat'
   },
   {
-    description: 'Chi 翻译模型（serve.py 门面路由：中日互译，自动判断方向，temp 0.2）。',
     displayName: 'Chi Translate',
     enabled: true,
     id: 'chi-translate',

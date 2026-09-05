@@ -2,7 +2,6 @@ import type { ImageProviderModelCard } from '../../model-types';
 
 export const gpteamImageModels: ImageProviderModelCard[] = [
   {
-    description: 'GPTeam default image model for text-to-image generation, image-to-image, and image editing.',
     displayName: 'GPT Image 2',
     enabled: true,
     id: 'gpt-image-2',

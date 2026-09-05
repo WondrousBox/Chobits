@@ -21,7 +21,6 @@ const minimaxChatModels: ProviderModelDefinition[] = [
       vision: true
     },
     contextWindowTokens: 1_000_000,
-    description: 'MiniMax-M3 是原生多模态、1M 上下文的 Frontier Coding 模型，适用于 Agent 推理、工具调用、代码和长上下文任务。',
     displayName: 'MiniMax-M3',
     enabled: true,
     id: 'MiniMax-M3',
@@ -35,7 +34,6 @@ const minimaxChatModels: ProviderModelDefinition[] = [
       reasoning: true
     },
     contextWindowTokens: 204_800,
-    description: 'MiniMax-M2.7 开启模型的自我迭代，适用于 Agent、代码和复杂任务，输出速度约 60 TPS。',
     displayName: 'MiniMax-M2.7',
     enabled: true,
     id: 'MiniMax-M2.7',
@@ -49,7 +47,6 @@ const minimaxChatModels: ProviderModelDefinition[] = [
       reasoning: true
     },
     contextWindowTokens: 204_800,
-    description: 'MiniMax-M2.7-highspeed 是 M2.7 极速版，效果不变，输出速度约 100 TPS。',
     displayName: 'MiniMax-M2.7 Highspeed',
     enabled: true,
     id: 'MiniMax-M2.7-highspeed',
@@ -63,7 +60,6 @@ const minimaxChatModels: ProviderModelDefinition[] = [
       reasoning: true
     },
     contextWindowTokens: 204_800,
-    description: 'MiniMax-M2.5 兼顾顶尖性能与极致性价比，适合复杂任务，输出速度约 60 TPS。',
     displayName: 'MiniMax-M2.5',
     enabled: true,
     id: 'MiniMax-M2.5',
@@ -77,7 +73,6 @@ const minimaxChatModels: ProviderModelDefinition[] = [
       reasoning: true
     },
     contextWindowTokens: 204_800,
-    description: 'MiniMax-M2.5-highspeed 是 M2.5 极速版，效果不变，输出速度约 100 TPS。',
     displayName: 'MiniMax-M2.5 Highspeed',
     enabled: true,
     id: 'MiniMax-M2.5-highspeed',
@@ -91,7 +86,6 @@ const minimaxChatModels: ProviderModelDefinition[] = [
       reasoning: true
     },
     contextWindowTokens: 204_800,
-    description: 'MiniMax-M2.1 具备强大的多语言编程能力，适合代码工程与复杂任务，输出速度约 60 TPS。',
     displayName: 'MiniMax-M2.1',
     enabled: true,
     id: 'MiniMax-M2.1',
@@ -105,7 +99,6 @@ const minimaxChatModels: ProviderModelDefinition[] = [
       reasoning: true
     },
     contextWindowTokens: 204_800,
-    description: 'MiniMax-M2.1-highspeed 是 M2.1 极速版，效果不变，输出速度约 100 TPS。',
     displayName: 'MiniMax-M2.1 Highspeed',
     enabled: true,
     id: 'MiniMax-M2.1-highspeed',
@@ -119,7 +112,6 @@ const minimaxChatModels: ProviderModelDefinition[] = [
       reasoning: true
     },
     contextWindowTokens: 204_800,
-    description: 'MiniMax-M2 专为高效编码与 Agent 工作流而生。',
     displayName: 'MiniMax-M2',
     enabled: true,
     id: 'MiniMax-M2',
@@ -129,7 +121,6 @@ const minimaxChatModels: ProviderModelDefinition[] = [
   },
   {
     contextWindowTokens: 65_536,
-    description: 'M2-her 是 MiniMax 专为对话场景优化的模型，支持角色扮演和多轮对话。',
     displayName: 'M2-her',
     enabled: true,
     id: 'M2-her',
@@ -140,7 +131,6 @@ const minimaxChatModels: ProviderModelDefinition[] = [
 
 const minimaxMusicModels: ProviderModelDefinition[] = [
   {
-    description: 'MiniMax 音乐生成模型，支持根据提示词和歌词生成完整音乐。',
     displayName: 'Music 2.6',
     enabled: true,
     id: 'music-2.6',
@@ -148,7 +138,6 @@ const minimaxMusicModels: ProviderModelDefinition[] = [
     type: 'text2music'
   },
   {
-    description: 'MiniMax 音乐生成免费模型，适合低成本验证音乐生成链路。',
     displayName: 'Music 2.6 Free',
     enabled: true,
     free: true,
@@ -157,7 +146,6 @@ const minimaxMusicModels: ProviderModelDefinition[] = [
     type: 'text2music'
   },
   {
-    description: 'MiniMax 翻唱/参考音频音乐模型，适合 cover 类生成。',
     displayName: 'Music Cover',
     enabled: true,
     id: 'music-cover',
@@ -165,7 +153,6 @@ const minimaxMusicModels: ProviderModelDefinition[] = [
     type: 'text2music'
   },
   {
-    description: 'MiniMax 翻唱/参考音频免费模型，适合验证 cover 类音乐生成。',
     displayName: 'Music Cover Free',
     enabled: true,
     free: true,
@@ -224,7 +211,6 @@ const minimaxSpeech2RealtimeDisplayTextFilter = {
 
 const minimaxSpeechModels: ProviderModelDefinition[] = [
   {
-    description: 'MiniMax 低延迟语音合成模型，支持 HTTP 非流式、HTTP 流式和 WebSocket 会话式 T2A。',
     displayName: 'Speech 2.8 Turbo',
     enabled: true,
     id: 'speech-2.8-turbo',
@@ -243,7 +229,6 @@ const minimaxSpeechModels: ProviderModelDefinition[] = [
     type: 'tts'
   },
   {
-    description: 'MiniMax 高质量语音合成模型，适合对音质要求更高的旁白和配音场景。',
     displayName: 'Speech 2.8 HD',
     enabled: true,
     id: 'speech-2.8-hd',

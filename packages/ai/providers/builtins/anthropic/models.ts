@@ -10,7 +10,6 @@ const anthropicChatModels: ChatProviderModelCard[] = [
       vision: true
     },
     contextWindowTokens: 200_000,
-    description: 'Claude Opus 4.5 is Anthropic’s flagship model, combining top-tier intelligence with scalable performance for complex, high-quality reasoning tasks.',
     displayName: 'Claude Opus 4.5',
     enabled: true,
     id: 'claude-opus-4-5-20251101',
@@ -44,7 +43,6 @@ const anthropicChatModels: ChatProviderModelCard[] = [
       vision: true
     },
     contextWindowTokens: 200_000,
-    description: 'Claude Sonnet 4.5 is Anthropic’s most intelligent model to date.',
     displayName: 'Claude Sonnet 4.5',
     enabled: true,
     id: 'claude-sonnet-4-5-20250929',
@@ -73,7 +71,6 @@ const anthropicChatModels: ChatProviderModelCard[] = [
       vision: true
     },
     contextWindowTokens: 200_000,
-    description: 'Claude Haiku 4.5 is Anthropic’s fastest and smartest Haiku model, with lightning speed and extended reasoning.',
     displayName: 'Claude Haiku 4.5',
     enabled: true,
     id: 'claude-haiku-4-5-20251001',
@@ -106,7 +103,6 @@ const anthropicChatModels: ChatProviderModelCard[] = [
       vision: true
     },
     contextWindowTokens: 200_000,
-    description: 'Claude Opus 4.1 is Anthropic’s newest and most powerful model for highly complex tasks, excelling in performance, intelligence, fluency, and comprehension.',
     displayName: 'Claude Opus 4.1',
     id: 'claude-opus-4-1-20250805',
     maxOutput: 32_000,
@@ -138,7 +134,6 @@ const anthropicChatModels: ChatProviderModelCard[] = [
       vision: true
     },
     contextWindowTokens: 200_000,
-    description: 'Claude Opus 4 is Anthropic’s most powerful model for highly complex tasks, excelling in performance, intelligence, fluency, and comprehension.',
     displayName: 'Claude Opus 4',
     id: 'claude-opus-4-20250514',
     maxOutput: 32_000,
@@ -170,7 +165,6 @@ const anthropicChatModels: ChatProviderModelCard[] = [
       vision: true
     },
     contextWindowTokens: 200_000,
-    description: 'Claude Sonnet 4 can produce near-instant responses or extended step-by-step reasoning that users can see. API users can finely control how long the model thinks.',
     displayName: 'Claude Sonnet 4',
     id: 'claude-sonnet-4-20250514',
     maxOutput: 64_000,
@@ -202,8 +196,6 @@ const anthropicChatModels: ChatProviderModelCard[] = [
       vision: true
     },
     contextWindowTokens: 200_000,
-    description:
-      'Claude 3.7 Sonnet is Anthropic’s most intelligent model and the first hybrid reasoning model on the market. It can produce near-instant responses or extended step-by-step reasoning that users can see. Sonnet is especially strong at coding, data science, vision, and agent tasks.',
     displayName: 'Claude 3.7 Sonnet',
     id: 'claude-3-7-sonnet-20250219',
     maxOutput: 64_000,
@@ -233,8 +225,6 @@ const anthropicChatModels: ChatProviderModelCard[] = [
       vision: true
     },
     contextWindowTokens: 200_000,
-    description:
-      'Claude 3.5 Haiku is Anthropic’s fastest next-gen model. Compared to Claude 3 Haiku, it improves across skills and surpasses the previous largest model Claude 3 Opus on many intelligence benchmarks.',
     displayName: 'Claude 3.5 Haiku',
     id: 'claude-3-5-haiku-20241022',
     maxOutput: 8192,
@@ -263,7 +253,6 @@ const anthropicChatModels: ChatProviderModelCard[] = [
       vision: true
     },
     contextWindowTokens: 200_000,
-    description: 'Claude 3 Haiku is Anthropic’s fastest and most compact model, designed for near-instant responses with fast, accurate performance.',
     displayName: 'Claude 3 Haiku',
     id: 'claude-3-haiku-20240307',
     maxOutput: 4096,

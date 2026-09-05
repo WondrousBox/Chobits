@@ -18,7 +18,7 @@ export type ProviderRow = {
   };
 };
 
-export type ModelOpt = { id: string; label?: string; type?: string; context?: number; pricing?: any; tags?: string[]; description?: string; free?: boolean };
+export type ModelOpt = { id: string; label?: string; type?: string; context?: number; pricing?: any; tags?: string[]; free?: boolean };
 
 export type PresetFormValues = {
   secrets: Record<string, string>;
@@ -185,7 +185,6 @@ export function PresetFormDialog(props: {
                       {model.type && <span className={`text-[10px] px-1.5 py-0.5 rounded border ${typeColorClasses(model.type)}`}>{typeDisplay(model.type)}</span>}
                       {renderContextPill(model)}
                     </div>
-                    {!!model.description && <div className="mt-1 text-xs text-muted-foreground">{model.description}</div>}
                     {Array.isArray(model.tags) && model.tags.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-1">
                         {model.tags.slice(0, 6).map((tag) => (

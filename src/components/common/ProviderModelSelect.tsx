@@ -50,7 +50,6 @@ type ModelRow = {
   context?: number;
   pricing?: any;
   tags?: string[];
-  description?: string;
   free?: boolean;
 };
 
@@ -611,9 +610,7 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
                                 )}
                                 {renderContextPill(model)}
                               </div>
-                              {/* 第二行：描述信息 */}
-                              {model.description && <div className="text-xs text-muted-foreground line-clamp-2">{model.description}</div>}
-                              {/* 第三行：价格信息 */}
+                              {/* 第二行：价格信息 */}
                               {model.pricing && !isFree(model) && (
                                 <div className="text-xs text-muted-foreground">
                                   {model.pricing.prompt !== undefined && model.pricing.completion !== undefined ? (

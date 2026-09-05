@@ -114,7 +114,6 @@ interface ProviderModelPricing extends ChatProviderModelPricing {
 
 export interface ProviderModelDefinition {
   contextWindowTokens?: number;
-  description?: string;
   displayName?: string;
   enabled?: boolean;
   id: string;

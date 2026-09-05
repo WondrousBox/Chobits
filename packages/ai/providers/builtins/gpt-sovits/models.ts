@@ -6,7 +6,6 @@ import type { ProviderModelDefinition } from '../../model-types';
 
 const gptSovitsSpeechModels: ProviderModelDefinition[] = [
   {
-    description: '小叽（Chi）声线克隆模型（日语），声线由服务端 voice 管理。',
     displayName: 'Chi TTS',
     enabled: true,
     id: 'chi-tts',
