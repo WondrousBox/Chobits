@@ -1,7 +1,8 @@
 {
   "action": {
     "save": "Save",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "close": "Close"
   },
   "providerModelSelect": {
     "placeholder": "Select provider · model",

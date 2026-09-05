@@ -32,9 +32,9 @@
     "downloadFailed": "ダウンロードに失敗しました"
   },
   "config": {
-    "title": "TTS 音声合成設定",
+    "title": "音声合成設定",
     "subtitle": "使用する音声合成モデルを選択",
-    "model": "TTS モデル",
+    "model": "合成モデル",
     "loading": "読み込み中...",
     "selectModel": "モデルを選択",
     "noModels": "利用可能なモデルがありません",

@@ -32,9 +32,9 @@
     "downloadFailed": "下载失败"
   },
   "config": {
-    "title": "TTS 语音合成配置",
+    "title": "语音合成配置",
     "subtitle": "选择要使用的语音合成模型",
-    "model": "TTS 模型",
+    "model": "合成模型",
     "loading": "加载中...",
     "selectModel": "请选择模型",
     "noModels": "暂无可用模型",

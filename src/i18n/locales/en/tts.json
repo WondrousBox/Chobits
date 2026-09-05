@@ -32,9 +32,9 @@
     "downloadFailed": "Download failed"
   },
   "config": {
-    "title": "TTS speech synthesis config",
+    "title": "Speech synthesis config",
     "subtitle": "Select the speech synthesis model to use",
-    "model": "TTS model",
+    "model": "Synthesis model",
     "loading": "Loading...",
     "selectModel": "Select a model",
     "noModels": "No models available",

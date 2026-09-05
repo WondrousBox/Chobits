@@ -211,7 +211,7 @@ const TTSConfigPage: React.FC = () => {
 
       <div className="flex gap-2 border-t p-2 px-4">
         <Button variant="outline" className="flex-1 no-drag" onClick={() => window.chobits.window['window:close']('ttsConfig')}>
-          {t('common:action.cancel')}
+          {t('common:action.close')}
         </Button>
         <Button disabled={isLoading || !selectedModel || !isSelectedInstalled} onClick={handleStartTTS} className="flex-1 no-drag">
           {isLoading ? (

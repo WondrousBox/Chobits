@@ -1,7 +1,8 @@
 {
   "action": {
     "save": "保存",
-    "cancel": "キャンセル"
+    "cancel": "キャンセル",
+    "close": "閉じる"
   },
   "providerModelSelect": {
     "placeholder": "プロバイダー · モデルを選択",

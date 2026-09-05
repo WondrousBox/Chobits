@@ -1,7 +1,8 @@
 {
   "action": {
     "save": "保存",
-    "cancel": "取消"
+    "cancel": "取消",
+    "close": "关闭"
   },
   "providerModelSelect": {
     "placeholder": "选择服务商 · 模型",

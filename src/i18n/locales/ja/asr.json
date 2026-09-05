@@ -1,69 +1,32 @@
 {
-  "tabs": {
-    "local": "ローカル認識",
-    "cloud": "クラウド文字起こし"
-  },
   "micPermission": {
     "banner": "音声認識にはマイクへのアクセス許可が必要です。現在許可されていません。",
     "grant": "マイクを許可",
     "granted": "マイクのアクセスが許可されました",
     "denied": "マイクのアクセスが拒否されました。システム設定でマイクへのアクセスを許可してください"
   },
-  "scene": {
-    "meeting": {
-      "name": "会議",
-      "description": "中国語の会議向け。中国語の音声を自動認識します"
-    },
-    "english-learning": {
-      "name": "英語学習",
-      "description": "英語学習向け。英語の音声を自動認識します"
-    },
-    "english": {
-      "name": "英語",
-      "description": "中英バイリンガル向け。中国語と英語の混合音声を自動認識します"
-    },
-    "chinese": {
-      "name": "中英",
-      "description": "中英バイリンガル向け。中国語と英語の混合音声を自動認識します"
-    },
-    "multilingual": {
-      "name": "簡体字・繁体字中国語",
-      "description": "多言語向け。複数言語の認識に対応します"
-    }
-  },
-  "advanced": {
-    "toggle": "カスタム",
-    "model": "モデル",
-    "selectModel": "モデルを選択",
+  "local": {
+    "model": "認識モデル",
+    "selectModel": "モデルを選択してください",
     "loading": "読み込み中...",
-    "streaming": "ストリーミング",
-    "noModels": "利用可能なモデルがありません",
-    "recommendedModels": "おすすめモデル",
-    "otherModels": "その他のモデル",
+    "recommended": "おすすめ",
     "notInstalled": "(未インストール)",
+    "noModels": "利用可能なモデルがありません",
     "supportedLanguages": "対応言語: {{languages}}",
     "language": "言語",
     "selectModelFirst": "先にモデルを選択してください",
     "selectLanguage": "言語を選択",
     "noLanguagesSpecified": "このモデルは対応言語が指定されていません",
     "punctuationModel": "句読点モデル",
-    "sceneRecommended": "シーンのおすすめ",
     "noPunctuation": "句読点を有効にしない",
     "punctuationDisabled": "句読点を使用しない"
-  },
-  "cloud": {
-    "providerAndModel": "プロバイダーとモデル",
-    "configure": "設定",
-    "selectModelPlaceholder": "クラウド文字起こしモデルを選択",
-    "selectModelHint": "文字起こしに対応したモデルを選択してからクラウド文字起こしを開始してください",
-    "capabilityNote": "文字起こし機能を宣言している AI プロバイダーとモデルのみ表示されます"
   },
   "action": {
     "close": "閉じる",
     "stopping": "停止中...",
     "stop": "認識を停止",
     "starting": "起動中...",
-    "start": "音声認識を開始"
+    "start": "起動"
   },
   "toast": {
     "modelNotInstalled": "モデルがインストールされていません。上のワンクリックインストールを先に実行してください",
