@@ -17,7 +17,22 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  prepare-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      # 单一 job 先创建草稿 Release，build 矩阵的 electron-builder 复用它上传；
+      # 否则三个平台并发抢建会产生同 tag 的重复 Release（资产被拆到两个里）
+      - name: Create Draft Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          gh release create "${GITHUB_REF_NAME}" --draft --title "${VERSION}" --notes "" || echo "release 已存在（重跑场景），直接复用"
+
   build:
+    needs: prepare-release
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
 
