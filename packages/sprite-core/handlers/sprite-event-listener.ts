@@ -166,16 +166,71 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
 
   // ===== 下载事件 =====
 
+  // 多个下载并发时，头顶进度条按 1s 间隔轮播各任务，避免高频来回切换；
+  // 单个任务时保持即时更新的原行为
+  const BUSY_ROTATION_INTERVAL_MS = 1000;
+  const activeDownloadProgress = new Map<string, { progress: number; message: string }>();
+  let busyRotationTimer: ReturnType<typeof setInterval> | null = null;
+  // -1 起步：首轮 tick 自增后落在第一个任务上
+  let busyRotationCursor = -1;
+
+  const stopBusyRotation = (): void => {
+    if (busyRotationTimer) {
+      clearInterval(busyRotationTimer);
+      busyRotationTimer = null;
+    }
+  };
+
+  const ensureBusyRotation = (): void => {
+    if (busyRotationTimer) return;
+    busyRotationTimer = setInterval(() => {
+      if (activeDownloadProgress.size <= 1) {
+        stopBusyRotation();
+        return;
+      }
+      const entries = [...activeDownloadProgress.values()];
+      busyRotationCursor = (busyRotationCursor + 1) % entries.length;
+      const entry = entries[busyRotationCursor];
+      mgr.updateBusy(entry.progress, entry.message);
+    }, BUSY_ROTATION_INTERVAL_MS);
+  };
+
+  const resolveDownloadMessage = (data: SpriteEventPayload | undefined, eventType: string, fallbackKey: Parameters<typeof getSpriteMessageFallback>[0]): string =>
+    data?.message || eventText(eventType, data, getSpriteMessageFallback(fallbackKey));
+
+  // 任务结束后收敛进度条：无剩余任务才清除，恰好剩一个则切回即时展示
+  const settleDownloadBusy = (): void => {
+    if (activeDownloadProgress.size === 0) {
+      stopBusyRotation();
+      mgr.clearBusy();
+      return;
+    }
+    if (activeDownloadProgress.size === 1) {
+      stopBusyRotation();
+      const [entry] = activeDownloadProgress.values();
+      mgr.showBusy(entry.message, entry.progress);
+      return;
+    }
+    ensureBusyRotation();
+  };
+
   handlers.push({
     event: AppEvent.SPRITE_DOWNLOAD_START,
     handler: (data) => {
+      const id = getDownloadProgressSpeechId(data);
       progressSpeech.start({
-        id: getDownloadProgressSpeechId(data),
+        id,
         kind: 'download',
         progress: data?.progress ?? 0,
         message: data?.message
       });
-      mgr.showBusy(data?.message || eventText('downloadStart', data, getSpriteMessageFallback('downloadStart')), data?.progress ?? 0);
+      const message = resolveDownloadMessage(data, 'downloadStart', 'downloadStart');
+      activeDownloadProgress.set(id, { progress: data?.progress ?? 0, message });
+      if (activeDownloadProgress.size === 1) {
+        mgr.showBusy(message, data?.progress ?? 0);
+      } else {
+        ensureBusyRotation();
+      }
       mgr.trigger('download', { silent: true });
     }
   });
@@ -186,13 +241,23 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
       if (data?.progress === undefined) {
         return;
       }
+      const id = getDownloadProgressSpeechId(data);
       progressSpeech.update({
-        id: getDownloadProgressSpeechId(data),
+        id,
         kind: 'download',
         progress: data.progress,
         message: data.message
       });
-      mgr.updateBusy(data.progress, data.message || eventText('downloadProgress', data, getSpriteMessageFallback('downloadProgress')));
+      const message = resolveDownloadMessage(data, 'downloadProgress', 'downloadProgress');
+      const entry = activeDownloadProgress.get(id) ?? { progress: data.progress, message };
+      entry.progress = data.progress;
+      entry.message = message;
+      activeDownloadProgress.set(id, entry);
+      if (activeDownloadProgress.size === 1) {
+        mgr.updateBusy(entry.progress, entry.message);
+      } else {
+        ensureBusyRotation();
+      }
     }
   });
 
@@ -204,7 +269,8 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
         kind: 'download',
         message: data?.message
       });
-      mgr.clearBusy();
+      activeDownloadProgress.delete(getDownloadProgressSpeechId(data));
+      settleDownloadBusy();
       mgr.trigger('success', { silent: true });
       mgr.showToast(data?.message || eventText('downloadComplete', data, getSpriteMessageFallback('downloadComplete')), { category: 'success', duration: 1500, speak: false });
     }
@@ -214,7 +280,8 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
     event: AppEvent.SPRITE_DOWNLOAD_FAILED,
     handler: (data) => {
       progressSpeech.reset(getDownloadProgressSpeechId(data));
-      mgr.clearBusy();
+      activeDownloadProgress.delete(getDownloadProgressSpeechId(data));
+      settleDownloadBusy();
       mgr.trigger('error', { message: data?.message || data?.error || eventText('downloadFail', data, getSpriteMessageFallback('downloadFail')) });
     }
   });
@@ -294,6 +361,8 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
     subscriptions.forEach(({ event, handler }) => {
       eventManager.off(event, handler);
     });
+    stopBusyRotation();
+    activeDownloadProgress.clear();
     progressSpeech.reset();
   };
 }

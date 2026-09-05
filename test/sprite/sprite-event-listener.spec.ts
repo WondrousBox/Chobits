@@ -10,6 +10,7 @@ const mockedAppEvent = vi.hoisted(
       APP_WINDOW_CLOSED: 'APP_WINDOW_CLOSED',
       APP_WINDOW_OPENED: 'APP_WINDOW_OPENED',
       SPRITE_DOWNLOAD_START: 'SPRITE_DOWNLOAD_START',
+      SPRITE_DOWNLOAD_PROGRESS: 'SPRITE_DOWNLOAD_PROGRESS',
       SPRITE_DOWNLOAD_COMPLETE: 'SPRITE_DOWNLOAD_COMPLETE',
       SPRITE_DOWNLOAD_FAILED: 'SPRITE_DOWNLOAD_FAILED',
       SPRITE_PLUGIN_INSTALLED: 'SPRITE_PLUGIN_INSTALLED',
@@ -209,5 +210,70 @@ describe('sprite event listener', () => {
     expect(mgr.speak).not.toHaveBeenCalled();
 
     cleanup();
+  });
+  describe('download busy progress', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('updates the busy bar immediately while only one download is active', () => {
+      vi.useFakeTimers();
+      const mgr = createManagerStub();
+      const cleanup = initSpriteEventListener(mgr as any);
+
+      eventHarness.emit(AppEvent.SPRITE_DOWNLOAD_START, { resourceId: 'a', message: '下载 A', progress: 0 });
+      eventHarness.emit(AppEvent.SPRITE_DOWNLOAD_PROGRESS, { resourceId: 'a', message: '下载 A', progress: 40 });
+
+      expect(mgr.showBusy).toHaveBeenCalledWith('下载 A', 0);
+      expect(mgr.updateBusy).toHaveBeenCalledWith(40, '下载 A');
+
+      cleanup();
+    });
+
+    it('rotates between concurrent downloads at 1s intervals instead of switching per event', () => {
+      vi.useFakeTimers();
+      const mgr = createManagerStub();
+      const cleanup = initSpriteEventListener(mgr as any);
+
+      eventHarness.emit(AppEvent.SPRITE_DOWNLOAD_START, { resourceId: 'a', message: '下载 A', progress: 0 });
+      eventHarness.emit(AppEvent.SPRITE_DOWNLOAD_START, { resourceId: 'b', message: '下载 B', progress: 0 });
+
+      // 并发后进度事件不再即时刷新进度条
+      eventHarness.emit(AppEvent.SPRITE_DOWNLOAD_PROGRESS, { resourceId: 'a', message: '下载 A', progress: 30 });
+      eventHarness.emit(AppEvent.SPRITE_DOWNLOAD_PROGRESS, { resourceId: 'b', message: '下载 B', progress: 60 });
+      expect(mgr.updateBusy).not.toHaveBeenCalled();
+
+      // 每 1s 轮播一次，依次展示各任务
+      vi.advanceTimersByTime(1000);
+      vi.advanceTimersByTime(1000);
+      const shown = mgr.updateBusy.mock.calls.map((call) => call[1]);
+      expect(new Set(shown)).toEqual(new Set(['下载 A', '下载 B']));
+      expect(mgr.updateBusy.mock.calls[0]).toEqual([30, '下载 A']);
+      expect(mgr.updateBusy.mock.calls[1]).toEqual([60, '下载 B']);
+
+      cleanup();
+    });
+
+    it('settles back to the remaining download when one completes, and clears when all done', () => {
+      vi.useFakeTimers();
+      const mgr = createManagerStub();
+      const cleanup = initSpriteEventListener(mgr as any);
+
+      eventHarness.emit(AppEvent.SPRITE_DOWNLOAD_START, { resourceId: 'a', message: '下载 A', progress: 0 });
+      eventHarness.emit(AppEvent.SPRITE_DOWNLOAD_START, { resourceId: 'b', message: '下载 B', progress: 50 });
+
+      // A 完成：不应清掉 B 的进度条，切回单任务即时展示
+      eventHarness.emit(AppEvent.SPRITE_DOWNLOAD_COMPLETE, { resourceId: 'a', message: 'A 完成' });
+      expect(mgr.clearBusy).not.toHaveBeenCalled();
+      expect(mgr.showBusy).toHaveBeenLastCalledWith('下载 B', 50);
+
+      // B 的进度恢复即时更新；B 完成后进度条清除
+      eventHarness.emit(AppEvent.SPRITE_DOWNLOAD_PROGRESS, { resourceId: 'b', message: '下载 B', progress: 90 });
+      expect(mgr.updateBusy).toHaveBeenCalledWith(90, '下载 B');
+      eventHarness.emit(AppEvent.SPRITE_DOWNLOAD_COMPLETE, { resourceId: 'b', message: 'B 完成' });
+      expect(mgr.clearBusy).toHaveBeenCalledTimes(1);
+
+      cleanup();
+    });
   });
 });
