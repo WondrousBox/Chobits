@@ -7,6 +7,7 @@ import { app, BrowserWindow, screen } from 'electron';
 import { initAIHandlers } from '../../../packages/ai/ipc-main';
 import { PiExecutionService } from '../../../packages/ai/runtime/pi/execution-service';
 import { registerCharacterToolLabelsResolver } from '../../../packages/ai/runtime/pi/tool-labels';
+import { buildRuntimeContextPrompt } from '../../../packages/ai/runtime-context-prompt';
 import { registerSystemPromptEnricher } from '../../../packages/ai/system-prompt-enricher';
 import type { DownloadProgress } from '../../../packages/plugins';
 import { initPluginResourceHandlers } from '../../../packages/plugins/ipc-main';
@@ -273,6 +274,11 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
   });
   initStatusHandlers();
   await initAIHandlers(win);
+  // 注入运行时环境（当前日期时间/时区），让模型能正确解析「今天」等相对时间并推断大致地区
+  registerSystemPromptEnricher({
+    id: 'runtime-context',
+    resolve: () => buildRuntimeContextPrompt()
+  });
   if (isFeatureEnabled('localAI')) {
     initSherpaHandlers();
   } else {
