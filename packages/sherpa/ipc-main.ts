@@ -9,6 +9,7 @@ import { getASRInstance } from './asr-instance-manager';
 import { assertSherpaCapabilityActive, assertSherpaCapabilityUnlocked, notifySherpaCapabilityChanged } from './capability-guard';
 import { CommonConfig, SherpaModel } from './common';
 import { ASR_createInstance, ASR_destroyInstance, ASR_sendData, TTS_createInstance, TTS_destroyInstance, TTS_generateSpeech } from './index';
+import { BUNDLED_ASR_MODEL_NAME, seedBundledASRModel } from './model-seed';
 
 /**
  * mini 分支录音只落盘、不再写库（folders/resources 表已删除）：
@@ -145,7 +146,8 @@ const SCENE_COMMON_CONFIGS: Record<string, CommonConfig> = {
 const DEFAULT_ASR_CONFIG: ASRConfig = {
   enabled: false,
   backend: 'local',
-  local: { scene: 'meeting', model: '', language: 'zh', punctuationModel: '' },
+  // 新装默认选中随包内置的 SenseVoice 模型;模型文件缺失时(如 dev 环境未拉取 LFS)启动实例会报错,属预期
+  local: { scene: 'meeting', model: BUNDLED_ASR_MODEL_NAME, language: 'zh', punctuationModel: '' },
   cloud: { providerId: '', providerPresetId: '', modelId: '' }
 };
 
@@ -276,6 +278,8 @@ export function initSherpaStubHandlers(): void {
 }
 
 export function initSherpaHandlers(): void {
+  // 新装用户种子内置 ASR 模型（SenseVoice int8），机能扩展页免下载即可启用（幂等）
+  seedBundledASRModel();
   ensureASRConfigLoaded();
   const currentASRConfig = getASRConfigSnapshot();
 
