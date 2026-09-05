@@ -6,9 +6,17 @@
   "author": "Chobits",
   "description": "温暖友善的桌面精灵伙伴",
   "license": "MIT",
-  "tags": ["default", "friendly", "zh-CN"],
+  "tags": [
+    "default",
+    "friendly",
+    "zh-CN"
+  ],
   "minAppVersion": "1.0.0",
-  "platform": ["darwin", "win32", "linux"],
+  "platform": [
+    "darwin",
+    "win32",
+    "linux"
+  ],
   "assets": {
     "character": "character.json",
     "animations": "index.json",
@@ -18,8 +26,8 @@
   "provenance": {
     "channel": "builtin",
     "publisher": "Chobits",
-    "repository": "https://github.com/chenxin199305/Chobits-Chi-Mascot",
-    "canonicalUrl": "https://github.com/chenxin199305/Chobits-Chi-Mascot"
+    "repository": "https://github.com/chenxin199305/Chobits-Chii-Mascot",
+    "canonicalUrl": "https://github.com/chenxin199305/Chobits-Chii-Mascot"
   },
   "signature": {
     "algorithm": "sha256",
@@ -30,7 +38,9 @@
     "hasVoice": false,
     "hasCustomAnimations": true,
     "has3DModel": false,
-    "supportedLanguages": ["zh-CN"],
+    "supportedLanguages": [
+      "zh-CN"
+    ],
     "dimensionExtensions": []
   }
 }
