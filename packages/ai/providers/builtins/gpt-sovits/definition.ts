@@ -76,7 +76,7 @@ export const gptSovitsDefinition: BuiltinProviderDefinition = {
   },
   catalog: {
     name: 'GPT-SoVITS',
-    checkModel: 'chi-tts',
+    checkModel: 'chii-tts',
     defaultShowBrowserRequest: true,
     settings: {
       defaultShowBrowserRequest: true,
@@ -99,7 +99,7 @@ export const gptSovitsDefinition: BuiltinProviderDefinition = {
   },
   defaults: {
     models: {
-      speechSynthesis: 'chi-tts'
+      speechSynthesis: 'chii-tts'
     },
     // 内置默认服务器：运行时回落与设置页表单预填共用这份配置
     config: {

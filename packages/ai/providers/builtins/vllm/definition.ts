@@ -72,13 +72,13 @@ export const vllmDefinition: BuiltinProviderDefinition = {
   source: 'builtin',
   display: {
     label: 'vLLM（自托管）',
-    description: '对接自托管的 vLLM 推理服务（OpenAI 兼容 API）。默认走 Chi 门面 serve.py：model 选 chi-chat 聊天、chi-translate 翻译，支持自签名 HTTPS 证书。',
+    description: '对接自托管的 vLLM 推理服务（OpenAI 兼容 API）。默认走 Chii 门面 serve.py：model 选 chii-chat 聊天、chii-translate 翻译，支持自签名 HTTPS 证书。',
     website: 'https://docs.vllm.ai'
   },
   catalog: {
     name: 'vLLM',
     // 占位默认模型，实际可用模型以服务端 /v1/models 为准
-    checkModel: 'chi-chat',
+    checkModel: 'chii-chat',
     settings: {
       proxyUrl: {
         placeholder: 'https://124.221.9.24:8080/v1'
@@ -104,9 +104,9 @@ export const vllmDefinition: BuiltinProviderDefinition = {
   defaults: {
     models: {
       // 占位默认模型，实际以服务端 /v1/models 返回为准
-      chat: 'chi-chat'
+      chat: 'chii-chat'
     },
-    // 内置默认服务器（Chi 门面 serve.py）：运行时回落与设置页表单预填共用这份配置
+    // 内置默认服务器（Chii 门面 serve.py）：运行时回落与设置页表单预填共用这份配置
     config: {
       allowInsecureTls: 'true',
       apiKey: 'S8-ae2yp0H0DxYG5A7I9g3xBAvaqiUmOSDDuzEcjxms',

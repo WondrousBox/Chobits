@@ -1,12 +1,13 @@
 import type { GeneratedAudioArtifact, ProviderAdapter, ProviderSecrets, SpeechSynthesisRequest, SpeechSynthesisResponse, SpeechSynthesisStreamEvent, SpeechTextInputChunk } from '../types';
+import { resolveModelAlias } from './model-aliases';
 import { createOpenAIClient, listOpenAIModels } from './openai-runtime';
 import { getBuiltinProviderDefinitionOrThrow } from './service';
 import { resolveFetch } from './tls';
 import type { BuiltinProviderDefinition } from './types';
 
-// 服务端（chobits-chi-tts）提供 OpenAI 兼容 TTS 接口：POST {baseUrl}/v1/audio/speech，
-// 模型固定 chi-tts；声线/参考音频由服务端按 voice 管理，客户端不再传 ref_audio_path 等原生字段
-const DEFAULT_VOICE = 'chi';
+// 服务端（chobits-chii-tts）提供 OpenAI 兼容 TTS 接口：POST {baseUrl}/v1/audio/speech，
+// 模型固定 chii-tts；声线/参考音频由服务端按 voice 管理，客户端不再传 ref_audio_path 等原生字段
+const DEFAULT_VOICE = 'chii';
 const DEFAULT_MEDIA_TYPE = 'wav';
 // 服务端输出固定为 32kHz 单声道 s16le PCM（wav 格式流式返回时是 WAV 头 + PCM 裸流）
 const OUTPUT_SAMPLE_RATE = 32000;
@@ -15,10 +16,11 @@ const OUTPUT_SAMPLE_FORMAT = 's16le';
 // WAV 头解析上限：超过这么多字节还没找到 data 块就说明不是预期的 WAV 流
 const MAX_WAV_HEADER_BYTES = 4096;
 
-// 历史配置里的 voiceId 别名，映射到服务端音色名
+// 历史配置里的 voiceId 别名（chi 时代的旧音色名），映射到服务端音色名
 const VOICE_ALIASES: Record<string, string> = {
-  chi: 'chi',
-  'chi-default': 'chi'
+  chi: 'chii',
+  'chi-default': 'chii',
+  chii: 'chii'
 };
 
 function isRecord(value: unknown): value is Record<string, any> {
@@ -98,7 +100,7 @@ export class GptSovitsProvider implements ProviderAdapter {
 
   async listModels(opts?: { secrets?: ProviderSecrets }): Promise<Array<{ id: string }>> {
     const secrets = this.resolveSecrets(opts?.secrets);
-    // 服务端提供 OpenAI 兼容的 GET /v1/models；内置清单（chi-tts）存在时优先返回内置清单
+    // 服务端提供 OpenAI 兼容的 GET /v1/models；内置清单（chii-tts）存在时优先返回内置清单
     const client = await createOpenAIClient({
       allowInsecureTls: secrets.allowInsecureTls,
       apiKey: trimString(secrets.apiKey),
@@ -143,7 +145,8 @@ export class GptSovitsProvider implements ProviderAdapter {
       throw new Error('GPT-SoVITS speech synthesis requires text');
     }
 
-    const model = trimString(req.model) || this.definition.defaults.models.speechSynthesis || 'chi-tts';
+    // 旧持久化配置里的 legacy 模型 id（chi-tts）统一映射为新 id 再发请求
+    const model = resolveModelAlias(trimString(req.model) || this.definition.defaults.models.speechSynthesis || 'chii-tts');
     const speedFactor = toFiniteNumber(req.speed);
 
     // 自签名 HTTPS 部署时，用户在 provider 配置里开启「TLS 证书校验 → 允许自签名」；

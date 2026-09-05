@@ -65,7 +65,7 @@ describe('speech text translator gateway', () => {
     vi.clearAllMocks();
   });
 
-  it('posts an OpenAI chat completion with the chi-translate model and the preset Bearer key', async () => {
+  it('posts an OpenAI chat completion with the chii-translate model and the preset Bearer key', async () => {
     const fetchMock = mockGatewayResponse(translateResponse('おはよう'));
     vi.stubGlobal('fetch', fetchMock);
 
@@ -81,13 +81,13 @@ describe('speech text translator gateway', () => {
     // 客户端透传原文并显式带上 target_lang；旧版服务端忽略该字段按假名启发式判断方向
     expect(JSON.parse(String(init.body))).toEqual({
       messages: [{ content: '早上好', role: 'user' }],
-      model: 'chi-translate',
+      model: 'chii-translate',
       stream: false,
       target_lang: 'ja'
     });
     expect(init.headers).toMatchObject({ Authorization: 'Bearer gateway-key' });
     expect(init.signal).toBeInstanceOf(AbortSignal);
-    expect(translator.lastBackend).toEqual({ model: 'chi-translate', providerId: 'vllm' });
+    expect(translator.lastBackend).toEqual({ model: 'chii-translate', providerId: 'vllm' });
   });
 
   it('falls back to the built-in default server and API key when no usable preset exists', async () => {

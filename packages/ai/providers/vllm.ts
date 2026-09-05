@@ -2,7 +2,7 @@ import { OpenAICompatibleProvider } from './openai-compatible';
 import type { OpenAIRuntimeSecrets } from './openai-runtime';
 
 export class VllmProvider extends OpenAICompatibleProvider {
-  // 内置默认服务器（Chi 门面 serve.py）的 API Key，用户未配置时回落到该值
+  // 内置默认服务器（Chii 门面 serve.py）的 API Key，用户未配置时回落到该值
   private readonly defaultApiKey?: string;
 
   constructor() {

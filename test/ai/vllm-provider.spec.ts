@@ -46,7 +46,7 @@ describe('vLLM builtin provider', () => {
     expect(getProviderCapabilities('vllm').modelListing).toBe(true);
     expect(getProviderCapabilities('vllm').speechSynthesis).toBe(false);
     expect(getProviderCapabilities('vllm').transcribe).toBe(false);
-    expect(getProviderDefaultModels('vllm').chat).toBe('chi-chat');
+    expect(getProviderDefaultModels('vllm').chat).toBe('chii-chat');
     // defaults.config 是运行时回落与设置页表单预填共用的内置默认配置
     expect(vllmDefinition.defaults.config).toMatchObject({
       allowInsecureTls: 'true',
@@ -71,7 +71,7 @@ describe('vLLM builtin provider', () => {
   });
 
   it('lists the curated placeholder models without hitting the network', async () => {
-    const fetchMock = mockFetchJson({ data: [{ id: 'chi-chat' }, { id: 'other-model' }] });
+    const fetchMock = mockFetchJson({ data: [{ id: 'chii-chat' }, { id: 'other-model' }] });
     vi.stubGlobal('fetch', fetchMock);
 
     const provider = new VllmProvider();
@@ -81,7 +81,7 @@ describe('vLLM builtin provider', () => {
     // 服务端 /v1/models 拉取链路在 openai-runtime 的 TLS 用例里覆盖
     const models = await provider.listModels();
 
-    expect(models.map((model) => model.id)).toEqual(['chi-chat', 'chi-translate']);
+    expect(models.map((model) => model.id)).toEqual(['chii-chat', 'chii-translate']);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -91,7 +91,7 @@ describe('vLLM builtin provider', () => {
     expect(provider.getSecrets()).toMatchObject({
       apiKey: 'S8-ae2yp0H0DxYG5A7I9g3xBAvaqiUmOSDDuzEcjxms',
       baseUrl: 'https://124.221.9.24:8080/v1',
-      model: 'chi-chat'
+      model: 'chii-chat'
     });
   });
 
@@ -118,7 +118,28 @@ describe('vLLM builtin provider', () => {
     const [url, init] = undiciFetchMock.mock.calls[0] as [string, RequestInit];
     expect(String(url)).toBe('https://124.221.9.24:8080/v1/chat/completions');
     expect(new Headers(init.headers).get('authorization')).toBe('Bearer S8-ae2yp0H0DxYG5A7I9g3xBAvaqiUmOSDDuzEcjxms');
-    expect(JSON.parse(String(init.body)).model).toBe('chi-chat');
+    expect(JSON.parse(String(init.body)).model).toBe('chii-chat');
+  });
+
+  it('maps legacy chi-* model ids to chii-* before sending chat requests', async () => {
+    undiciFetchMock.mockImplementation(async () => {
+      return new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), {
+        headers: { 'content-type': 'application/json' },
+        status: 200
+      });
+    });
+
+    const provider = new VllmProvider();
+    // 已持久化的旧 preset/secrets 里的 chi-chat 仍路由到新模型，不直接失效
+    await provider.chat({
+      extras: { model: 'chi-chat' },
+      messages: [{ content: 'おはよう', role: 'user' }],
+      providerId: 'vllm'
+    });
+
+    expect(undiciFetchMock).toHaveBeenCalledOnce();
+    const [, init] = undiciFetchMock.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(String(init.body)).model).toBe('chii-chat');
   });
 });
 

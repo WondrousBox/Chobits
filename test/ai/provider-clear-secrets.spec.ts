@@ -66,11 +66,11 @@ describe('provider clearSecrets', () => {
     expect(provider.getSecrets()).toMatchObject({
       apiKey: vllmDefinition.defaults.config?.apiKey,
       baseUrl: vllmDefinition.defaults.config?.baseUrl,
-      model: 'chi-chat'
+      model: 'chii-chat'
     });
     // listModels 走同一份内存 secrets，返回内置清单且不依赖被清除的用户 key
     const models = await provider.listModels();
-    expect(models.map((model) => model.id)).toEqual(['chi-chat', 'chi-translate']);
+    expect(models.map((model) => model.id)).toEqual(['chii-chat', 'chii-translate']);
   });
 
   it('falls back to the built-in default server config after clearSecrets (gpt-sovits)', async () => {
@@ -86,7 +86,7 @@ describe('provider clearSecrets', () => {
     expect((provider.getSecrets() as Record<string, unknown>).apiKey).toBeUndefined();
 
     // 清除后实际发出的 TTS 请求必须回到内置默认服务器与默认 key，而不是用户已清除的配置
-    await provider.synthesizeSpeech({ model: 'chi-tts', providerId: 'gpt-sovits', text: 'テスト' });
+    await provider.synthesizeSpeech({ model: 'chii-tts', providerId: 'gpt-sovits', text: 'テスト' });
 
     expect(fetchMock).not.toHaveBeenCalled();
     expect(undiciFetchMock).toHaveBeenCalledOnce();

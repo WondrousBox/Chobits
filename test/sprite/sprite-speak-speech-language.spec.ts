@@ -33,9 +33,9 @@ function makeSynthesize(): ReturnType<typeof vi.fn<SpriteSpeechSynthesisExecutor
 function makeAIProviderConfig(patch?: Partial<SpriteSpeakAIProviderConfig>): SpriteSpeakAIProviderConfig {
   return {
     audioSetting: { format: 'wav' },
-    model: 'chi-tts',
+    model: 'chii-tts',
     providerId: 'gpt-sovits',
-    voiceId: 'chi',
+    voiceId: 'chii',
     ...patch
   };
 }
@@ -128,6 +128,7 @@ describe('SpeakConfigStore speechLanguage normalization', () => {
       writeFileSync(
         path.join(configDir, 'sprite-speak-config.json'),
         JSON.stringify({
+          // 历史持久化配置（legacy 模型 id / 音色名）仍须能正常加载
           aiProvider: { providerId: 'gpt-sovits', model: 'chi-tts', voiceId: 'chi', speechLanguage: raw },
           enabled: true,
           engine: 'ai-provider'

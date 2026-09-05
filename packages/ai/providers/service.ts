@@ -1,5 +1,6 @@
 import type { ProviderAdapter, ProviderCapabilities, ProviderCapabilityKey, ProviderConfig, ProviderDefaultModels } from '../types';
 import { BUILTIN_PROVIDER_DEFINITIONS } from './builtins';
+import { resolveModelAlias } from './model-aliases';
 import type { ProviderModelDefinition } from './model-types';
 import { getRegisteredProviderAliases, getRegisteredProviderDefinition, listRegisteredProviderDefinitions, registerProviderDefinition } from './registry';
 import type { BuiltinProviderDefinition, BuiltinProviderId, ProviderDefinition } from './types';
@@ -226,7 +227,8 @@ export function getProviderDefinitionPiBaseUrl(providerId?: string, fallbackProv
 
 export function getProviderDefinitionModel(providerId?: string, modelId?: string): ProviderModelDefinition | undefined {
   const definition = getProviderDefinition(providerId);
-  const normalizedModelId = normalizeProviderId(modelId);
+  // legacy 模型 id（chi-*）映射为新 id 后查询，已持久化的旧选择仍命中内置定义
+  const normalizedModelId = resolveModelAlias(normalizeProviderId(modelId));
   if (!definition || !normalizedModelId) {
     return undefined;
   }
