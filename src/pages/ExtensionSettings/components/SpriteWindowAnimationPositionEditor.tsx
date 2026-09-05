@@ -5,7 +5,9 @@ import type {
   SpriteWindowAnimationPlacement,
   SpriteWindowAnimationPlayPosition
 } from '@packages/sprite-core/types';
+import type { TFunction } from 'i18next';
 import React, { useMemo, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   TbAlignBoxBottomCenter,
   TbAlignBoxBottomLeft,
@@ -31,29 +33,21 @@ const CANVAS_HEIGHT = 225;
 const DESIGN_AREA = { width: 1440, height: 900 };
 const DEFAULT_POINT = { x: DESIGN_AREA.width / 2, y: DESIGN_AREA.height / 2 };
 
-const ANCHOR_OPTIONS: Array<{ anchor: SpriteWindowAnimationAnchor; label: string; icon: React.ComponentType<{ className?: string }> }> = [
-  { anchor: 'top-left', label: '左上角', icon: TbAlignBoxTopLeft },
-  { anchor: 'top', label: '顶部居中', icon: TbAlignBoxTopCenter },
-  { anchor: 'top-right', label: '右上角', icon: TbAlignBoxTopRight },
-  { anchor: 'left', label: '左侧居中', icon: TbAlignBoxLeftMiddle },
-  { anchor: 'center', label: '正中心', icon: TbAlignBoxCenterMiddle },
-  { anchor: 'right', label: '右侧居中', icon: TbAlignBoxRightMiddle },
-  { anchor: 'bottom-left', label: '左下角', icon: TbAlignBoxBottomLeft },
-  { anchor: 'bottom', label: '底部居中', icon: TbAlignBoxBottomCenter },
-  { anchor: 'bottom-right', label: '右下角', icon: TbAlignBoxBottomRight }
+const ANCHOR_OPTIONS: Array<{ anchor: SpriteWindowAnimationAnchor; icon: React.ComponentType<{ className?: string }> }> = [
+  { anchor: 'top-left', icon: TbAlignBoxTopLeft },
+  { anchor: 'top', icon: TbAlignBoxTopCenter },
+  { anchor: 'top-right', icon: TbAlignBoxTopRight },
+  { anchor: 'left', icon: TbAlignBoxLeftMiddle },
+  { anchor: 'center', icon: TbAlignBoxCenterMiddle },
+  { anchor: 'right', icon: TbAlignBoxRightMiddle },
+  { anchor: 'bottom-left', icon: TbAlignBoxBottomLeft },
+  { anchor: 'bottom', icon: TbAlignBoxBottomCenter },
+  { anchor: 'bottom-right', icon: TbAlignBoxBottomRight }
 ];
 
-const DISPLAY_OPTIONS: Array<{ value: SpriteWindowAnimationDisplay; label: string }> = [
-  { value: 'current', label: '当前显示器' },
-  { value: 'main', label: '主窗口显示器' },
-  { value: 'primary', label: '主显示器' }
-];
+const DISPLAY_OPTIONS: Array<{ value: SpriteWindowAnimationDisplay }> = [{ value: 'current' }, { value: 'main' }, { value: 'primary' }];
 
-const FIT_MODE_OPTIONS: Array<{ value: SpriteWindowAnimationCoordinateFitMode; label: string }> = [
-  { value: 'stretch', label: '拉伸适配' },
-  { value: 'contain', label: '等比包含' },
-  { value: 'cover', label: '等比覆盖' }
-];
+const FIT_MODE_OPTIONS: Array<{ value: SpriteWindowAnimationCoordinateFitMode }> = [{ value: 'stretch' }, { value: 'contain' }, { value: 'cover' }];
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
@@ -150,10 +144,11 @@ function getAnchorCanvasPoint(anchor: SpriteWindowAnimationAnchor): { x: number;
   }
 }
 
-function getPlacementLabel(value?: SpriteWindowAnimationPlayPosition): string {
-  if (!value) return '保持当前位置';
-  if (value.mode === 'point') return '手动位置';
-  return ANCHOR_OPTIONS.find((option) => option.anchor === value.placement?.anchor)?.label ?? '快捷位置';
+function getPlacementLabel(t: TFunction, value?: SpriteWindowAnimationPlayPosition): string {
+  if (!value) return t('sprite:positionEditor.placementLabels.keepCurrent');
+  if (value.mode === 'point') return t('sprite:positionEditor.placementLabels.manual');
+  const anchor = value.placement?.anchor;
+  return ANCHOR_OPTIONS.some((option) => option.anchor === anchor) ? t(`sprite:positionEditor.anchors.${anchor}`) : t('sprite:positionEditor.placementLabels.quick');
 }
 
 export default function SpriteWindowAnimationPositionEditor({
@@ -163,6 +158,7 @@ export default function SpriteWindowAnimationPositionEditor({
   value?: SpriteWindowAnimationPlayPosition;
   onChange: (value: SpriteWindowAnimationPlayPosition | undefined) => void;
 }): JSX.Element {
+  const { t } = useTranslation('sprite');
   const enabled = Boolean(value);
   const mode = value?.mode ?? 'placement';
   const margin = getUniformMargin(value);
@@ -202,8 +198,8 @@ export default function SpriteWindowAnimationPositionEditor({
     <div className="space-y-2 rounded-md border px-3 py-3">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <div className="text-xs font-medium">播放前目标位置</div>
-          <div className="text-[11px] text-muted-foreground">{getPlacementLabel(value)}</div>
+          <div className="text-xs font-medium">{t('sprite:positionEditor.title')}</div>
+          <div className="text-[11px] text-muted-foreground">{getPlacementLabel(t, value)}</div>
         </div>
         <Switch checked={enabled} onCheckedChange={(checked) => onChange(checked ? getDefaultPlacement('center') : undefined)} />
       </div>
@@ -217,8 +213,8 @@ export default function SpriteWindowAnimationPositionEditor({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="placement">快捷位置</SelectItem>
-                  <SelectItem value="point">手动拖拽</SelectItem>
+                  <SelectItem value="placement">{t('sprite:positionEditor.modes.placement')}</SelectItem>
+                  <SelectItem value="point">{t('sprite:positionEditor.modes.point')}</SelectItem>
                 </SelectContent>
               </Select>
               <Select
@@ -233,7 +229,7 @@ export default function SpriteWindowAnimationPositionEditor({
                 <SelectContent>
                   {DISPLAY_OPTIONS.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
-                      {option.label}
+                      {t(`sprite:displays.${option.value}`)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -249,7 +245,7 @@ export default function SpriteWindowAnimationPositionEditor({
                   <SelectContent>
                     {FIT_MODE_OPTIONS.map((option) => (
                       <SelectItem key={option.value} value={option.value}>
-                        {option.label}
+                        {t(`sprite:positionEditor.fitModes.${option.value}`)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -291,7 +287,7 @@ export default function SpriteWindowAnimationPositionEditor({
                   <line x1={0} y1={placementPoint.y} x2={CANVAS_WIDTH} y2={placementPoint.y} stroke="hsl(var(--primary))" strokeDasharray="4 4" />
                   <circle cx={placementPoint.x} cy={placementPoint.y} r={7} fill="hsl(var(--primary))" />
                   <text x={CANVAS_WIDTH / 2} y={CANVAS_HEIGHT - 12} textAnchor="middle" className="fill-muted-foreground text-[12px]">
-                    {getPlacementLabel(value)}
+                    {getPlacementLabel(t, value)}
                   </text>
                 </g>
               )}
@@ -317,6 +313,7 @@ export default function SpriteWindowAnimationPositionEditor({
                 {ANCHOR_OPTIONS.map((option) => {
                   const Icon = option.icon;
                   const active = mode === 'placement' ? value?.placement?.anchor === option.anchor : value?.positionAnchor === option.anchor;
+                  const anchorLabel = t(`sprite:positionEditor.anchors.${option.anchor}`);
                   return (
                     <Tooltip key={option.anchor}>
                       <TooltipTrigger asChild>
@@ -330,7 +327,7 @@ export default function SpriteWindowAnimationPositionEditor({
                           <Icon />
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent side="left">{mode === 'placement' ? option.label : `窗口锚点：${option.label}`}</TooltipContent>
+                      <TooltipContent side="left">{mode === 'placement' ? anchorLabel : t('sprite:positionEditor.windowAnchorTooltip', { label: anchorLabel })}</TooltipContent>
                     </Tooltip>
                   );
                 })}
@@ -339,7 +336,7 @@ export default function SpriteWindowAnimationPositionEditor({
 
             {mode === 'placement' && (
               <div className="flex items-center gap-2">
-                <Label className="text-[11px] text-muted-foreground">边距</Label>
+                <Label className="text-[11px] text-muted-foreground">{t('sprite:positionEditor.margin')}</Label>
                 <Input className="h-8 text-xs" value={margin} onChange={(event) => updatePlacement({ margin: Math.max(0, Math.round(toNumber(event.target.value, margin))) })} />
               </div>
             )}
@@ -349,7 +346,7 @@ export default function SpriteWindowAnimationPositionEditor({
                 checked={mode === 'point' ? (value?.coordinateSpace?.useWorkArea ?? true) : (value?.placement?.useWorkArea ?? true)}
                 onChange={(event) => (mode === 'point' ? updatePoint({ coordinateSpace: { useWorkArea: event.target.checked } }) : updatePlacement({ useWorkArea: event.target.checked }))}
               />
-              使用工作区
+              {t('sprite:positionEditor.useWorkArea')}
             </label>
           </div>
         </div>

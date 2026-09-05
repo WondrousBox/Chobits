@@ -1,6 +1,7 @@
 import type { ProviderVoiceGroup, ProviderVoiceOption } from '@packages/ai/providers/voice-catalogs';
 import { Check, ChevronsUpDown } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -40,15 +41,10 @@ function findSelectedVoice(groups: ProviderVoiceGroup[], value?: string): VoiceS
   return undefined;
 }
 
-export default function ProviderVoiceSelect({
-  value,
-  groups = [],
-  onChange,
-  placeholder = '选择音色',
-  searchPlaceholder = '搜索音色名称或 voiceId...',
-  className,
-  disabled = false
-}: ProviderVoiceSelectProps): JSX.Element {
+export default function ProviderVoiceSelect({ value, groups = [], onChange, placeholder, searchPlaceholder, className, disabled = false }: ProviderVoiceSelectProps): JSX.Element {
+  const { t } = useTranslation('common');
+  const resolvedPlaceholder = placeholder ?? t('voiceSelect.placeholder');
+  const resolvedSearchPlaceholder = searchPlaceholder ?? t('voiceSelect.searchPlaceholder');
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -74,7 +70,7 @@ export default function ProviderVoiceSelect({
     setSearchQuery('');
   };
 
-  const displayLabel = selected?.voice.label || value || placeholder;
+  const displayLabel = selected?.voice.label || value || resolvedPlaceholder;
   const displayDetail = selected ? selected.voice.id : value && value !== displayLabel ? value : undefined;
 
   return (
@@ -99,7 +95,7 @@ export default function ProviderVoiceSelect({
           <Input
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
-            placeholder={searchPlaceholder}
+            placeholder={resolvedSearchPlaceholder}
             className="h-8 text-xs"
             onClick={(event) => event.stopPropagation()}
             onKeyDown={(event) => event.stopPropagation()}
@@ -107,11 +103,11 @@ export default function ProviderVoiceSelect({
         </div>
 
         {groups.length === 0 ? (
-          <div className="px-3 py-2 text-xs text-muted-foreground">当前服务商暂无内置音色列表，请手动输入 voiceId。</div>
+          <div className="px-3 py-2 text-xs text-muted-foreground">{t('voiceSelect.emptyVoices')}</div>
         ) : searchQuery.trim() ? (
           <div className="max-h-72 overflow-y-auto p-1">
             {searchResults.length === 0 ? (
-              <div className="px-2 py-1.5 text-xs text-muted-foreground">没有匹配的音色</div>
+              <div className="px-2 py-1.5 text-xs text-muted-foreground">{t('voiceSelect.noMatch')}</div>
             ) : (
               searchResults.map(({ group, voice }) => (
                 <DropdownMenuItem key={`${group.id}:${voice.id}`} onSelect={() => handleSelect(voice.id)}>

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TbLoader2, TbWifi, TbWifiOff } from 'react-icons/tb';
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -11,6 +12,7 @@ interface NetworkCheckDialogProps {
 }
 
 export const NetworkCheckDialog: React.FC<NetworkCheckDialogProps> = ({ isOpen, onOpenChange }) => {
+  const { t } = useTranslation('ai');
   const [networkChecking, setNetworkChecking] = useState(false);
   const [networkResults, setNetworkResults] = useState<NetworkCheckResult[]>([]);
 
@@ -25,8 +27,8 @@ export const NetworkCheckDialog: React.FC<NetworkCheckDialogProps> = ({ isOpen, 
     } catch (error) {
       console.error('Network check failed:', error);
       setNetworkResults([
-        { name: 'Hugging Face', url: 'https://huggingface.co', success: false, error: '检测失败' },
-        { name: 'GitHub', url: 'https://github.com', success: false, error: '检测失败' }
+        { name: 'Hugging Face', url: 'https://huggingface.co', success: false, error: t('networkCheck.checkFailed') },
+        { name: 'GitHub', url: 'https://github.com', success: false, error: t('networkCheck.checkFailed') }
       ]);
     } finally {
       setNetworkChecking(false);
@@ -49,14 +51,14 @@ export const NetworkCheckDialog: React.FC<NetworkCheckDialogProps> = ({ isOpen, 
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>网络连通性检测</DialogTitle>
-          <DialogDescription>检测是否能访问插件和模型下载所需的网站</DialogDescription>
+          <DialogTitle>{t('networkCheck.title')}</DialogTitle>
+          <DialogDescription>{t('networkCheck.description')}</DialogDescription>
         </DialogHeader>
         <div className="space-y-3 py-4">
           {networkChecking ? (
             <div className="flex items-center justify-center gap-2 py-8">
               <TbLoader2 className="animate-spin" size={20} />
-              <span className="text-sm text-muted-foreground">正在检测...</span>
+              <span className="text-sm text-muted-foreground">{t('networkCheck.checking')}</span>
             </div>
           ) : (
             networkResults.map((result) => (
@@ -68,7 +70,9 @@ export const NetworkCheckDialog: React.FC<NetworkCheckDialogProps> = ({ isOpen, 
                     <div className="text-xs text-muted-foreground">{result.url}</div>
                   </div>
                 </div>
-                <div className="text-sm">{result.success ? <span className="text-green-500">可访问</span> : <span className="text-red-500">{result.error || '无法访问'}</span>}</div>
+                <div className="text-sm">
+                  {result.success ? <span className="text-green-500">{t('networkCheck.accessible')}</span> : <span className="text-red-500">{result.error || t('networkCheck.inaccessible')}</span>}
+                </div>
               </div>
             ))
           )}

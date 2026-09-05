@@ -13,6 +13,12 @@ const vllmSchema: ProviderConfig = {
         allowInsecureTls: 'TLS Certificate Verification',
         apiKey: 'API Key',
         baseUrl: 'Base URL'
+      },
+      options: {
+        allowInsecureTls: {
+          false: 'Strict verification (default)',
+          true: 'Allow self-signed certificates'
+        }
       }
     },
     'zh-CN': {
@@ -21,6 +27,26 @@ const vllmSchema: ProviderConfig = {
         allowInsecureTls: 'TLS 证书校验',
         apiKey: 'API Key',
         baseUrl: 'Base URL'
+      },
+      options: {
+        allowInsecureTls: {
+          false: '严格校验（默认）',
+          true: '允许自签名证书'
+        }
+      }
+    },
+    ja: {
+      label: 'vLLM（セルフホスト）',
+      fields: {
+        allowInsecureTls: 'TLS 証明書の検証',
+        apiKey: 'API Key',
+        baseUrl: 'Base URL'
+      },
+      options: {
+        allowInsecureTls: {
+          false: '厳格に検証（デフォルト）',
+          true: '自己署名証明書を許可'
+        }
       }
     }
   },

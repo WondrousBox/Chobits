@@ -13,6 +13,12 @@ const gptSovitsSchema: ProviderConfig = {
         apiKey: 'API Key',
         baseUrl: 'Base URL',
         allowInsecureTls: 'TLS Certificate Verification'
+      },
+      options: {
+        allowInsecureTls: {
+          false: 'Strict verification (default)',
+          true: 'Allow self-signed certificates'
+        }
       }
     },
     'zh-CN': {
@@ -21,6 +27,26 @@ const gptSovitsSchema: ProviderConfig = {
         apiKey: 'API Key',
         baseUrl: 'Base URL',
         allowInsecureTls: 'TLS 证书校验'
+      },
+      options: {
+        allowInsecureTls: {
+          false: '严格校验（默认）',
+          true: '允许自签名证书'
+        }
+      }
+    },
+    ja: {
+      label: 'GPT-SoVITS（セルフホスト）',
+      fields: {
+        apiKey: 'API Key',
+        baseUrl: 'Base URL',
+        allowInsecureTls: 'TLS 証明書の検証'
+      },
+      options: {
+        allowInsecureTls: {
+          false: '厳格に検証（デフォルト）',
+          true: '自己署名証明書を許可'
+        }
       }
     }
   },

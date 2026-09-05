@@ -1,0 +1,309 @@
+{
+  "title": "設定",
+  "nav": {
+    "preferences": {
+      "label": "環境設定",
+      "description": "テーマの外観とフォルダ設定"
+    },
+    "ai": {
+      "label": "会話設定",
+      "description": "AI プロバイダー、API キー、会話パラメータ"
+    },
+    "prompt": {
+      "label": "プロンプト管理",
+      "description": "プロンプトの管理と設定"
+    },
+    "features": {
+      "label": "機能管理",
+      "description": "オプション機能のオン・オフ"
+    },
+    "plugins": {
+      "label": "プラグイン管理",
+      "description": "ローカルエンジンとモデルプラグインの管理"
+    },
+    "shortcuts": {
+      "label": "ショートカット",
+      "description": "グローバルショートカットの設定"
+    },
+    "proxy": {
+      "label": "プロキシ設定",
+      "description": "制限されたリソースにアクセスするためのネットワークプロキシを設定"
+    },
+    "extensions": {
+      "label": "機能拡張",
+      "description": "キャラクターパックとスプライトの機能"
+    },
+    "spriteManager": {
+      "label": "スプライト管理",
+      "description": "デスクトップスプライトのアニメーションリソースの管理、インポートとアクションのデバッグ"
+    }
+  },
+  "appearance": {
+    "groupTitle": "外観",
+    "theme": {
+      "label": "テーマ",
+      "description": "画面のカラーモードを切り替えるか、システムに合わせて自動調整します",
+      "switching": "切り替え中...",
+      "options": {
+        "system": "システムに従う",
+        "light": "ライトモード",
+        "dark": "ダークモード"
+      }
+    }
+  },
+  "language": {
+    "groupTitle": "言語",
+    "label": "表示言語",
+    "description": "表示言語を切り替えるか、システム設定に従います",
+    "updateFailed": "言語設定の更新に失敗しました",
+    "options": {
+      "system": "システムに従う",
+      "zh-CN": "简体中文",
+      "ja": "日本語",
+      "en": "English"
+    }
+  },
+  "launch": {
+    "groupTitle": "起動",
+    "launchAtLogin": {
+      "label": "自動起動",
+      "description": "システムログイン後に Chobits を自動的に起動します",
+      "updateFailed": "自動起動設定の更新に失敗しました"
+    }
+  },
+  "features": {
+    "groupTitle": "機能スイッチ",
+    "restartHint": "オフにした機能は入口が非表示になり、関連するバックグラウンドサービスも停止します。変更を完全に反映するにはアプリの再起動が必要です。",
+    "items": {
+      "localAI": {
+        "label": "ローカル AI 推論",
+        "description": "ローカル音声認識(sherpa)。オフラインで動作しますが、ディスクとメモリを多く使用します"
+      }
+    },
+    "toast": {
+      "updateFailed": "機能スイッチの更新に失敗しました"
+    }
+  },
+  "folder": {
+    "groupTitle": "フォルダ",
+    "open": "開く",
+    "select": "選択",
+    "moving": "移動中",
+    "moveCompleted": "移動が完了しました",
+    "movingFile": "移動中: {{file}}",
+    "movingFiles": "ファイルを移動中...",
+    "dataDir": {
+      "label": "データフォルダ",
+      "description": "アプリデータの保存場所"
+    },
+    "logsDir": {
+      "label": "ログフォルダ",
+      "description": "アプリのログファイルの保存場所"
+    },
+    "downloadDir": {
+      "label": "ダウンロードフォルダ",
+      "description": "ダウンロードしたファイルの保存場所"
+    },
+    "pluginsDir": {
+      "label": "プラグインリソースフォルダ",
+      "description": "プラグインエンジンとモデルファイルの保存場所"
+    }
+  },
+  "preview": {
+    "groupTitle": "プレビュー",
+    "switching": "切り替え中...",
+    "mode": {
+      "label": "プレビューモード",
+      "description": "リソースプレビューの表示方法を選択します"
+    },
+    "options": {
+      "window": "独立ウィンドウ",
+      "panel": "右側パネル"
+    }
+  },
+  "prompt": {
+    "searchPlaceholder": "検索...",
+    "noTemplates": "テンプレートがありません",
+    "noResults": "一致する結果がありません",
+    "noSelection": "テンプレートが選択されていません",
+    "reset": "リセット",
+    "editorPlaceholder": "テンプレート内容を編集...",
+    "selectFirst": "先にテンプレートを選択または作成してください",
+    "createTitle": "新規テンプレート",
+    "deleteConfirm": "このテンプレートを削除しますか？",
+    "dialog": {
+      "createTitle": "新規テンプレート",
+      "editTitle": "テンプレートを編集",
+      "nameRequired": "名前は必須です",
+      "nameLabel": "名前",
+      "namePlaceholder": "テンプレート名",
+      "contentLabel": "内容",
+      "contentPlaceholder": "テンプレート内容"
+    }
+  },
+  "proxy": {
+    "mode": {
+      "groupTitle": "プロキシモード",
+      "label": "プロキシタイプ",
+      "description": "ネットワークプロキシのモードを選択します",
+      "options": {
+        "none": "無効",
+        "system": "システム",
+        "custom": "カスタム"
+      }
+    },
+    "systemInfo": {
+      "label": "システムプロキシ情報",
+      "notDetected": "システムプロキシが検出されませんでした"
+    },
+    "refresh": "更新",
+    "custom": {
+      "groupTitle": "カスタムプロキシ",
+      "empty": "プロキシ設定がありません",
+      "add": "プロキシを追加",
+      "enabled": "有効",
+      "enable": "有効にする"
+    },
+    "test": {
+      "groupTitle": "ネットワークテスト",
+      "label": "プロキシ接続をテスト",
+      "description": "現在のプロキシ設定が正常に動作するか確認します",
+      "testing": "テスト中...",
+      "button": "テスト",
+      "failed": "テストに失敗しました",
+      "connected": "接続正常、遅延: {{latency}}ms",
+      "connectFailed": "プロキシサーバーに接続できません"
+    },
+    "toast": {
+      "loadFailed": {
+        "title": "読み込み失敗",
+        "description": "プロキシ設定を読み込めませんでした"
+      },
+      "setSuccess": {
+        "title": "設定完了",
+        "description": "プロキシ設定が更新されました"
+      },
+      "setFailed": {
+        "title": "設定失敗",
+        "description": "プロキシ設定を更新できませんでした"
+      },
+      "addSuccess": {
+        "title": "追加完了",
+        "description": "新しいプロキシ設定を追加しました"
+      },
+      "addFailed": {
+        "title": "追加失敗",
+        "description": "プロキシ設定を追加できませんでした"
+      },
+      "updateSuccess": {
+        "title": "更新完了",
+        "description": "プロキシ設定が更新されました"
+      },
+      "updateFailed": {
+        "title": "更新失敗",
+        "description": "プロキシ設定を更新できませんでした"
+      },
+      "removeSuccess": {
+        "title": "削除完了",
+        "description": "プロキシ設定を削除しました"
+      },
+      "removeFailed": {
+        "title": "削除失敗",
+        "description": "プロキシ設定を削除できませんでした"
+      }
+    }
+  },
+  "shortcuts": {
+    "groupTitle": "ショートカット設定",
+    "multiHint": "複数のショートカットはカンマで区切ります",
+    "actions": {
+      "toggleChatWindow": "AI チャットパネルの切り替え",
+      "toggleDevtools": "DevTools の切り替え",
+      "toggleMainWindow": "メインウィンドウの表示/非表示"
+    },
+    "restoreDefaults": "デフォルトに戻す",
+    "saving": "保存中...",
+    "save": "設定を保存",
+    "toast": {
+      "restored": "デフォルトのショートカットを復元しました",
+      "restoreFailed": "デフォルトの復元に失敗しました",
+      "saved": "ショートカットを保存しました",
+      "saveFailed": "保存に失敗しました",
+      "invalidList": "以下のショートカットは使用できません：\n{{failures}}",
+      "invalid": "使用できないショートカットがあります。修正してから再度お試しください。"
+    }
+  },
+  "backup": {
+    "groupTitle": "データベースバックアップ",
+    "create": {
+      "label": "バックアップを作成",
+      "description": "現在のデータベースをバックアップファイルとして保存します。バックアップはデータフォルダの backups フォルダに保存されます"
+    },
+    "import": "インポート",
+    "importing": "インポート中...",
+    "backupNow": "今すぐバックアップ",
+    "backingUp": "バックアップ中...",
+    "listTitle": "バックアップ一覧 ({{count}})",
+    "restoreTooltip": "このバックアップを復元",
+    "delete": "削除",
+    "fileFilter": "SQLite データベース",
+    "deleteDialog": {
+      "title": "バックアップの削除を確認",
+      "description": "このバックアップファイルは完全に削除され、元に戻せません",
+      "confirm": "削除を確認",
+      "deleting": "削除中..."
+    },
+    "restoreDialog": {
+      "title": "データベースバックアップの復元",
+      "description": "現在のデータベースをこのバックアップで置き換えます。現在のデータベースは .old ファイルに名前変更されます。復元後はアプリの再起動が必要です。",
+      "confirm": "復元を確認",
+      "restoring": "復元中..."
+    },
+    "restartDialog": {
+      "title": "復元が完了しました",
+      "description": "データベースが正常に復元されました。新しいデータベースを読み込むにはアプリの再起動が必要です。",
+      "later": "後で再起動",
+      "now": "今すぐ再起動"
+    }
+  },
+  "update": {
+    "groupTitle": "アップデート",
+    "check": {
+      "label": "アップデートを確認",
+      "description": "新しいバージョンはバックグラウンドで自動的にダウンロードされ、アプリ再起動後にインストールされます",
+      "checking": "確認中…",
+      "button": "アップデートを確認"
+    },
+    "toast": {
+      "failed": {
+        "title": "アップデートの確認に失敗しました",
+        "description": "しばらくしてから再度お試しください。詳細はログをご確認ください"
+      },
+      "available": {
+        "title": "新しいバージョン {{version}} が見つかりました",
+        "description": "バックグラウンドでダウンロード中です。完了後、アプリを再起動するとインストールされます"
+      },
+      "downloaded": {
+        "title": "新しいバージョン {{version}} のダウンロードが完了しました",
+        "description": "アプリの再起動後に自動的にインストールされます"
+      },
+      "latest": "現在最新バージョンです",
+      "devUnsupported": {
+        "title": "開発バージョンは自動アップデートに対応していません",
+        "description": "アップデートの確認は製品ビルドでのみ利用できます"
+      },
+      "checking": "アップデートを確認中です。しばらくしてから再度お試しください"
+    }
+  },
+  "common": {
+    "notSet": "未設定",
+    "loading": "読み込み中...",
+    "save": "保存",
+    "cancel": "キャンセル",
+    "create": "作成"
+  },
+  "unavailable": {
+    "title": "ページは利用できません",
+    "description": "このページは現在のコンテキストでは利用できません"
+  }
+}

@@ -1,4 +1,5 @@
 import type { TokenUsage } from '@packages/ai/types';
+import { useTranslation } from 'react-i18next';
 
 import { cn } from '@/lib/utils';
 
@@ -18,6 +19,7 @@ function formatTokenCount(value?: number): string {
 }
 
 export default function ChatTokenUsage({ usage, label, className, variant = 'message' }: ChatTokenUsageProps): JSX.Element | null {
+  const { t } = useTranslation('chat');
   if (!usage) return null;
 
   const hasTokenComponent =
@@ -39,13 +41,13 @@ export default function ChatTokenUsage({ usage, label, className, variant = 'mes
       )}
     >
       {label ? <span className="font-medium text-foreground/80">{label}</span> : null}
-      <span>输入 {formatTokenCount(usage.inputTokens)}</span>
+      <span>{t('components.tokenUsage.input', { count: formatTokenCount(usage.inputTokens) })}</span>
       <span className="text-muted-foreground/50">·</span>
-      <span>输出 {formatTokenCount(usage.outputTokens)}</span>
+      <span>{t('components.tokenUsage.output', { count: formatTokenCount(usage.outputTokens) })}</span>
       {totalTokens !== undefined ? (
         <>
           <span className="text-muted-foreground/50">·</span>
-          <span>总计 {formatTokenCount(totalTokens)}</span>
+          <span>{t('components.tokenUsage.total', { count: formatTokenCount(totalTokens) })}</span>
         </>
       ) : null}
     </div>

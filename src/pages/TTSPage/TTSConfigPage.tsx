@@ -1,6 +1,7 @@
 import { PluginDefinition } from '@packages/plugins/types';
 import { ScrollArea } from '@radix-ui/react-scroll-area';
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TbLoader2, TbPlayerPlay } from 'react-icons/tb';
 import { toast } from 'sonner';
 
@@ -18,6 +19,7 @@ interface TTSModelItem extends PluginDefinition {
 const RECOMMENDED_MODEL_IDS = ['kokoro-int8-multi-lang-v1_0'];
 
 const TTSConfigPage: React.FC = () => {
+  const { t } = useTranslation('tts');
   const [isLoading, setIsLoading] = useState(false);
   const [selectedModel, setSelectedModel] = useState<string>('');
   const [ttsModels, setTTSModels] = useState<TTSModelItem[]>([]);
@@ -107,7 +109,7 @@ const TTSConfigPage: React.FC = () => {
     }
     if (!isSelectedInstalled) {
       // 模型未安装时给出可跳转的提示，避免用户卡在死路
-      toast.error('模型未安装，请先使用一键安装');
+      toast.error(t('config.modelNotInstalled'));
       return;
     }
 
@@ -142,8 +144,8 @@ const TTSConfigPage: React.FC = () => {
   return (
     <div className="flex flex-col h-full w-full box-border rounded-lg bg-background drag-region">
       <div className="p-4 box-border border-b">
-        <h2 className="text-lg font-semibold">TTS 语音合成配置</h2>
-        <p className="text-sm text-muted-foreground">选择要使用的语音合成模型</p>
+        <h2 className="text-lg font-semibold">{t('config.title')}</h2>
+        <p className="text-sm text-muted-foreground">{t('config.subtitle')}</p>
       </div>
 
       <ScrollArea className="space-y-4 flex-1 overflow-y-auto px-4 py-4 no-drag">
@@ -151,11 +153,11 @@ const TTSConfigPage: React.FC = () => {
         <div className="space-y-4">
           <div className="space-y-2">
             <Label className="no-drag" htmlFor="model">
-              TTS 模型
+              {t('config.model')}
             </Label>
             <Select value={selectedModel} onValueChange={setSelectedModel} disabled={loadingModels}>
               <SelectTrigger className="no-drag" id="model">
-                <SelectValue placeholder={loadingModels ? '加载中...' : '请选择模型'}>
+                <SelectValue placeholder={loadingModels ? t('config.loading') : t('config.selectModel')}>
                   {(() => {
                     const selectedModelInfo = selectedModel ? ttsModels.find((m) => m.id === selectedModel) : null;
                     if (!selectedModelInfo) return null;
@@ -170,7 +172,7 @@ const TTSConfigPage: React.FC = () => {
               <SelectContent className="max-w-md no-drag">
                 {ttsModels.length === 0 && !loadingModels && (
                   <SelectItem value="__no_models__" disabled>
-                    暂无可用模型
+                    {t('config.noModels')}
                   </SelectItem>
                 )}
                 {ttsModels.map((model) => {
@@ -180,8 +182,8 @@ const TTSConfigPage: React.FC = () => {
                       <div className="flex flex-col gap-0.5 py-0.5 w-full min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-medium break-words">{model.displayName || model.name}</span>
-                          {isRecommended && <span className="text-xs text-primary shrink-0">推荐</span>}
-                          {!model.isInstalled && <span className="text-xs text-muted-foreground shrink-0">(未安装)</span>}
+                          {isRecommended && <span className="text-xs text-primary shrink-0">{t('config.recommended')}</span>}
+                          {!model.isInstalled && <span className="text-xs text-muted-foreground shrink-0">{t('config.notInstalled')}</span>}
                         </div>
                         {model.description && <div className="text-xs text-muted-foreground leading-relaxed break-words">{model.description}</div>}
                       </div>
@@ -210,17 +212,17 @@ const TTSConfigPage: React.FC = () => {
 
       <div className="flex gap-2 border-t p-2 px-4">
         <Button variant="outline" className="flex-1 no-drag" onClick={() => window.chobits.window['window:close']('ttsConfig')}>
-          取消
+          {t('common:action.cancel')}
         </Button>
         <Button disabled={isLoading || !selectedModel || !isSelectedInstalled} onClick={handleStartTTS} className="flex-1 no-drag">
           {isLoading ? (
             <>
               <TbLoader2 className="animate-spin" />
-              启动中...
+              {t('config.starting')}
             </>
           ) : (
             <>
-              启动
+              {t('config.start')}
               <TbPlayerPlay />
             </>
           )}

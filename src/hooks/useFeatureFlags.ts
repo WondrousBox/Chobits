@@ -1,5 +1,6 @@
 import { FEATURE_DEFINITIONS, type FeatureKey, resolveFeatureFlags } from '@packages/common/feature-flags';
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
 /**
@@ -18,6 +19,7 @@ export function useFeatureFlags(): {
 } {
   const [flags, setFlags] = useState<Record<FeatureKey, boolean>>(() => resolveFeatureFlags());
   const [isLoading, setIsLoading] = useState(true);
+  const { t } = useTranslation('settings');
 
   useEffect(() => {
     let disposed = false;
@@ -55,16 +57,16 @@ export function useFeatureFlags(): {
           config: { featureFlags: next }
         });
         if (!result.ok) {
-          throw new Error(result.error || '更新功能开关失败');
+          throw new Error(result.error || t('features.toast.updateFailed'));
         }
       } catch (error) {
         setFlags(previous);
-        toast.error('更新功能开关失败', {
+        toast.error(t('features.toast.updateFailed'), {
           description: error instanceof Error ? error.message : String(error)
         });
       }
     },
-    [flags]
+    [flags, t]
   );
 
   return { definitions: FEATURE_DEFINITIONS, flags, isLoading, isEnabled, setFeatureFlag };

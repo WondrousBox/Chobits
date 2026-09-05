@@ -1,10 +1,12 @@
 import { MASKED_SECRET_VALUE } from '@packages/ai/secret-masking';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TbChevronDown, TbChevronRight } from 'react-icons/tb';
 
 import TintableSvg from '@/components/common/TintableSvg';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { getCurrentAppLanguage } from '@/i18n';
 
 export type ProviderRow = {
   id: string;
@@ -36,14 +38,20 @@ export function PresetFormDialog(props: {
   onDelete?: () => void;
   onSubmit: (values: PresetFormValues) => void | Promise<void>;
 }): JSX.Element {
-  const { title, provider, models, initialValues, maskedSecretKeys, errors, submitLabel = '保存', cancelLabel = '取消', onCancel, onDelete, onSubmit } = props;
+  const { t } = useTranslation('ai');
+  const { title, provider, models, initialValues, maskedSecretKeys, errors, submitLabel = t('presetForm.submit'), cancelLabel = t('presetForm.cancel'), onCancel, onDelete, onSubmit } = props;
   const [values, setValues] = useState<PresetFormValues>(() => initialValues);
   const [modelsExpanded, setModelsExpanded] = useState(false);
 
-  const currentLang = (typeof navigator !== 'undefined' ? navigator.language?.toLowerCase?.() : 'en') || 'en';
+  const currentLang = getCurrentAppLanguage().toLowerCase();
   const pickLocale = (locales?: Record<string, { label?: string; fields?: Record<string, string> }>): { label?: string; fields?: Record<string, string> } | undefined => {
     if (!locales) return undefined;
-    const exact = locales[currentLang] || locales[currentLang.replace(/-.+$/, '')];
+    // locales 键约定为 'zh-CN' / 'en' / 'ja'，与当前语言做大小写不敏感匹配
+    const exactKey = Object.keys(locales).find((key) => {
+      const lowered = key.toLowerCase();
+      return lowered === currentLang || lowered === currentLang.replace(/-.+$/, '');
+    });
+    const exact = exactKey ? locales[exactKey] : undefined;
     const fallback = locales['en'] || Object.values(locales)[0];
     return exact || fallback;
   };
@@ -84,27 +92,27 @@ export function PresetFormDialog(props: {
     return <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-100 text-sky-700 border border-sky-200">{k}k ctx</span>;
   };
 
-  const typeDisplay = (t?: string): string => {
-    switch ((t || '').toLowerCase()) {
+  const typeDisplay = (type?: string): string => {
+    switch ((type || '').toLowerCase()) {
       case 'chat':
-        return '对话';
+        return t('presetForm.models.types.chat');
       case 'vision':
-        return '视觉';
+        return t('presetForm.models.types.vision');
       case 'image':
-        return '图像';
+        return t('presetForm.models.types.image');
       case 'video':
-        return '视频';
+        return t('presetForm.models.types.video');
       case 'audio':
-        return '音频';
+        return t('presetForm.models.types.audio');
       case 'embedding':
-        return '向量';
+        return t('presetForm.models.types.embedding');
       case 'realtime':
-        return '实时';
+        return t('presetForm.models.types.realtime');
       case 'tool':
       case 'tooling':
-        return '工具';
+        return t('presetForm.models.types.tool');
       default:
-        return t || '';
+        return type || '';
     }
   };
 
@@ -124,7 +132,7 @@ export function PresetFormDialog(props: {
           {provider.schema?.icon && <TintableSvg src={provider.schema.icon || ''} alt={provider.label} className="w-8 h-8 shrink-0" />}
           <div className="min-w-0">
             <div className="font-medium truncate">{title || pickLocale(provider.schema?.locales)?.label || provider.label}</div>
-            <div className="text-xs text-muted-foreground truncate">填写并保存后会立即生效</div>
+            <div className="text-xs text-muted-foreground truncate">{t('presetForm.description')}</div>
           </div>
         </div>
       </div>
@@ -156,24 +164,24 @@ export function PresetFormDialog(props: {
           className="flex w-full items-center justify-between px-2 py-2 text-sm text-muted-foreground hover:text-foreground"
           onClick={() => setModelsExpanded((expanded) => !expanded)}
         >
-          <span>可用模型 ({filteredSortedModels.length})</span>
+          <span>{t('presetForm.models.title', { count: filteredSortedModels.length })}</span>
           <span className="flex items-center gap-1 text-xs">
             {modelsExpanded ? <TbChevronDown /> : <TbChevronRight />}
-            {modelsExpanded ? '收起' : '展开'}
+            {modelsExpanded ? t('presetForm.models.collapse') : t('presetForm.models.expand')}
           </span>
         </Button>
 
         {modelsExpanded && (
           <div className="rounded-lg border bg-muted/30 p-3">
             {filteredSortedModels.length === 0 ? (
-              <div className="text-sm text-muted-foreground">当前还没有可读取到的模型列表</div>
+              <div className="text-sm text-muted-foreground">{t('presetForm.models.empty')}</div>
             ) : (
               <div className="grid gap-2 max-h-60 overflow-y-auto">
                 {filteredSortedModels.map((model) => (
                   <div key={model.id} className="rounded-lg border bg-background/80 p-2">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-sm font-medium">{model.label || model.id}</span>
-                      {isFree(model) && <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-700 border border-green-200">免费</span>}
+                      {isFree(model) && <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-700 border border-green-200">{t('presetForm.models.free')}</span>}
                       {model.type && <span className={`text-[10px] px-1.5 py-0.5 rounded border ${typeColorClasses(model.type)}`}>{typeDisplay(model.type)}</span>}
                       {renderContextPill(model)}
                     </div>
@@ -191,7 +199,7 @@ export function PresetFormDialog(props: {
                 ))}
               </div>
             )}
-            <div className="mt-2 text-xs text-muted-foreground">这里只做查看，实际使用时在聊天里选择模型。</div>
+            <div className="mt-2 text-xs text-muted-foreground">{t('presetForm.models.hint')}</div>
           </div>
         )}
       </div>
@@ -200,7 +208,7 @@ export function PresetFormDialog(props: {
         <div>
           {onDelete && (
             <Button variant="destructive" onClick={onDelete}>
-              删除
+              {t('presetForm.delete')}
             </Button>
           )}
         </div>

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { TbFolderCode, TbX } from 'react-icons/tb';
 
 import { Button, type ButtonProps } from '@/components/ui/button';
@@ -22,7 +23,7 @@ export interface CodingWorkspaceButtonProps {
 export default function CodingWorkspaceButton({
   workspaceRoot,
   workspaceLabel,
-  defaultLabel = '选择项目',
+  defaultLabel,
   onPick,
   onClear,
   triggerVariant = 'outline',
@@ -34,6 +35,8 @@ export default function CodingWorkspaceButton({
   iconClassName,
   disabled = false
 }: CodingWorkspaceButtonProps): JSX.Element {
+  const { t } = useTranslation('chat');
+  const resolvedDefaultLabel = defaultLabel ?? t('components.codingWorkspace.selectProject');
   return (
     <>
       <Button
@@ -43,13 +46,13 @@ export default function CodingWorkspaceButton({
         disabled={disabled}
         className={cn('max-w-44', triggerClassName)}
         onClick={() => void onPick()}
-        title={workspaceRoot || '选择项目目录'}
+        title={workspaceRoot || t('components.codingWorkspace.pickDirectory')}
       >
         <TbFolderCode className={cn('shrink-0', iconClassName)} />
-        <span className="truncate">{workspaceLabel || defaultLabel}</span>
+        <span className="truncate">{workspaceLabel || resolvedDefaultLabel}</span>
       </Button>
       {workspaceRoot && onClear && (
-        <Button type="button" variant={clearVariant} size={clearSize} disabled={disabled} className={clearClassName} onClick={onClear} title="清除项目目录">
+        <Button type="button" variant={clearVariant} size={clearSize} disabled={disabled} className={clearClassName} onClick={onClear} title={t('components.codingWorkspace.clearDirectory')}>
           <TbX className={iconClassName} />
         </Button>
       )}

@@ -1,7 +1,9 @@
 import type { SpriteSpeakConfig } from '@packages/sprite-core/speak/types';
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 export function useSpeakSettings() {
+  const { t } = useTranslation('speech');
   const [config, setConfig] = useState<SpriteSpeakConfig | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isTesting, setIsTesting] = useState(false);
@@ -39,13 +41,13 @@ export function useSpeakSettings() {
     if (isTesting) return;
     setIsTesting(true);
     try {
-      await window.chobits.sprite.speak('你好，我是你的桌面精灵助手！');
+      await window.chobits.sprite.speak(t('speak.testText'));
     } catch (err) {
       console.error('测试语音失败:', err);
     } finally {
       setIsTesting(false);
     }
-  }, [isTesting]);
+  }, [isTesting, t]);
 
   const handleClearCache = useCallback(async () => {
     try {

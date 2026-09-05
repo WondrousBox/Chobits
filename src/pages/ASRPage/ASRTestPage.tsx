@@ -1,6 +1,7 @@
 import type { ASRResultPayload } from '@packages/sherpa/ipc-renderer';
 import { ScrollArea } from '@radix-ui/react-scroll-area';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TbLoader2, TbMicrophone, TbPlayerStop, TbSettings } from 'react-icons/tb';
 import { toast } from 'sonner';
 
@@ -26,6 +27,7 @@ function resampleTo16kHz(inputBuffer: Float32Array, inputSampleRate: number): Fl
 }
 
 const ASRTestPage: React.FC = () => {
+  const { t } = useTranslation('asr');
   const [model, setModel] = useState<string>('');
   const [isEngineReady, setIsEngineReady] = useState<boolean | null>(null); // null=checking
   const [isTesting, setIsTesting] = useState(false);
@@ -160,7 +162,7 @@ const ASRTestPage: React.FC = () => {
       setPartialText('');
     } catch (error) {
       console.error('[ASR测试] 启动麦克风失败:', error);
-      toast.error('无法访问麦克风，请检查系统授权');
+      toast.error(t('test.micAccessFailed'));
       stopCapture();
     }
   };
@@ -174,8 +176,8 @@ const ASRTestPage: React.FC = () => {
     <div className="flex flex-col h-full w-full box-border rounded-lg bg-background drag-region">
       <div className="flex items-start justify-between gap-2 p-4 box-border border-b">
         <div className="min-w-0">
-          <h2 className="text-lg font-semibold">语音识别测试</h2>
-          <p className="text-sm text-muted-foreground truncate">{model ? `当前模型：${model}` : '对着麦克风说话，验证识别效果'}</p>
+          <h2 className="text-lg font-semibold">{t('test.title')}</h2>
+          <p className="text-sm text-muted-foreground truncate">{model ? t('test.currentModel', { model }) : t('test.subtitle')}</p>
         </div>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -183,20 +185,20 @@ const ASRTestPage: React.FC = () => {
               <TbSettings />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>识别服务设置</TooltipContent>
+          <TooltipContent>{t('test.openSettings')}</TooltipContent>
         </Tooltip>
       </div>
 
       <ScrollArea className="flex-1 overflow-y-auto px-4 py-3 no-drag">
         {isEngineReady === false ? (
           <div className="flex flex-col items-center justify-center h-full gap-3 text-sm text-muted-foreground">
-            <span>语音识别服务未运行，请先在配置页启动</span>
+            <span>{t('test.serviceNotRunning')}</span>
             <Button size="sm" variant="outline" onClick={handleOpenConfig}>
-              打开配置
+              {t('test.openConfig')}
             </Button>
           </div>
         ) : results.length === 0 && !partialText ? (
-          <div className="flex items-center justify-center h-full text-sm text-muted-foreground">{isTesting ? '聆听中，请开始说话...' : '点击下方「开始测试」，然后对着麦克风说话'}</div>
+          <div className="flex items-center justify-center h-full text-sm text-muted-foreground">{isTesting ? t('test.listening') : t('test.idleHint')}</div>
         ) : (
           <div className="space-y-2">
             {results.map((text, index) => (
@@ -221,11 +223,11 @@ const ASRTestPage: React.FC = () => {
 
       <div className="flex gap-2 border-t p-2 px-4">
         <Button variant="outline" className="flex-1 no-drag" onClick={() => window.chobits.window['window:close']('asrTest' as any)}>
-          关闭
+          {t('test.close')}
         </Button>
         {isTesting ? (
           <Button variant="destructive" className="flex-1 no-drag" onClick={stopCapture}>
-            停止
+            {t('test.stop')}
             <TbPlayerStop />
           </Button>
         ) : (
@@ -233,11 +235,11 @@ const ASRTestPage: React.FC = () => {
             {isEngineReady === null ? (
               <>
                 <TbLoader2 className="animate-spin" />
-                检查中...
+                {t('test.checking')}
               </>
             ) : (
               <>
-                开始测试
+                {t('test.startTest')}
                 <TbMicrophone />
               </>
             )}

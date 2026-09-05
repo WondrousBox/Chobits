@@ -7,6 +7,7 @@
 import type { SpeechDisplayTextFilter } from '@packages/ai/speech-display-filter';
 import { sanitizeSpeechTextForDisplay } from '@packages/ai/speech-display-filter';
 import React, { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import rehypeHighlight from 'rehype-highlight';
 import remarkGfm from 'remark-gfm';
@@ -30,12 +31,13 @@ function allowChatMediaUrl(url: string): string {
 }
 
 const ChatInlineImage: React.FC<{ alt?: string; src: string }> = ({ alt, src }) => {
+  const { t } = useTranslation('chat');
   const safeSrc = allowChatMediaUrl(src);
   if (!safeSrc) return null;
 
   return (
     <span className="my-2 block overflow-hidden rounded-lg border border-border/60 bg-muted/30">
-      <img src={safeSrc} alt={alt || '图片'} loading="lazy" className="block max-h-[360px] max-w-full object-contain" />
+      <img src={safeSrc} alt={alt || t('components.messageRenderer.imageAlt')} loading="lazy" className="block max-h-[360px] max-w-full object-contain" />
     </span>
   );
 };

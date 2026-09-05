@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TbLoader2, TbSend } from 'react-icons/tb';
 import { toast } from 'sonner';
 
@@ -29,11 +30,13 @@ export default function ChatMiniInputWithService({
   isLoading = false,
   disabled = false,
   autoFocus = false,
-  placeholder = '问点什么...',
+  placeholder,
   className,
   onMenuOpenChange,
   onMenuOpenPrepare
 }: ChatMiniInputWithServiceProps): JSX.Element {
+  const { t } = useTranslation('chat');
+  const resolvedPlaceholder = placeholder ?? t('components.input.miniPlaceholder');
   const { providerId, modelId, presetId, agentId, codingWorkspaceRoot, codingWorkspaceLabel, webSearchEnabled, characterPromptEnabled, setProviderId, setModelId } = useChatSelection();
   const [draft, setDraft] = useState('');
   // 语音识别中的临时文字（仅展示，未写入草稿）
@@ -55,7 +58,7 @@ export default function ChatMiniInputWithService({
     if (disabled || isLoading || !content || !providerId || !modelId) return;
 
     if (isCoder && !codingWorkspaceRoot) {
-      toast.error('代码助手需要先选择项目目录');
+      toast.error(t('components.input.coderWorkspaceRequired'));
       return;
     }
 
@@ -75,7 +78,7 @@ export default function ChatMiniInputWithService({
         : {})
     });
     setDraft('');
-  }, [agentId, characterPromptEnabled, codingWorkspaceLabel, codingWorkspaceRoot, disabled, draft, isCoder, isLoading, modelId, onStart, presetId, providerId, webSearchEnabled]);
+  }, [agentId, characterPromptEnabled, codingWorkspaceLabel, codingWorkspaceRoot, disabled, draft, isCoder, isLoading, modelId, onStart, presetId, providerId, t, webSearchEnabled]);
 
   const handleSendRef = useRef(handleSend);
   useEffect(() => {
@@ -133,7 +136,7 @@ export default function ChatMiniInputWithService({
         buttonVariant="ghost"
         buttonSize="sm"
         triggerMode="icon"
-        placeholder="选择模型"
+        placeholder={t('components.input.modelSelectPlaceholder')}
         autoLoadFirst
         modelTypes={['chat']}
         className="h-8 w-8 shrink-0 rounded-full"
@@ -149,7 +152,7 @@ export default function ChatMiniInputWithService({
         ref={inputRef}
         value={displayValue}
         disabled={disabled}
-        placeholder={placeholder}
+        placeholder={resolvedPlaceholder}
         className="h-9 min-w-0 flex-1 border-0 bg-transparent px-2 shadow-none focus-visible:ring-0"
         onChange={(event) => setDraft(event.target.value)}
         onKeyDown={(event) => {
@@ -180,11 +183,18 @@ export default function ChatMiniInputWithService({
 
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button type="button" size="icon" className="h-8 w-8 shrink-0 rounded-full" disabled={disabled || isLoading || !hasContent} aria-label="发送" onClick={() => void handleSend()}>
+          <Button
+            type="button"
+            size="icon"
+            className="h-8 w-8 shrink-0 rounded-full"
+            disabled={disabled || isLoading || !hasContent}
+            aria-label={t('components.input.sendAriaLabel')}
+            onClick={() => void handleSend()}
+          >
             {isLoading ? <TbLoader2 className="animate-spin" /> : <TbSend />}
           </Button>
         </TooltipTrigger>
-        <TooltipContent>{isLoading ? '正在打开对话' : '发送消息'}</TooltipContent>
+        <TooltipContent>{isLoading ? t('components.input.openingConversation') : t('components.input.sendTooltip')}</TooltipContent>
       </Tooltip>
     </div>
   );

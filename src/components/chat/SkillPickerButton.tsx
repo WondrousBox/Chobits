@@ -1,6 +1,7 @@
 import type { SkillInfo } from '@packages/ai/types';
 import type * as PopoverPrimitive from '@radix-ui/react-popover';
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TbSparkles } from 'react-icons/tb';
 
 import { Badge } from '@/components/ui/badge';
@@ -40,6 +41,7 @@ export default function SkillPickerButton({
   skills,
   value
 }: SkillPickerButtonProps): JSX.Element | null {
+  const { t } = useTranslation('chat');
   const isEnabled = shouldEnableSkillPicker(agentId);
   const isAutoOpen = isEnabled && isTypingSlashSkillQuery(value);
   const [isManualOpen, setIsManualOpen] = useState(false);
@@ -96,25 +98,25 @@ export default function SkillPickerButton({
       <Tooltip>
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
-            <Button type="button" variant={isOpen ? 'default' : 'outline'} size="icon" className="h-8 w-8 rounded-full" aria-label="选择 Skill">
+            <Button type="button" variant={isOpen ? 'default' : 'outline'} size="icon" className="h-8 w-8 rounded-full" aria-label={t('components.skillPicker.selectAriaLabel')}>
               <TbSparkles />
             </Button>
           </PopoverTrigger>
         </TooltipTrigger>
         <TooltipContent>
-          <p>选择一个 Skill，或直接输入 `/skill-name`</p>
+          <p>{t('components.skillPicker.tooltip')}</p>
         </TooltipContent>
       </Tooltip>
 
       <PopoverContent align={contentAlign} side={contentSide} avoidCollisions={avoidCollisions} className="no-drag pointer-events-auto w-96 p-0" onOpenAutoFocus={(event) => event.preventDefault()}>
         <Command shouldFilter>
-          <CommandInput placeholder="搜索 skills..." value={query} onValueChange={setQuery} />
+          <CommandInput placeholder={t('components.skillPicker.searchPlaceholder')} value={query} onValueChange={setQuery} />
           <CommandList>
-            <CommandEmpty>{isLoading ? '正在加载 skills...' : '没有匹配的 skill'}</CommandEmpty>
-            <CommandGroup heading="Available Skills">
+            <CommandEmpty>{isLoading ? t('components.skillPicker.loading') : t('components.skillPicker.noMatch')}</CommandEmpty>
+            <CommandGroup heading={t('components.skillPicker.heading')}>
               {pickerItems.map((skill) =>
                 (() => {
-                  const trust = getSkillTrustPresentation(skill);
+                  const trust = getSkillTrustPresentation(skill, t);
 
                   return (
                     <CommandItem

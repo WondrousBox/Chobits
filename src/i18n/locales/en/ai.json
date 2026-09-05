@@ -1,0 +1,91 @@
+{
+  "provider": {
+    "group": {
+      "selfHosted": "Self-hosted",
+      "cloud": "Cloud"
+    },
+    "configured": "Configured",
+    "empty": "No providers available",
+    "preset": {
+      "edit": "Edit",
+      "collapse": "Collapse",
+      "test": "Test",
+      "testSuccess": "Test succeeded",
+      "testFailed": "Test failed: {{message}}",
+      "deleteConfirm": "Delete this preset?",
+      "create": "Add preset",
+      "createTitle": "Add preset",
+      "editTitle": "Edit preset · {{name}}",
+      "save": "Save preset",
+      "cancelCreate": "Cancel",
+      "required": "Required"
+    }
+  },
+  "presetForm": {
+    "submit": "Save",
+    "cancel": "Cancel",
+    "description": "Changes take effect immediately after saving",
+    "delete": "Delete",
+    "models": {
+      "title": "Available models ({{count}})",
+      "expand": "Expand",
+      "collapse": "Collapse",
+      "empty": "No model list available yet",
+      "free": "Free",
+      "hint": "This list is view-only. Select the model in chat when using it.",
+      "types": {
+        "chat": "Chat",
+        "vision": "Vision",
+        "image": "Image",
+        "video": "Video",
+        "audio": "Audio",
+        "embedding": "Embedding",
+        "realtime": "Realtime",
+        "tool": "Tool"
+      }
+    }
+  },
+  "keys": {
+    "groupTitle": "Security",
+    "clear": {
+      "label": "Clear all keys",
+      "description": "Removes all API keys stored in the system keychain. This action cannot be undone",
+      "action": "Clear all",
+      "clearing": "Clearing...",
+      "confirmTitle": "Confirm clearing",
+      "confirmDescription": "All API keys stored in the system keychain will be permanently deleted",
+      "confirmAction": "Confirm",
+      "cancel": "Cancel"
+    }
+  },
+  "networkCheck": {
+    "title": "Network connectivity check",
+    "description": "Checks whether the sites required for plugin and model downloads are reachable",
+    "checking": "Checking...",
+    "accessible": "Reachable",
+    "inaccessible": "Unreachable",
+    "checkFailed": "Check failed"
+  },
+  "modelFolder": {
+    "loading": "Loading configuration...",
+    "currentLocation": "Current storage location",
+    "notSet": "Not set",
+    "hint": "Plugins take up considerable space. Storing them on a non-system drive is recommended.",
+    "selectLocation": "Choose location",
+    "changeLocation": "Change location"
+  },
+  "configWindow": {
+    "loading": "Loading...",
+    "providerNotFound": "Provider not found: {{providerId}}",
+    "titlePreset": "🔑 Preset key configuration",
+    "titleProvider": "🔑 Provider configuration",
+    "presetDescription": "Configure the keys required by this preset; these settings apply only to this preset",
+    "providerDescription": "Configure the keys required to access this service (legacy entry)",
+    "presetBadge": "Preset keys",
+    "noFields": "No configurable fields.",
+    "selectPlaceholder": "Select {{label}}",
+    "autoSaving": "Auto-saving...",
+    "autoSaveFailed": "Auto-save failed",
+    "cancel": "Cancel"
+  }
+}

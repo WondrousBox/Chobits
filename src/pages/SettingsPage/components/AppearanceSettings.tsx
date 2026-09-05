@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TbCheck, TbDeviceDesktop, TbLoader2, TbMoon, TbSunHigh } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
@@ -10,6 +11,7 @@ import { SettingGroup, SettingItem } from './SettingComponents';
 type ThemeSource = 'system' | 'light' | 'dark';
 
 const AppearanceSettings: React.FC = () => {
+  const { t } = useTranslation('settings');
   const { mode, setMode } = useThemePreference();
   const [pending, setPending] = useState<ThemeSource | null>(null);
 
@@ -17,21 +19,21 @@ const AppearanceSettings: React.FC = () => {
     () => [
       {
         value: 'system' as const,
-        label: '跟随系统',
+        label: t('appearance.theme.options.system'),
         icon: TbDeviceDesktop
       },
       {
         value: 'light' as const,
-        label: '明亮模式',
+        label: t('appearance.theme.options.light'),
         icon: TbSunHigh
       },
       {
         value: 'dark' as const,
-        label: '黑暗模式',
+        label: t('appearance.theme.options.dark'),
         icon: TbMoon
       }
     ],
-    []
+    [t]
   );
 
   const currentOption = options.find((o) => o.value === mode) || options[0];
@@ -48,16 +50,16 @@ const AppearanceSettings: React.FC = () => {
   };
 
   return (
-    <SettingGroup title="外观">
+    <SettingGroup title={t('appearance.groupTitle')}>
       <SettingItem
-        title="主题外观"
-        description="切换界面颜色模式，或根据系统自动调整"
+        title={t('appearance.theme.label')}
+        description={t('appearance.theme.description')}
         action={
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" disabled={pending !== null} className="min-w-[100px]">
                 {pending !== null ? <TbLoader2 className="animate-spin" /> : <CurrentIcon />}
-                {pending !== null ? '切换中...' : currentOption.label}
+                {pending !== null ? t('appearance.theme.switching') : currentOption.label}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">

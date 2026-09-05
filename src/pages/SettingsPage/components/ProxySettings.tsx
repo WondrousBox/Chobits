@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TbCheck, TbLoader, TbNetwork, TbPlus, TbRefresh, TbTestPipe, TbTrash } from 'react-icons/tb';
 import { toast } from 'sonner';
 
@@ -25,6 +26,7 @@ interface ProxyConfig {
 }
 
 const ProxySettings: React.FC = () => {
+  const { t } = useTranslation('settings');
   const [config, setConfig] = useState<ProxyConfig>({ type: 'none' });
   const [isLoading, setIsLoading] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
@@ -41,7 +43,7 @@ const ProxySettings: React.FC = () => {
       }
     } catch (error) {
       console.error('Failed to load proxy config:', error);
-      toast.error('加载失败', { description: '无法加载代理配置' });
+      toast.error(t('proxy.toast.loadFailed.title'), { description: t('proxy.toast.loadFailed.description') });
     }
   };
 
@@ -63,15 +65,15 @@ const ProxySettings: React.FC = () => {
       const result = await window.chobits.proxy['proxy:set-config']({ config: { type } });
       if (result?.ok && result.config) {
         setConfig(result.config);
-        toast.success('设置成功', { description: '代理配置已更新' });
+        toast.success(t('proxy.toast.setSuccess.title'), { description: t('proxy.toast.setSuccess.description') });
         if (type === 'system') {
           await loadSystemProxy();
         }
       } else {
-        throw new Error(result?.error || '设置失败');
+        throw new Error(result?.error || t('proxy.toast.setFailed.title'));
       }
     } catch (error: any) {
-      toast.error('设置失败', { description: error.message || '无法更新代理配置' });
+      toast.error(t('proxy.toast.setFailed.title'), { description: error.message || t('proxy.toast.setFailed.description') });
     } finally {
       setIsLoading(false);
     }
@@ -97,12 +99,12 @@ const ProxySettings: React.FC = () => {
     try {
       const result = await window.chobits.proxy['proxy:test']();
       if (result?.ok) {
-        setTestResult({ ok: true, message: `连接正常，延迟: ${result.latency}ms` });
+        setTestResult({ ok: true, message: t('proxy.test.connected', { latency: result.latency }) });
       } else {
-        throw new Error(result?.error || '测试失败');
+        throw new Error(result?.error || t('proxy.test.failed'));
       }
     } catch (error: any) {
-      setTestResult({ ok: false, message: error.message || '无法连接到代理服务器' });
+      setTestResult({ ok: false, message: error.message || t('proxy.test.connectFailed') });
     } finally {
       setIsTesting(false);
     }
@@ -122,12 +124,12 @@ const ProxySettings: React.FC = () => {
         if (result.config.proxies) {
           setLocalProxies(result.config.proxies);
         }
-        toast.success('添加成功', { description: '已添加新的代理配置' });
+        toast.success(t('proxy.toast.addSuccess.title'), { description: t('proxy.toast.addSuccess.description') });
       } else {
-        throw new Error(result?.error || '添加失败');
+        throw new Error(result?.error || t('proxy.toast.addFailed.title'));
       }
     } catch (error: any) {
-      toast.error('添加失败', { description: error.message || '无法添加代理配置' });
+      toast.error(t('proxy.toast.addFailed.title'), { description: error.message || t('proxy.toast.addFailed.description') });
     }
   };
 
@@ -139,12 +141,12 @@ const ProxySettings: React.FC = () => {
         if (result.config.proxies) {
           setLocalProxies(result.config.proxies);
         }
-        toast.success('更新成功', { description: '代理配置已更新' });
+        toast.success(t('proxy.toast.updateSuccess.title'), { description: t('proxy.toast.updateSuccess.description') });
       } else {
-        throw new Error(result?.error || '更新失败');
+        throw new Error(result?.error || t('proxy.toast.updateFailed.title'));
       }
     } catch (error: any) {
-      toast.error('更新失败', { description: error.message || '无法更新代理配置' });
+      toast.error(t('proxy.toast.updateFailed.title'), { description: error.message || t('proxy.toast.updateFailed.description') });
     }
   };
 
@@ -206,39 +208,39 @@ const ProxySettings: React.FC = () => {
         if (result.config.proxies) {
           setLocalProxies(result.config.proxies);
         }
-        toast.success('删除成功', { description: '代理配置已删除' });
+        toast.success(t('proxy.toast.removeSuccess.title'), { description: t('proxy.toast.removeSuccess.description') });
       } else {
-        throw new Error(result?.error || '删除失败');
+        throw new Error(result?.error || t('proxy.toast.removeFailed.title'));
       }
     } catch (error: any) {
-      toast.error('删除失败', { description: error.message || '无法删除代理配置' });
+      toast.error(t('proxy.toast.removeFailed.title'), { description: error.message || t('proxy.toast.removeFailed.description') });
     }
   };
 
   return (
     <div className="p-4 space-y-6">
-      <SettingGroup title="代理模式">
+      <SettingGroup title={t('proxy.mode.groupTitle')}>
         <SettingItem
-          title="代理类型"
-          description="选择网络代理模式"
+          title={t('proxy.mode.label')}
+          description={t('proxy.mode.description')}
           action={
             <RadioGroup value={config.type} onValueChange={(v) => handleTypeChange(v as ProxyType)} className="flex items-center gap-4" disabled={isLoading}>
               <div className="flex items-center gap-1.5">
                 <RadioGroupItem value="none" id="none" />
                 <label htmlFor="none" className="text-sm cursor-pointer">
-                  禁用
+                  {t('proxy.mode.options.none')}
                 </label>
               </div>
               <div className="flex items-center gap-1.5">
                 <RadioGroupItem value="system" id="system" />
                 <label htmlFor="system" className="text-sm cursor-pointer">
-                  系统
+                  {t('proxy.mode.options.system')}
                 </label>
               </div>
               <div className="flex items-center gap-1.5">
                 <RadioGroupItem value="custom" id="custom" />
                 <label htmlFor="custom" className="text-sm cursor-pointer">
-                  自定义
+                  {t('proxy.mode.options.custom')}
                 </label>
               </div>
             </RadioGroup>
@@ -246,12 +248,12 @@ const ProxySettings: React.FC = () => {
         />
         {config.type === 'system' && (
           <SettingItem
-            title="系统代理信息"
-            description={systemProxyInfo ? `${systemProxyInfo.host}:${systemProxyInfo.port}` : '未检测到系统代理'}
+            title={t('proxy.systemInfo.label')}
+            description={systemProxyInfo ? `${systemProxyInfo.host}:${systemProxyInfo.port}` : t('proxy.systemInfo.notDetected')}
             action={
               <Button size="sm" variant="outline" onClick={loadSystemProxy}>
                 <TbRefresh />
-                刷新
+                {t('proxy.refresh')}
               </Button>
             }
           />
@@ -259,14 +261,14 @@ const ProxySettings: React.FC = () => {
       </SettingGroup>
 
       {config.type === 'custom' && (
-        <SettingGroup title="自定义代理">
+        <SettingGroup title={t('proxy.custom.groupTitle')}>
           {localProxies.length === 0 ? (
             <div className="px-4 py-8 text-center">
               <TbNetwork className="w-10 h-10 mx-auto mb-2 text-muted-foreground opacity-50" />
-              <p className="text-sm text-muted-foreground mb-3">暂无代理配置</p>
+              <p className="text-sm text-muted-foreground mb-3">{t('proxy.custom.empty')}</p>
               <Button size="sm" onClick={handleAddProxy}>
                 <TbPlus />
-                添加代理
+                {t('proxy.custom.add')}
               </Button>
             </div>
           ) : (
@@ -287,7 +289,7 @@ const ProxySettings: React.FC = () => {
                     <Input className="w-20 h-8" type="number" value={proxy.port} onChange={(e) => handleUpdateProxyDebounced(index, { port: parseInt(e.target.value) || 0 })} placeholder="7890" />
                     <Button size="sm" variant={proxy.isActive ? 'default' : 'outline'} onClick={() => handleUpdateProxyImmediate(index, { isActive: true })} disabled={proxy.isActive}>
                       {proxy.isActive && <TbCheck />}
-                      {proxy.isActive ? '已启用' : '启用'}
+                      {proxy.isActive ? t('proxy.custom.enabled') : t('proxy.custom.enable')}
                     </Button>
                     <Button size="icon" variant="ghost" className="w-8 h-8 text-muted-foreground hover:text-destructive" onClick={() => handleRemoveProxy(index)}>
                       <TbTrash />
@@ -298,7 +300,7 @@ const ProxySettings: React.FC = () => {
               <div className="px-4 py-3 border-t border-border">
                 <Button size="sm" variant="outline" onClick={handleAddProxy}>
                   <TbPlus />
-                  添加代理
+                  {t('proxy.custom.add')}
                 </Button>
               </div>
             </>
@@ -306,16 +308,16 @@ const ProxySettings: React.FC = () => {
         </SettingGroup>
       )}
 
-      <SettingGroup title="网络测试">
+      <SettingGroup title={t('proxy.test.groupTitle')}>
         <SettingItem
-          title="测试代理连接"
-          description="检测当前代理配置是否正常工作"
+          title={t('proxy.test.label')}
+          description={t('proxy.test.description')}
           action={
             <div className="flex items-center gap-3">
               {testResult && <span className={`text-xs ${testResult.ok ? 'text-green-600' : 'text-destructive'}`}>{testResult.message}</span>}
               <Button size="sm" variant="outline" onClick={handleTestProxy} disabled={isTesting}>
                 {isTesting ? <TbLoader className="animate-spin" /> : <TbTestPipe />}
-                {isTesting ? '测试中...' : '测试'}
+                {isTesting ? t('proxy.test.testing') : t('proxy.test.button')}
               </Button>
             </div>
           }

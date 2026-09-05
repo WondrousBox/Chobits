@@ -1,6 +1,7 @@
 import { MASKED_SECRET_VALUE, splitSecretFormValues } from '@packages/ai/secret-masking';
 import { debounce } from 'lodash-es';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
 import DraggableTitle from '@/components/common/DraggableTitle';
@@ -10,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { getCurrentAppLanguage } from '@/i18n';
 import { resolveProviderIdentity } from '@/lib/ai-provider-identity';
 import { selectChatDefaultsForProvider } from '@/lib/chat-selection-defaults';
 
@@ -20,10 +22,13 @@ type ProviderRow = {
   defaultConfig?: Record<string, string>;
   schema?: {
     icon?: string;
-    locales?: Record<string, { label?: string; fields?: Record<string, string> }>;
+    locales?: Record<string, ProviderSchemaLocale>;
     fields?: Array<{ key: string; label: string; type: 'text' | 'password' | 'textarea' | 'select'; required?: boolean; options?: Array<{ label: string; value: string }> }>;
   };
 };
+
+// provider schema 的 i18n 覆盖层：label 覆盖显示名，fields 覆盖字段标签，options 覆盖 select 选项文案
+type ProviderSchemaLocale = { label?: string; fields?: Record<string, string>; options?: Record<string, Record<string, string>> };
 
 type FieldError = Record<string, string>;
 
@@ -45,12 +50,18 @@ export default function AIProviderConfigWindow(): JSX.Element {
   const [errors, setErrors] = useState<FieldError>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const { t } = useTranslation('ai');
 
-  const currentLang = navigator.language?.toLowerCase?.() || 'en';
+  const currentLang = getCurrentAppLanguage().toLowerCase();
   const pickLocale = useCallback(
-    (locales?: Record<string, { label?: string; fields?: Record<string, string> }>): { label?: string; fields?: Record<string, string> } | undefined => {
+    (locales?: Record<string, ProviderSchemaLocale>): ProviderSchemaLocale | undefined => {
       if (!locales) return undefined;
-      const exact = locales[currentLang] || locales[currentLang.replace(/-.+$/, '')];
+      // locales 键约定为 'zh-CN' / 'en' / 'ja'，与当前语言做大小写不敏感匹配
+      const exactKey = Object.keys(locales).find((key) => {
+        const lowered = key.toLowerCase();
+        return lowered === currentLang || lowered === currentLang.replace(/-.+$/, '');
+      });
+      const exact = exactKey ? locales[exactKey] : undefined;
       const fallback = locales['zh-CN'] || locales.en || Object.values(locales)[0];
       return exact || fallback;
     },
@@ -151,7 +162,7 @@ export default function AIProviderConfigWindow(): JSX.Element {
               await selectChatDefaultsForProvider({ providerId: targetProviderId, provider: provider ?? undefined });
             }
           } catch (e: any) {
-            toast.error('自动保存失败', { description: e?.message || String(e) });
+            toast.error(t('configWindow.autoSaveFailed'), { description: e?.message || String(e) });
           } finally {
             setIsSaving(false);
           }
@@ -159,7 +170,7 @@ export default function AIProviderConfigWindow(): JSX.Element {
         500,
         { leading: false, trailing: true }
       ),
-    [presetId, provider]
+    [presetId, provider, t]
   );
 
   const handleChange = (key: string, val: string): void => {
@@ -190,7 +201,7 @@ export default function AIProviderConfigWindow(): JSX.Element {
   if (isLoading) {
     return (
       <div className="w-full h-full flex items-center justify-center text-sm">
-        <span>载入中...</span>
+        <span>{t('configWindow.loading')}</span>
       </div>
     );
   }
@@ -198,28 +209,28 @@ export default function AIProviderConfigWindow(): JSX.Element {
   if (!provider) {
     return (
       <div className="w-full h-full flex items-center justify-center text-sm">
-        <span>未找到服务商：{providerId}</span>
+        <span>{t('configWindow.providerNotFound', { providerId })}</span>
       </div>
     );
   }
 
   return (
     <div className="w-full h-full">
-      <DraggableTitle title={<span>{presetId ? '🔑 预设秘钥配置' : '🔑 服务商配置'}</span>} />
+      <DraggableTitle title={<span>{presetId ? t('configWindow.titlePreset') : t('configWindow.titleProvider')}</span>} />
       <div className="w-full h-[calc(100%-36px)] px-4 box-border">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             {provider.schema?.icon && <TintableSvg src={provider.schema.icon} alt={displayLabel} className="w-6 h-6" />}
             <div className="flex flex-col">
               <span className="font-semibold text-sm">{displayLabel}</span>
-              <span className="text-xs text-muted-foreground">{presetId ? '配置当前预设所需的秘钥；仅当前预设会使用这些配置' : '配置访问该服务所需的秘钥（兼容旧入口）'}</span>
+              <span className="text-xs text-muted-foreground">{presetId ? t('configWindow.presetDescription') : t('configWindow.providerDescription')}</span>
             </div>
           </div>
-          {presetId && <span className="text-[11px] rounded-full border px-2 py-0.5 text-muted-foreground">预设秘钥</span>}
+          {presetId && <span className="text-[11px] rounded-full border px-2 py-0.5 text-muted-foreground">{t('configWindow.presetBadge')}</span>}
         </div>
         <div className="space-y-3">
           {displayFields.length === 0 ? (
-            <div className="text-xs text-muted-foreground">当前没有可配置字段。</div>
+            <div className="text-xs text-muted-foreground">{t('configWindow.noFields')}</div>
           ) : (
             displayFields.map((f) => {
               const value = values[f.key] || '';
@@ -239,12 +250,12 @@ export default function AIProviderConfigWindow(): JSX.Element {
                   ) : isSelect ? (
                     <Select value={value} onValueChange={(nextValue) => handleChange(f.key, nextValue)}>
                       <SelectTrigger className="h-8 text-xs">
-                        <SelectValue placeholder={`选择${label}`} />
+                        <SelectValue placeholder={t('configWindow.selectPlaceholder', { label })} />
                       </SelectTrigger>
                       <SelectContent>
                         {(f.options || []).map((option) => (
                           <SelectItem key={option.value} value={option.value}>
-                            {option.label}
+                            {locale?.options?.[f.key]?.[option.value] || option.label}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -266,9 +277,9 @@ export default function AIProviderConfigWindow(): JSX.Element {
         </div>
 
         <div className="flex justify-end gap-2 mt-2">
-          {isSaving && <div className="mr-auto text-xs text-muted-foreground">正在自动保存...</div>}
+          {isSaving && <div className="mr-auto text-xs text-muted-foreground">{t('configWindow.autoSaving')}</div>}
           <Button variant="outline" size="sm" disabled={isSaving} onClick={handleClose}>
-            取消
+            {t('configWindow.cancel')}
           </Button>
         </div>
       </div>

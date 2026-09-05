@@ -1,14 +1,16 @@
 import type { SpritePurposeDailyRetrospective, SpritePurposeRetrospectiveItem } from '@packages/sprite-core/purpose';
+import type { TFunction } from 'i18next';
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { TbAlertTriangle, TbChecks, TbFlag, TbHistory, TbSparkles } from 'react-icons/tb';
 
 interface PurposeRetrospectivePanelProps {
   retrospective: SpritePurposeDailyRetrospective | null;
 }
 
-function formatDuration(ms?: number): string {
+function formatDuration(ms: number | undefined, t: TFunction): string {
   if (typeof ms !== 'number' || !Number.isFinite(ms)) {
-    return '刚刚';
+    return t('retrospective.justNow', { defaultValue: '刚刚' });
   }
   if (ms < 1000) {
     return `${Math.max(0, Math.round(ms))}ms`;
@@ -19,16 +21,16 @@ function formatDuration(ms?: number): string {
   return `${Math.round(ms / 60_000)}m`;
 }
 
-function getStatusLabel(status: string): string {
+function getStatusLabel(status: string, t: TFunction): string {
   switch (status) {
     case 'completed':
-      return '完成';
+      return t('retrospective.status.completed', { defaultValue: '完成' });
     case 'cancelled':
-      return '取消';
+      return t('retrospective.status.cancelled', { defaultValue: '取消' });
     case 'failed':
-      return '失败';
+      return t('retrospective.status.failed', { defaultValue: '失败' });
     case 'superseded':
-      return '切换';
+      return t('retrospective.status.superseded', { defaultValue: '切换' });
     default:
       return status;
   }
@@ -49,18 +51,22 @@ function getStatusClass(status: string): string {
 }
 
 function PurposeItem({ item }: { item: SpritePurposeRetrospectiveItem }): JSX.Element {
+  const { t } = useTranslation('sprite');
   return (
     <div className="flex min-w-0 items-center gap-2 rounded-md bg-muted/35 px-2 py-1.5">
-      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-background text-muted-foreground" title={item.memoryCandidate ? '高价值' : undefined}>
+      <div
+        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-background text-muted-foreground"
+        title={item.memoryCandidate ? t('retrospective.memoryCandidate', { defaultValue: '高价值' }) : undefined}
+      >
         {item.memoryCandidate ? <TbSparkles className="h-4 w-4" /> : <TbFlag className="h-4 w-4" />}
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-2 text-xs">
           <span className="truncate font-medium text-foreground">{item.purposeKind}</span>
-          <span className={getStatusClass(item.status)}>{getStatusLabel(item.status)}</span>
+          <span className={getStatusClass(item.status)}>{getStatusLabel(item.status, t)}</span>
         </div>
         <div className="truncate text-[11px] text-muted-foreground">
-          {item.summary || item.outcome} · {item.stepCount} steps · {formatDuration(item.durationMs)}
+          {item.summary || item.outcome} · {item.stepCount} steps · {formatDuration(item.durationMs, t)}
         </div>
       </div>
     </div>
@@ -68,6 +74,7 @@ function PurposeItem({ item }: { item: SpritePurposeRetrospectiveItem }): JSX.El
 }
 
 const PurposeRetrospectivePanel: React.FC<PurposeRetrospectivePanelProps> = ({ retrospective }) => {
+  const { t } = useTranslation('sprite');
   if (!retrospective) {
     return null;
   }
@@ -79,7 +86,7 @@ const PurposeRetrospectivePanel: React.FC<PurposeRetrospectivePanelProps> = ({ r
       <div className="mb-2 flex items-center justify-between gap-3">
         <div className="flex items-center gap-1.5 text-xs font-medium text-foreground">
           <TbHistory className="h-4 w-4 text-muted-foreground" />
-          今日目的
+          {t('retrospective.title', { defaultValue: '今日目的' })}
         </div>
         <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
           <span className="flex items-center gap-1">
@@ -92,7 +99,7 @@ const PurposeRetrospectivePanel: React.FC<PurposeRetrospectivePanelProps> = ({ r
               {retrospective.failedCount + retrospective.cancelledCount}
             </span>
           )}
-          <span className="flex items-center gap-1" title="高价值">
+          <span className="flex items-center gap-1" title={t('retrospective.memoryCandidate', { defaultValue: '高价值' })}>
             <TbSparkles className="h-3.5 w-3.5" />
             {retrospective.memoryCandidateCount}
           </span>
@@ -100,7 +107,7 @@ const PurposeRetrospectivePanel: React.FC<PurposeRetrospectivePanelProps> = ({ r
       </div>
 
       {items.length === 0 ? (
-        <div className="rounded-md bg-muted/30 px-2 py-2 text-xs text-muted-foreground">今天还没有需要复盘的目的。</div>
+        <div className="rounded-md bg-muted/30 px-2 py-2 text-xs text-muted-foreground">{t('retrospective.empty', { defaultValue: '今天还没有需要复盘的目的。' })}</div>
       ) : (
         <div className="space-y-1.5">
           {items.map((item) => (

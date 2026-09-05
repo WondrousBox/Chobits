@@ -422,6 +422,13 @@ export type ProviderDefaultModels = {
   musicGeneration?: string;
   speechSynthesis?: string;
 };
+// Provider schema 的 i18n 覆盖层：label 覆盖显示名，fields 覆盖字段标签，
+// options 覆盖 select 字段的选项文案（fieldKey → optionValue → 显示文案）
+export type ProviderSchemaLocale = {
+  label?: string;
+  fields?: Record<string, string>;
+  options?: Record<string, Record<string, string>>;
+};
 export type ProviderRecord = {
   id: string;
   aliases?: string[];
@@ -436,7 +443,7 @@ export type ProviderRecord = {
   defaultConfig?: Record<string, string>;
   schema?: {
     icon?: string;
-    locales?: Record<string, { label?: string; fields?: Record<string, string> }>;
+    locales?: Record<string, ProviderSchemaLocale>;
     fields?: Array<{ key: string; label: string; type: string; required?: boolean; options?: any[] }>;
   };
 };
@@ -450,7 +457,7 @@ export type ProviderConfig = {
   // Optional icon path; can be absolute, a res:// URL, or a resource-relative path resolved by renderer
   icon?: string;
   // Optional i18n locales: e.g., { en: { label: 'OpenAI', fields: { apiKey: 'API Key' } }, zh: { label: '开放AI', fields: { apiKey: 'API 密钥' } }
-  locales?: Record<string, { label?: string; fields?: Record<string, string> }>;
+  locales?: Record<string, ProviderSchemaLocale>;
   fields: Array<{
     key: string;
     label: string;

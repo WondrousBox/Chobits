@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TbAdjustments } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
@@ -31,6 +32,7 @@ function getMetaDraftSnapshot(meta: { condition?: unknown; primaryTrigger?: stri
 }
 
 export default function SpriteAnimationMetaPopover({ disabled = false, meta, onSave }: SpriteAnimationMetaPopoverProps): JSX.Element {
+  const { t } = useTranslation('sprite');
   const [isOpen, setIsOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [primaryTrigger, setPrimaryTrigger] = useState<SpriteAnimationTrigger | ''>(getPrimarySpriteAnimationTrigger(meta) || '');
@@ -45,17 +47,20 @@ export default function SpriteAnimationMetaPopover({ disabled = false, meta, onS
     setConditionInput(formatSpriteAnimationConditionInput(meta.condition));
   };
 
-  const parsedCondition = useMemo(() => parseSpriteAnimationConditionInput(conditionInput), [conditionInput]);
+  const parsedCondition = useMemo(() => parseSpriteAnimationConditionInput(conditionInput, t), [conditionInput, t]);
 
   const draft = useMemo(
     () =>
-      createSpriteAnimationMetaDraft({
-        conditionInput,
-        primaryTrigger,
-        triggerAliasesInput,
-        priority: priorityInput
-      }),
-    [conditionInput, primaryTrigger, priorityInput, triggerAliasesInput]
+      createSpriteAnimationMetaDraft(
+        {
+          conditionInput,
+          primaryTrigger,
+          triggerAliasesInput,
+          priority: priorityInput
+        },
+        t
+      ),
+    [conditionInput, primaryTrigger, priorityInput, t, triggerAliasesInput]
   );
 
   const hasChanges =
@@ -72,7 +77,7 @@ export default function SpriteAnimationMetaPopover({ disabled = false, meta, onS
       priority: draft.priority
     });
 
-  const resolvedTriggers = [draft.primaryTrigger, ...(draft.triggerAliases ?? [])].filter(Boolean).join(', ') || '未设置';
+  const resolvedTriggers = [draft.primaryTrigger, ...(draft.triggerAliases ?? [])].filter(Boolean).join(', ') || t('sprite:metaPopover.resolvedEmpty');
 
   const handleSave = async (): Promise<void> => {
     if (isSaving || !hasChanges) return;
@@ -94,7 +99,7 @@ export default function SpriteAnimationMetaPopover({ disabled = false, meta, onS
       }}
     >
       <PopoverTrigger asChild>
-        <Button size="icon" variant="secondary" className="h-8 w-8 bg-background/90" disabled={disabled} title="编辑 trigger 元数据">
+        <Button size="icon" variant="secondary" className="h-8 w-8 bg-background/90" disabled={disabled} title={t('sprite:metaPopover.editTitle')}>
           <TbAdjustments />
         </Button>
       </PopoverTrigger>
@@ -105,16 +110,16 @@ export default function SpriteAnimationMetaPopover({ disabled = false, meta, onS
         </div>
 
         <div className="space-y-1.5">
-          <Label className="text-[11px] text-muted-foreground">主 Trigger</Label>
-          <SpriteTriggerPicker value={primaryTrigger} onChange={setPrimaryTrigger} buttonClassName="w-full" emptyLabel="未分类" />
+          <Label className="text-[11px] text-muted-foreground">{t('sprite:form.primaryTrigger')}</Label>
+          <SpriteTriggerPicker value={primaryTrigger} onChange={setPrimaryTrigger} buttonClassName="w-full" emptyLabel={t('sprite:triggerPicker.uncategorized')} />
         </div>
 
         <div className="space-y-1.5">
-          <Label className="text-[11px] text-muted-foreground">别名 Trigger</Label>
+          <Label className="text-[11px] text-muted-foreground">{t('sprite:form.triggerAliases')}</Label>
           <Textarea
             value={triggerAliasesInput}
             onChange={(event) => setTriggerAliasesInput(event.target.value)}
-            placeholder="多个 trigger 用逗号或换行分隔，例如 character:daily-login, sprite:anim-complete"
+            placeholder={t('sprite:form.triggerAliasesPlaceholderWithExample')}
             className="min-h-[78px] resize-y text-xs"
           />
         </div>
@@ -122,13 +127,13 @@ export default function SpriteAnimationMetaPopover({ disabled = false, meta, onS
         <SpriteAnimationConditionBuilder conditionInput={conditionInput} onChange={setConditionInput} />
 
         <div className="space-y-1.5">
-          <Label className="text-[11px] text-muted-foreground">优先级</Label>
+          <Label className="text-[11px] text-muted-foreground">{t('sprite:form.priority')}</Label>
           <Input type="number" step="1" value={priorityInput} onChange={(event) => setPriorityInput(event.target.value)} placeholder="0" className="h-8 text-center" />
-          <div className="text-[10px] text-muted-foreground">同一 trigger 命中多个动画时，数值越大越优先。</div>
+          <div className="text-[10px] text-muted-foreground">{t('sprite:metaPopover.priorityHint')}</div>
         </div>
 
         <div className="rounded-md border border-dashed px-3 py-2 text-[11px] text-muted-foreground">
-          <div className="font-medium text-foreground">实际命中</div>
+          <div className="font-medium text-foreground">{t('sprite:metaPopover.resolvedTitle')}</div>
           <div className="mt-1 break-words">{resolvedTriggers}</div>
         </div>
 
@@ -141,14 +146,14 @@ export default function SpriteAnimationMetaPopover({ disabled = false, meta, onS
             }}
             disabled={isSaving}
           >
-            重置
+            {t('sprite:actions.reset')}
           </Button>
           <div className="flex items-center gap-2">
             <Button size="sm" variant="ghost" onClick={() => setIsOpen(false)} disabled={isSaving}>
-              取消
+              {t('sprite:actions.cancel')}
             </Button>
             <Button size="sm" onClick={() => void handleSave()} disabled={isSaving || !hasChanges || !!parsedCondition.error}>
-              {isSaving ? '保存中…' : '保存'}
+              {isSaving ? t('sprite:actions.saving') : t('sprite:actions.save')}
             </Button>
           </div>
         </div>

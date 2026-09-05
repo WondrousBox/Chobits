@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TbLoader, TbRefresh } from 'react-icons/tb';
 import { toast } from 'sonner';
 
@@ -11,7 +12,15 @@ type PlatformKey = 'darwin' | 'win32' | 'linux';
 type ShortcutsConfig = Record<string, string | string[] | Partial<Record<PlatformKey, string | string[]>>>;
 type ShortcutAction = { id: string; label: string; description?: string; type: 'single' | 'multi'; defaults: Partial<Record<PlatformKey, string | string[]>> };
 
+// 主进程 schema 中的 label 为硬编码中文,渲染层按 id 映射到 i18n key
+const SHORTCUT_ACTION_LABEL_KEYS: Record<string, string> = {
+  toggleChatWindow: 'shortcuts.actions.toggleChatWindow',
+  toggleDevtools: 'shortcuts.actions.toggleDevtools',
+  toggleMainWindow: 'shortcuts.actions.toggleMainWindow'
+};
+
 const ShortcutsSettings: React.FC = () => {
+  const { t } = useTranslation('settings');
   const [schema, setSchema] = useState<ShortcutAction[]>([]);
   const [config, setConfig] = useState<ShortcutsConfig>({});
   const [isLoading, setIsLoading] = useState(true);
@@ -114,6 +123,11 @@ const ShortcutsSettings: React.FC = () => {
     }
   };
 
+  const getActionLabel = (act: ShortcutAction): string => {
+    const key = SHORTCUT_ACTION_LABEL_KEYS[act.id];
+    return key ? t(key) : act.label;
+  };
+
   const restoreDefaults = async (): Promise<void> => {
     if (!schema.length) return;
     // 从 schema defaults 构建配置
@@ -122,10 +136,10 @@ const ShortcutsSettings: React.FC = () => {
     setConfig(next);
     try {
       const res = await window.chobits.shortcuts['shortcuts:set-config'](next);
-      if (res?.ok) toast.success('已恢复默认快捷键');
-      else toast.error(res?.error || '恢复默认失败');
+      if (res?.ok) toast.success(t('shortcuts.toast.restored'));
+      else toast.error(res?.error || t('shortcuts.toast.restoreFailed'));
     } catch {
-      toast.error('恢复默认失败');
+      toast.error(t('shortcuts.toast.restoreFailed'));
     }
   };
 
@@ -139,17 +153,17 @@ const ShortcutsSettings: React.FC = () => {
         const details = validationResult?.data?.details || {};
         schema.forEach((act) => {
           const arr = details[act.id] || [];
-          arr.filter((r) => !r.ok).forEach((r) => failures.push(`${act.label}: ${r.accelerator}`));
+          arr.filter((r) => !r.ok).forEach((r) => failures.push(`${getActionLabel(act)}: ${r.accelerator}`));
         });
-        const msg = failures.length ? `以下快捷键不可用：\n${failures.slice(0, 6).join('\n')}${failures.length > 6 ? '\n…' : ''}` : '存在不可用的快捷键，请修改后重试。';
+        const msg = failures.length ? t('shortcuts.toast.invalidList', { failures: failures.slice(0, 6).join('\n') + (failures.length > 6 ? '\n…' : '') }) : t('shortcuts.toast.invalid');
         toast.error(msg);
         return;
       }
       const res = await window.chobits.shortcuts['shortcuts:set-config'](config);
-      if (res?.ok) toast.success('快捷键已保存');
-      else toast.error(res?.error || '保存失败');
+      if (res?.ok) toast.success(t('shortcuts.toast.saved'));
+      else toast.error(res?.error || t('shortcuts.toast.saveFailed'));
     } catch (e: any) {
-      toast.error(e?.message || '保存失败');
+      toast.error(e?.message || t('shortcuts.toast.saveFailed'));
     } finally {
       setIsSaving(false);
     }
@@ -159,22 +173,22 @@ const ShortcutsSettings: React.FC = () => {
     return (
       <div className="p-4 flex items-center justify-center text-muted-foreground">
         <TbLoader className="h-4 w-4 mr-2 animate-spin" />
-        加载中...
+        {t('common.loading')}
       </div>
     );
   }
 
   return (
     <div className="p-4 space-y-4">
-      <SettingGroup title="快捷键配置">
+      <SettingGroup title={t('shortcuts.groupTitle')}>
         <div className="divide-y divide-border">
           {schema.map((act) => (
             <div key={act.id} className="px-4 py-3">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-foreground">{act.label}</div>
+                  <div className="text-sm font-medium text-foreground">{getActionLabel(act)}</div>
                   {act.description && <div className="text-xs text-muted-foreground mt-0.5">{act.description}</div>}
-                  {act.type === 'multi' && <div className="text-xs text-muted-foreground mt-0.5">多个快捷键用逗号分隔</div>}
+                  {act.type === 'multi' && <div className="text-xs text-muted-foreground mt-0.5">{t('shortcuts.multiHint')}</div>}
                 </div>
                 <Input
                   className="w-[240px] h-8 text-sm"
@@ -191,11 +205,11 @@ const ShortcutsSettings: React.FC = () => {
       <div className="flex justify-end gap-2 px-2">
         <Button size="sm" variant="outline" onClick={restoreDefaults} disabled={isSaving}>
           <TbRefresh />
-          恢复默认
+          {t('shortcuts.restoreDefaults')}
         </Button>
         <Button size="sm" onClick={persist} disabled={isSaving}>
           {isSaving ? <TbLoader className="animate-spin" /> : null}
-          {isSaving ? '保存中...' : '保存设置'}
+          {isSaving ? t('shortcuts.saving') : t('shortcuts.save')}
         </Button>
       </div>
     </div>

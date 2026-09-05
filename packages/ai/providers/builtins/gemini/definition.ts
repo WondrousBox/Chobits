@@ -19,6 +19,12 @@ const geminiSchema: ProviderConfig = {
       fields: {
         apiKey: 'API Key'
       }
+    },
+    ja: {
+      label: 'Google Gemini',
+      fields: {
+        apiKey: 'API Key'
+      }
     }
   },
   fields: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }]

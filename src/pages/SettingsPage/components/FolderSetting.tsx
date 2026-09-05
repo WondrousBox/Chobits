@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TbFolderOpen, TbLoader } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
@@ -15,6 +16,7 @@ interface MoveProgress {
 }
 
 function FolderSetting(): JSX.Element {
+  const { t } = useTranslation('settings');
   const [pluginsDir, setPluginsDir] = useState<string>('');
   const [downloadDir, setDownloadDir] = useState<string>('');
   const [logsDir, setLogsDir] = useState<string>('');
@@ -162,72 +164,72 @@ function FolderSetting(): JSX.Element {
   };
 
   return (
-    <SettingGroup title="文件夹">
+    <SettingGroup title={t('folder.groupTitle')}>
       <SettingItem
-        title="数据目录"
-        description="应用数据存储位置"
+        title={t('folder.dataDir.label')}
+        description={t('folder.dataDir.description')}
         action={
           <div className="flex items-center gap-2">
             <SettingPath path={maskPath(dataDir)} placeholder="data/" />
             <Button size="sm" variant="outline" onClick={openDatabaseLocation}>
               <TbFolderOpen />
-              打开
+              {t('folder.open')}
             </Button>
           </div>
         }
       />
       <SettingItem
-        title="日志目录"
-        description="应用日志文件位置"
+        title={t('folder.logsDir.label')}
+        description={t('folder.logsDir.description')}
         action={
           <div className="flex items-center gap-2">
             <SettingPath path={maskPath(logsDir)} placeholder="logs/" />
             <Button size="sm" variant="outline" onClick={openLogsLocation}>
               <TbFolderOpen />
-              打开
+              {t('folder.open')}
             </Button>
           </div>
         }
       />
       <SettingItem
-        title="下载目录"
-        description="文件下载保存位置"
+        title={t('folder.downloadDir.label')}
+        description={t('folder.downloadDir.description')}
         action={
           <div className="flex items-center gap-2">
-            <SettingPath path={maskPath(downloadDir)} placeholder="未设置" />
+            <SettingPath path={maskPath(downloadDir)} placeholder={t('common.notSet')} />
             {downloadDir && (
               <Button size="sm" variant="outline" onClick={openDownloadLocation}>
                 <TbFolderOpen />
-                打开
+                {t('folder.open')}
               </Button>
             )}
           </div>
         }
       />
       <SettingItem
-        title="插件资源目录"
-        description="插件引擎和模型文件存储位置"
+        title={t('folder.pluginsDir.label')}
+        description={t('folder.pluginsDir.description')}
         action={
           isLoading ? (
-            <span className="text-xs text-muted-foreground">加载中...</span>
+            <span className="text-xs text-muted-foreground">{t('common.loading')}</span>
           ) : (
             <div className="flex flex-col gap-2 w-full">
               <div className="flex items-center gap-2">
-                <SettingPath path={maskPath(pluginsDir)} placeholder="未设置" />
+                <SettingPath path={maskPath(pluginsDir)} placeholder={t('common.notSet')} />
                 <Button size="sm" variant="outline" onClick={pickPluginsDir} disabled={isMoving}>
                   {isMoving ? (
                     <>
                       <TbLoader className="animate-spin" />
-                      移动中
+                      {t('folder.moving')}
                     </>
                   ) : (
-                    '选择'
+                    t('folder.select')
                   )}
                 </Button>
                 {pluginsDir && !isMoving && (
                   <Button size="sm" variant="outline" onClick={openPluginsLocation}>
                     <TbFolderOpen />
-                    打开
+                    {t('folder.open')}
                   </Button>
                 )}
               </div>
@@ -235,7 +237,7 @@ function FolderSetting(): JSX.Element {
                 <div className="space-y-1">
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground">
-                      {moveProgress.percentage >= 100 ? '移动完成' : moveProgress.currentFile ? `正在移动: ${moveProgress.currentFile}` : '正在移动文件...'}
+                      {moveProgress.percentage >= 100 ? t('folder.moveCompleted') : moveProgress.currentFile ? t('folder.movingFile', { file: moveProgress.currentFile }) : t('folder.movingFiles')}
                     </span>
                     <span className="text-muted-foreground font-mono">
                       {moveProgress.current}/{moveProgress.total} ({moveProgress.percentage}%)

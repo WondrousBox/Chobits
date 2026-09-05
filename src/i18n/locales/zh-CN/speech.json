@@ -1,0 +1,210 @@
+{
+  "speak": {
+    "item": {
+      "title": "角色说话",
+      "description": "选择 Edge 或服务商语音合成。"
+    },
+    "loading": "加载中...",
+    "enableHint": "请先在左侧开启角色说话。",
+    "engine": {
+      "label": "说话方式",
+      "placeholder": "选择说话方式",
+      "aiProvider": "服务商语音"
+    },
+    "voice": {
+      "label": "音色",
+      "placeholder": "选择音色"
+    },
+    "providerModel": {
+      "label": "服务商与模型",
+      "placeholder": "选择语音合成模型",
+      "configure": "配置"
+    },
+    "preset": {
+      "label": "服务商预设",
+      "auto": "自动选择可用预设"
+    },
+    "audioFormat": {
+      "label": "音频格式"
+    },
+    "speechLanguage": {
+      "label": "朗读语言",
+      "auto": "自动（跟随角色语言）",
+      "zh": "中文",
+      "ja": "日文",
+      "description": "自动时跟随角色定义的语言；文本语言与朗读语言不一致时先用 LLM 翻译再朗读，气泡仍显示原文；对话实时朗读同样生效。"
+    },
+    "volume": {
+      "label": "播放音量"
+    },
+    "test": {
+      "testing": "合成中...",
+      "idle": "试听"
+    },
+    "clearCache": "清空缓存 ({{count}} 条, {{size}})",
+    "testText": "你好，我是你的桌面精灵助手！"
+  },
+  "spontaneous": {
+    "item": {
+      "title": "主动发言",
+      "description": "控制主动发言频率、风格偏好，并查看历史记录。"
+    },
+    "loading": "加载中...",
+    "header": {
+      "title": "主动发言",
+      "description": "让精灵根据上下文主动说一句话，并保留可查询历史。"
+    },
+    "tabs": {
+      "settings": "设置",
+      "history": "历史"
+    },
+    "overview": {
+      "title": "总览",
+      "enabled": {
+        "title": "启用主动发言",
+        "descriptionOn": "闲置时，精灵会在符合频率限制时主动生成一句话。",
+        "descriptionOff": "关闭后仍保留历史，但不再主动生成。"
+      },
+      "latestSpoken": {
+        "title": "最近一次说出",
+        "noText": "无文案",
+        "empty": "还没有可展示的主动发言记录"
+      }
+    },
+    "frequency": {
+      "title": "频率控制",
+      "cooldown": {
+        "label": "冷却时间",
+        "value": "{{count}} 分钟",
+        "description": "两次 AI 主动发言之间至少间隔多久。"
+      },
+      "dailyLimit": {
+        "label": "每日上限",
+        "value": "{{count}} 次",
+        "description": "避免高活跃场景下过于频繁地打扰你。"
+      }
+    },
+    "tone": {
+      "title": "风格偏好",
+      "label": "偏好语气",
+      "placeholder": "选择语气",
+      "description": "只作为偏好倾向。上下文更强时，仍会优先贴合当前状态。",
+      "options": {
+        "auto": "自动",
+        "gentle": "温柔",
+        "playful": "俏皮",
+        "calm": "沉静",
+        "firm": "笃定",
+        "curious": "好奇",
+        "tender": "体贴"
+      }
+    },
+    "intents": {
+      "title": "允许类别",
+      "hint": "至少保留一个类别，避免精灵失去可生成范围。",
+      "options": {
+        "encouragement": { "label": "鼓励", "description": "更偏向打气和继续前进" },
+        "reminder": { "label": "提醒", "description": "轻量提醒任务、节奏和注意点" },
+        "empathy": { "label": "共情", "description": "更关注安抚和陪伴感" },
+        "planning": { "label": "计划", "description": "更偏向下一步和安排建议" },
+        "reflection": { "label": "反思", "description": "更偏向感悟和自我观察" },
+        "philosophy": { "label": "哲思", "description": "更偏向一句短感悟" },
+        "playful": { "label": "有趣", "description": "更偏向轻松玩笑和俏皮表达" }
+      }
+    },
+    "history": {
+      "query": {
+        "title": "查询",
+        "placeholder": "搜索文案、原因、动作...",
+        "statusPlaceholder": "状态",
+        "intentPlaceholder": "类别",
+        "allIntents": "全部类别",
+        "refresh": "刷新"
+      },
+      "count": "最近展示 {{count}} 条记录，包含已说出、跳过和失败事件。",
+      "records": {
+        "title": "记录"
+      },
+      "loading": "加载历史中...",
+      "empty": "当前筛选条件下还没有主动发言记录。",
+      "status": {
+        "all": "全部状态",
+        "spoken": "已说出",
+        "generated": "仅生成",
+        "skipped": "已跳过",
+        "failed": "执行失败"
+      },
+      "intentUncategorized": "未分类",
+      "card": {
+        "noText": "这次没有生成可展示的文案。",
+        "action": "动作: {{action}}",
+        "fallbackAction": "回退动作: {{action}}",
+        "reason": "原因: {{reason}}",
+        "usedFallback": "使用了回退动作",
+        "aiMapped": "动作来自 AI/风格映射"
+      },
+      "reasons": {
+        "generation_in_progress": "已有生成任务进行中",
+        "preferences_disabled": "主动发言已关闭",
+        "daily_limit_reached": "已达到今日上限",
+        "cooldown_active": "仍在冷却时间内",
+        "no_provider_context": "缺少可用 AI 上下文",
+        "duplicate_text": "与最近文案重复",
+        "intent_overrepresented": "最近同类发言过多",
+        "parse_failed": "模型输出解析失败",
+        "intent_filtered": "生成类别不在允许范围",
+        "first_activity_timeout": "等待模型首个响应超时",
+        "stream_idle_timeout": "模型输出中断超时",
+        "generation_max_timeout": "生成总时长超时",
+        "generation_failed": "生成失败"
+      }
+    }
+  },
+  "recognition": {
+    "item": {
+      "title": "语音识别服务",
+      "description": "实时语音识别，将语音转为文字。"
+    },
+    "lockedHint": "语音识别属于成长型能力，解锁后才会允许打开配置页和启动运行态服务。",
+    "status": {
+      "running": "语音识别服务运行中",
+      "stopped": "语音识别服务未启动"
+    },
+    "description": {
+      "running": "服务正在运行，可在录音窗口中使用实时语音识别。关闭录音窗口不会停止服务。",
+      "stopped": "启动后将加载语音识别模型。可通过开关或右键菜单控制服务。"
+    },
+    "action": {
+      "stop": "停止服务",
+      "start": "启动服务",
+      "config": "识别配置"
+    }
+  },
+  "chatEntry": {
+    "item": {
+      "title": "迷你聊天框"
+    },
+    "description": "开启后，双击桌面精灵会打开跟随精灵的小输入窗，只显示模型、麦克风和发送入口。其他对话选项继续沿用本地缓存。",
+    "detail": {
+      "title": "迷你聊天框",
+      "descriptionOn": "双击桌面精灵会打开跟随精灵的小输入窗。",
+      "descriptionOff": "双击桌面精灵会打开完整聊天窗口。"
+    },
+    "setFailed": "设置迷你输入窗失败"
+  },
+  "capability": {
+    "locked": "{{name}} 尚未解锁",
+    "lockedEnablePrerequisites": "需要先启用前置能力：{{names}}",
+    "lockedUnlockPrerequisites": "需要先解锁前置能力：{{names}}",
+    "lockedNotOpen": "当前版本尚未开放此能力",
+    "lockedGeneric": "当前尚未解锁此能力",
+    "unavailableHint": "该能力当前不可用，相关功能暂无法使用。",
+    "nameListSeparator": "、",
+    "microphone": "麦克风录音",
+    "speechRecognition": "语音识别",
+    "spriteManage": "精灵形象",
+    "customAppearance": "外观定制",
+    "actionChoreography": "动作编排",
+    "emotionExpression": "情感表达"
+  }
+}

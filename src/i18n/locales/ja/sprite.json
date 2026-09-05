@@ -1,0 +1,402 @@
+{
+  "actions": {
+    "add": "追加",
+    "apply": "適用",
+    "cancel": "キャンセル",
+    "clear": "クリア",
+    "copy": "コピー",
+    "copied": "コピーしました",
+    "delete": "削除",
+    "play": "再生",
+    "refresh": "更新",
+    "reset": "リセット",
+    "save": "保存",
+    "saving": "保存中…",
+    "stop": "停止",
+    "test": "テスト"
+  },
+  "form": {
+    "name": "名前",
+    "primaryTrigger": "メイン Trigger",
+    "triggerAliases": "別名 Trigger",
+    "triggerAliasesPlaceholder": "複数の trigger はカンマまたは改行で区切ります",
+    "triggerAliasesPlaceholderWithExample": "複数の trigger はカンマまたは改行で区切ります（例：character:daily-login, sprite:anim-complete）",
+    "priority": "優先度",
+    "width": "幅",
+    "height": "高さ"
+  },
+  "displays": {
+    "current": "現在のディスプレイ",
+    "main": "メインウィンドウのディスプレイ",
+    "primary": "プライマリディスプレイ"
+  },
+  "animation": {
+    "categories": {
+      "entrance": "イン",
+      "exit": "アウト",
+      "emphasis": "強調"
+    },
+    "presets": {
+      "fly-in": "フライイン",
+      "fade-in": "フェードイン",
+      "zoom-in": "ズームイン",
+      "fly-out": "フライアウト",
+      "fade-out": "フェードアウト",
+      "zoom-out": "ズームアウト",
+      "pulse": "パルス",
+      "shake": "シェイク"
+    },
+    "directions": {
+      "top": "上",
+      "top-right": "右上",
+      "right": "右",
+      "bottom-right": "右下",
+      "bottom": "下",
+      "bottom-left": "左下",
+      "left": "左",
+      "top-left": "左上"
+    },
+    "toast": {
+      "playStarted": "ウィンドウアニメーションの再生を開始しました",
+      "playFailed": "ウィンドウアニメーションの再生に失敗しました"
+    }
+  },
+  "manager": {
+    "capabilityHint": "スプライトリソース管理がロック解除されていない場合、既存のアニメーションの表示とテストはできますが、アニメーションのインポート・削除・metadata の編集はできません。",
+    "capabilityLocked": "{{name}} はまだロック解除されていません",
+    "registeredCount": "登録済みアニメーション：{{count}}",
+    "searchPlaceholder": "検索（名前 / ID / カテゴリ / タグ）",
+    "defaultPlaylistMode": "デフォルトのプレイリストモード",
+    "playlistModes": {
+      "list-loop": "リストループ",
+      "list-once": "リスト再生"
+    },
+    "importVideo": "動画をインポート",
+    "importing": "インポート中…",
+    "expandCategory": "カテゴリを展開",
+    "collapseCategory": "カテゴリを折りたたむ",
+    "categoryPlaylistMode": "{{name}} のプレイリストモード",
+    "triggerCategory": "{{name}} イベントをトリガー：アニメーション再生 + バブル表示",
+    "testPlay": "テスト再生：デスクトップスプライトでこのアニメーションをプレビュー",
+    "setTrigger": "trigger を設定",
+    "editProperties": "このスプライトのプロパティを編集",
+    "previewHover": "ホバーでプレビュー",
+    "noResults": "一致する結果がありません"
+  },
+  "configEditor": {
+    "title": "スプライトプロパティの編集",
+    "capabilityHint": "スプライトリソース管理がロック解除されていない場合、既存のアニメーションは表示できますが、スプライトプロパティは保存できません。",
+    "windowPadding": "ウィンドウ Padding",
+    "loop": {
+      "label": "ループ再生",
+      "description": "再生設定のみ変更し、動画の再切り出しは行いません",
+      "options": {
+        "none": "ループしない",
+        "finite": "N 回ループ",
+        "infinite": "無限ループ"
+      }
+    },
+    "autoIdle": {
+      "label": "再生後 Idle に戻る",
+      "description": "オフにするとアニメーションの最後の状態で停止します"
+    },
+    "movement": {
+      "label": "再生中のウィンドウ動作",
+      "description": "ウィンドウ動作の設定のみ変更し、動画ファイルは変更しません",
+      "modeLabel": "モード",
+      "modes": {
+        "direction": "方向移動",
+        "walkTo": "ランダムウォーク",
+        "windowAnimation": "ウィンドウアニメーション"
+      },
+      "preset": "プリセット",
+      "direction": "方向",
+      "directions": {
+        "left": "左へ",
+        "right": "右へ",
+        "up": "上へ",
+        "down": "下へ",
+        "up-left": "左上",
+        "up-right": "右上",
+        "down-left": "左下",
+        "down-right": "右下",
+        "random": "ランダム"
+      },
+      "duration": "長さ ms",
+      "speed": "速度 px/s",
+      "triggerLabel": "トリガー",
+      "triggers": {
+        "animation": "アニメーション再生時",
+        "behavior": "行動スケジュール"
+      }
+    },
+    "saveProperties": "プロパティを保存",
+    "toast": {
+      "saveFailed": "スプライトプロパティの保存に失敗しました",
+      "saved": "スプライトプロパティを保存しました"
+    }
+  },
+  "conditionBuilder": {
+    "title": "ビジュアル Builder",
+    "description": "nested group と NOT 条件に対応しました。`in/notIn` など特殊な schema の場合は引き続き JSON にフォールバックします。",
+    "status": {
+      "supported": "Builder 適用中",
+      "unsupported": "複雑なルールのため JSON にフォールバック"
+    },
+    "presetsTitle": "よく使うキャラクター状態条件",
+    "presets": {
+      "favor-high": "高好感度",
+      "favor-low": "低好感度",
+      "mood-joyful": "嬉しい時",
+      "bestie-joyful": "親友かつ嬉しい",
+      "level-10": "レベル10で解放",
+      "not-sleepy": "眠くない時",
+      "bestie-or-joyful": "親友または嬉しい"
+    },
+    "clearConditions": "条件をクリア",
+    "nodeTypes": {
+      "compare": "条件",
+      "group": "グループ",
+      "not": "否定"
+    },
+    "nodeTypeOptions": {
+      "compare": "通常条件",
+      "group": "ネストグループ",
+      "not": "NOT 条件"
+    },
+    "removeNode": "条件ノードを削除",
+    "add": {
+      "compare": "条件を追加",
+      "group": "グループを追加",
+      "not": "NOT を追加"
+    },
+    "addRoot": {
+      "compare": "ルート条件を追加",
+      "group": "ルートグループを追加",
+      "not": "ルート NOT を追加"
+    },
+    "groupMatch": "グループの一致条件",
+    "rootMatch": "ルートの一致条件",
+    "rootMatchHint": "複数のルート条件がある場合に有効です。ルートノードが1つの場合は自動的にその条件に収束します。",
+    "match": {
+      "all": "すべて満たす（AND）",
+      "any": "いずれか満たす（OR）"
+    },
+    "notDescription": "サブ条件を否定します。「ある気分ではない / ある段階を満たさない」などのルールに適しています。",
+    "unsupportedHint": "現在のルールには Builder がまだ対応していない schema が含まれています。JSON で編集を続けるか、上の preset / builder ボタンでより構造化されたルールに上書きできます。",
+    "compareValuePlaceholder": "比較値を入力",
+    "fields": {
+      "favor": {
+        "label": "好感度 favor",
+        "placeholder": "例：80"
+      },
+      "level": {
+        "label": "レベル level",
+        "placeholder": "例：10"
+      },
+      "mood": {
+        "label": "気分 mood"
+      },
+      "favorLevel": {
+        "label": "好感度段階 favorLevel"
+      },
+      "achievements": {
+        "label": "実績 achievements",
+        "placeholder": "例：first-chat"
+      },
+      "custom": {
+        "label": "カスタムキャラクター状態パス",
+        "placeholder": "例：dimensions.focus",
+        "fieldPathPlaceholder": "キャラクター状態パス（例：dimensions.focus）"
+      }
+    },
+    "favorLevels": {
+      "stranger": "他人",
+      "acquaintance": "知人",
+      "friend": "友達",
+      "close-friend": "親友",
+      "bestie": "大親友",
+      "soulmate": "ソウルメイト"
+    },
+    "moods": {
+      "joyful": "嬉しい joyful",
+      "content": "満足 content",
+      "neutral": "平静 neutral",
+      "bored": "退屈 bored",
+      "sad": "悲しい sad",
+      "sleepy": "眠い sleepy",
+      "excited": "興奮 excited",
+      "curious": "好奇 curious",
+      "annoyed": "イライラ annoyed"
+    },
+    "advancedJson": "高度な JSON",
+    "jsonPlaceholder": "空欄は条件なしを意味します。例：{\n  \"type\": \"all\",\n  \"conditions\": [\n    { \"type\": \"compare\", \"field\": \"favor\", \"operator\": \"gte\", \"value\": 80 },\n    {\n      \"type\": \"not\",\n      \"condition\": { \"type\": \"compare\", \"field\": \"mood\", \"operator\": \"eq\", \"value\": \"sleepy\" }\n    }\n  ]\n}",
+    "jsonHint": "compare / all / any / not をサポート。field には favor、level、mood、achievements、dimensions.focus などのキャラクター状態パスを指定できます。",
+    "errors": {
+      "invalid": "条件ルールの形式が無効です。type / field / operator / value を確認してください。",
+      "jsonParse": "条件ルールの JSON 解析に失敗しました：{{message}}",
+      "jsonParseUnknown": "条件ルールの JSON 解析に失敗しました。"
+    }
+  },
+  "metaPopover": {
+    "editTitle": "trigger メタデータを編集",
+    "priorityHint": "同じ trigger に複数のアニメーションが一致した場合、数値が大きいほど優先されます。",
+    "resolvedTitle": "実際のヒット",
+    "resolvedEmpty": "未設定"
+  },
+  "triggerPicker": {
+    "title": "アニメーション Trigger",
+    "uncategorized": "未分類",
+    "builtin": "組み込み",
+    "custom": "カスタム",
+    "builtinWithGroup": "組み込み · {{group}}",
+    "customTrigger": "カスタム trigger",
+    "clear": "クリア",
+    "apply": "適用",
+    "searchPlaceholder": "組み込み trigger を検索...",
+    "noMatch": "一致する組み込み trigger がありません",
+    "customTitle": "カスタム Trigger",
+    "customHint": "任意の拡張イベント名を入力",
+    "customPlaceholder": "例：character:daily-login"
+  },
+  "positionEditor": {
+    "title": "再生前の目標位置",
+    "anchors": {
+      "top-left": "左上",
+      "top": "上中央",
+      "top-right": "右上",
+      "left": "左中央",
+      "center": "中央",
+      "right": "右中央",
+      "bottom-left": "左下",
+      "bottom": "下中央",
+      "bottom-right": "右下"
+    },
+    "fitModes": {
+      "stretch": "引き伸ばし",
+      "contain": "全体を収める",
+      "cover": "領域を覆う"
+    },
+    "placementLabels": {
+      "keepCurrent": "現在の位置を維持",
+      "manual": "手動位置",
+      "quick": "クイック位置"
+    },
+    "modes": {
+      "placement": "クイック位置",
+      "point": "手動ドラッグ"
+    },
+    "windowAnchorTooltip": "ウィンドウアンカー：{{label}}",
+    "margin": "マージン",
+    "useWorkArea": "ワークエリアを使用"
+  },
+  "windowEditor": {
+    "title": "ウィンドウアニメーションエディター",
+    "subtitle": "キーフレームパス、サイズ、不透明度のタイムライン",
+    "targets": {
+      "main": "メインスプライトウィンドウ",
+      "spriteBubble": "上部バブルウィンドウ",
+      "spriteEffect": "スプライトエフェクトウィンドウ",
+      "menu": "スプライトメニューウィンドウ"
+    },
+    "clampToWorkArea": "ワークエリア内に制限",
+    "keyframeTitle": "キーフレーム {{index}}",
+    "totalDuration": "合計時間 {{duration}} ms",
+    "advanced": "詳細パラメータ",
+    "windowAnchor": "ウィンドウアンカー",
+    "anchorX": "アンカー X",
+    "anchorY": "アンカー Y",
+    "sizeMode": "サイズモード",
+    "sizeModes": {
+      "explicit": {
+        "label": "幅と高さを編集",
+        "description": "キーフレームにウィンドウの幅と高さを書き込みます"
+      },
+      "original": {
+        "label": "元のサイズを維持",
+        "description": "再生時にウィンドウの現在のサイズを継承します"
+      }
+    },
+    "originalSizeHint": "元のサイズを維持する場合、キーフレームに width/height は書き込まれず、キャンバスにはアンカーパスのみ表示されます。",
+    "fields": {
+      "width": "幅",
+      "height": "高さ",
+      "opacity": "不透明度",
+      "duration": "区間の長さ ms",
+      "margin": "マージン"
+    },
+    "curve": "カーブ",
+    "easing": "イージング",
+    "controlPoint": "コントロールポイント {{index}}",
+    "absoluteCoordinates": "絶対座標",
+    "anchors": {
+      "top-left": "左上",
+      "top": "上中央",
+      "top-right": "右上",
+      "left": "左の上下中央",
+      "center": "中央",
+      "right": "右の上下中央",
+      "bottom-left": "左下",
+      "bottom": "下中央",
+      "bottom-right": "右下"
+    },
+    "timeline": {
+      "title": "ウィンドウキーフレーム",
+      "frameCount": "{{count}} フレーム",
+      "startPoint": "開始点"
+    },
+    "coordinateSpace": {
+      "title": "画面適応",
+      "enabledDescription": "さまざまな画面に適応",
+      "disabledDescription": "デスクトップの絶対 px を使用",
+      "toggle": "適応"
+    },
+    "placement": {
+      "title": "スナップ位置",
+      "absolute": "絶対",
+      "displayBase": "ディスプレイ基準",
+      "useWorkArea": "ワークエリアの境界を使用"
+    },
+    "jsonDialog": {
+      "title": "ウィンドウアニメーション JSON",
+      "description": "現在のタイムラインデータです。デバッグや再利用のためにコピーできます。"
+    },
+    "toast": {
+      "jsonCopied": "JSON をコピーしました",
+      "copyFailed": "コピーに失敗しました"
+    }
+  },
+  "windowSettings": {
+    "title": "ウィンドウアニメーション編集",
+    "itemDescription": "デスクトップパス、キーフレーム、ウィンドウサイズ、不透明度を編集",
+    "description": "独立したエディターでデスクトップ座標パスを描画し、任意のウィンドウにキーフレーム、ベジェ曲線、サイズ変化、不透明度変化を設定できます。",
+    "defaultAnimation": {
+      "label": "デフォルトの初期アニメーション",
+      "description": "開くとデフォルトのキーフレームパスが生成され、座標、サイズ、不透明度を調整できます"
+    },
+    "presetHint": "クリックするとすぐにメインウィンドウのアニメーションを再生します",
+    "mainWindowUnavailable": "メインウィンドウが利用できません"
+  },
+  "settings": {
+    "itemLabel": "スプライト管理",
+    "itemDescription": "デスクトップスプライトのアニメーションリソースの管理、インポートとアクションのデバッグ"
+  },
+  "retrospective": {
+    "title": "今日の目的",
+    "empty": "今日は振り返る目的がまだありません。",
+    "justNow": "たった今",
+    "memoryCandidate": "高価値",
+    "status": {
+      "completed": "完了",
+      "cancelled": "キャンセル",
+      "failed": "失敗",
+      "superseded": "切替"
+    }
+  },
+  "status": {
+    "loading": "読み込み中…"
+  },
+  "message": {
+    "stickerAlt": "スタンプ"
+  }
+}

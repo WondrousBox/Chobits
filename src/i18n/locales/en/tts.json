@@ -1,0 +1,47 @@
+{
+  "test": {
+    "title": "TTS speech synthesis test",
+    "speaker": "Speaker",
+    "speakerLabel": "Speaker: ",
+    "speedLabel": "Speed: ",
+    "speakerGroup": {
+      "americanFemale": "🇺🇸 American English (Female)",
+      "americanMale": "🇺🇸 American English (Male)",
+      "britishFemale": "🇬🇧 British English (Female)",
+      "britishMale": "🇬🇧 British English (Male)",
+      "chineseFemale": "🇨🇳 Chinese (Female)",
+      "chineseMale": "🇨🇳 Chinese (Male)"
+    },
+    "speed": "Speed: {{speed}}x",
+    "confirmConfig": "Confirm configuration",
+    "reconfigure": "Reconfigure",
+    "inputText": "Input text",
+    "textPlaceholder": "Paste or type the text to synthesize...",
+    "generating": "Generating...",
+    "playing": "Playing...",
+    "generateAndPlay": "Generate and play",
+    "stopPlayback": "Stop playback",
+    "downloadAudio": "Download audio",
+    "generationComplete": "Generation complete",
+    "duration": "Duration: ",
+    "elapsed": "Elapsed: ",
+    "rtf": "RTF: ",
+    "errorLabel": "Error: ",
+    "playbackFailed": "Playback failed",
+    "generateFailed": "Generation failed",
+    "downloadFailed": "Download failed"
+  },
+  "config": {
+    "title": "TTS speech synthesis config",
+    "subtitle": "Select the speech synthesis model to use",
+    "model": "TTS model",
+    "loading": "Loading...",
+    "selectModel": "Select a model",
+    "noModels": "No models available",
+    "recommended": "Recommended",
+    "notInstalled": "(Not installed)",
+    "modelNotInstalled": "Model not installed. Use one-click install first",
+    "starting": "Starting...",
+    "start": "Start"
+  }
+}

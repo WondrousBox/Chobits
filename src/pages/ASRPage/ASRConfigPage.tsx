@@ -2,6 +2,7 @@ import { PluginDefinition } from '@packages/plugins/types';
 import { CommonConfig, SherpaModel as SherpaModelId } from '@packages/sherpa/common';
 import { ScrollArea } from '@radix-ui/react-scroll-area';
 import React, { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TbChevronDown, TbChevronUp, TbLoader2, TbPlayerPlay, TbPlayerStop } from 'react-icons/tb';
 import { toast } from 'sonner';
 
@@ -18,89 +19,6 @@ import { resolveModelFirstSelection } from '@/lib/ai-model-first';
 interface SherpaModelItem extends PluginDefinition {
   isInstalled: boolean;
 }
-
-// 语言代码到中文名称的映射
-const getLanguageName = (code: string): string => {
-  const languageMap: Record<string, string> = {
-    multi: '多语言',
-    en: '英语',
-    zh: '中文',
-    ja: '日语',
-    ko: '韩语',
-    yue: '粤语',
-    de: '德语',
-    es: '西班牙语',
-    ru: '俄语',
-    fr: '法语',
-    pt: '葡萄牙语',
-    tr: '土耳其语',
-    pl: '波兰语',
-    ca: '加泰罗尼亚语',
-    nl: '荷兰语',
-    ar: '阿拉伯语',
-    sv: '瑞典语',
-    it: '意大利语',
-    id: '印尼语',
-    hi: '印地语',
-    fi: '芬兰语',
-    vi: '越南语',
-    he: '希伯来语',
-    uk: '乌克兰语',
-    el: '希腊语',
-    ms: '马来语',
-    cs: '捷克语',
-    ro: '罗马尼亚语',
-    da: '丹麦语',
-    hu: '匈牙利语',
-    ta: '泰米尔语',
-    no: '挪威语',
-    th: '泰语',
-    ur: '乌尔都语',
-    hr: '克罗地亚语',
-    bg: '保加利亚语',
-    lt: '立陶宛语',
-    la: '拉丁语',
-    mi: '毛利语',
-    ml: '马拉雅拉姆语',
-    cy: '威尔士语',
-    sk: '斯洛伐克语',
-    te: '泰卢固语',
-    fa: '波斯语',
-    lv: '拉脱维亚语',
-    bn: '孟加拉语',
-    sr: '塞尔维亚语',
-    az: '阿塞拜疆语',
-    sl: '斯洛文尼亚语',
-    kn: '卡纳达语',
-    et: '爱沙尼亚语',
-    mk: '马其顿语',
-    br: '布列塔尼语',
-    eu: '巴斯克语',
-    is: '冰岛语',
-    hy: '亚美尼亚语',
-    ne: '尼泊尔语',
-    mn: '蒙古语',
-    bs: '波斯尼亚语',
-    kk: '哈萨克语',
-    sq: '阿尔巴尼亚语',
-    sw: '斯瓦希里语',
-    gl: '加利西亚语',
-    mr: '马拉地语',
-    pa: '旁遮普语',
-    si: '僧伽罗语',
-    km: '高棉语',
-    sn: '绍纳语',
-    yo: '约鲁巴语',
-    so: '索马里语',
-    af: '南非荷兰语',
-    oc: '奥克西唐语',
-    ka: '格鲁吉亚语',
-    be: '白俄罗斯语',
-    tg: '塔吉克语',
-    sd: '信德语'
-  };
-  return languageMap[code] || code.toUpperCase();
-};
 
 // 推荐模型ID列表
 const RECOMMENDED_MODEL_IDS = [
@@ -122,12 +40,12 @@ interface SceneConfig {
   commonConfig?: CommonConfig; // 场景特定的 common 配置
 }
 
-// 场景配置列表
+// 场景配置列表（name/description 为 i18n key，渲染时通过 t() 解析）
 const SCENE_CONFIGS: SceneConfig[] = [
   {
     id: 'meeting',
-    name: '会议',
-    description: '适用于中文会议场景，自动识别中文语音',
+    name: 'scene.meeting.name',
+    description: 'scene.meeting.description',
     recommendedModelIds: ['sherpa-onnx-streaming-zipformer-ctc-multi-zh-hans-2023-12-13'],
     defaultLanguage: 'zh',
     translationEnabled: false,
@@ -139,8 +57,8 @@ const SCENE_CONFIGS: SceneConfig[] = [
   },
   {
     id: 'english-learning',
-    name: '英语学习',
-    description: '适用于英语学习场景，自动识别英语语音',
+    name: 'scene.english-learning.name',
+    description: 'scene.english-learning.description',
     recommendedModelIds: ['sherpa-onnx-streaming-zipformer-ctc-small-2024-03-18'],
     defaultLanguage: 'en',
     translationEnabled: true,
@@ -153,8 +71,8 @@ const SCENE_CONFIGS: SceneConfig[] = [
   },
   {
     id: 'english',
-    name: '英语',
-    description: '适用于中英双语场景，自动识别中英文混合语音',
+    name: 'scene.english.name',
+    description: 'scene.english.description',
     recommendedModelIds: ['sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20'],
     defaultLanguage: 'zh',
     translationEnabled: false,
@@ -168,8 +86,8 @@ const SCENE_CONFIGS: SceneConfig[] = [
   },
   {
     id: 'chinese',
-    name: '中英',
-    description: '适用于中英双语场景，自动识别中英文混合语音',
+    name: 'scene.chinese.name',
+    description: 'scene.chinese.description',
     recommendedModelIds: ['sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20'],
     defaultLanguage: 'zh',
     translationEnabled: false,
@@ -181,8 +99,8 @@ const SCENE_CONFIGS: SceneConfig[] = [
   },
   {
     id: 'multilingual',
-    name: '简繁中文',
-    description: '适用于多语言场景，支持多种语言识别',
+    name: 'scene.multilingual.name',
+    description: 'scene.multilingual.description',
     recommendedModelIds: ['sherpa-onnx-streaming-zipformer-ctc-multi-zh-hans-2023-12-13'],
     defaultLanguage: 'zh',
     translationEnabled: false,
@@ -195,6 +113,9 @@ const SCENE_CONFIGS: SceneConfig[] = [
 ];
 
 const ASRConfigPage: React.FC = () => {
+  const { t } = useTranslation('asr');
+  // 语言代码到显示名称（复用 plugins namespace 的 language.* 文案，未知代码回退为大写代码）
+  const getLanguageName = useCallback((code: string): string => t(`plugins:language.${code}`, { defaultValue: code.toUpperCase() }), [t]);
   const [isLoading, setIsLoading] = useState(false);
   const [isASRRunning, setIsASRRunning] = useState(false);
   const [selectedScene, setSelectedScene] = useState<string>('meeting');
@@ -294,12 +215,12 @@ const ASRConfigPage: React.FC = () => {
     const res = await window.chobits.system['system:microphone:request-access']();
     if (res.ok && res.isGranted) {
       setMicStatus('granted');
-      toast.success('麦克风授权成功');
+      toast.success(t('micPermission.granted'));
     } else {
       setMicStatus('denied');
-      toast.error('麦克风授权被拒绝，请在系统设置中允许访问麦克风');
+      toast.error(t('micPermission.denied'));
     }
-  }, []);
+  }, [t]);
 
   // 加载 sherpa 模型列表
   useEffect(() => {
@@ -614,13 +535,13 @@ const ASRConfigPage: React.FC = () => {
       }
       if (!isSelectedInstalled) {
         // 模型未安装时给出可跳转的提示，避免用户卡在死路
-        toast.error('模型未安装，请先使用上方一键安装');
+        toast.error(t('toast.modelNotInstalled'));
         return;
       }
 
       // 如果选择了标点模型，检查是否已安装（含一键安装刚完成的场景）
       if (selectedPunctuationModel && !isPunctInstalled) {
-        toast.error('标点模型未安装，请先使用上方一键安装');
+        toast.error(t('toast.punctuationNotInstalled'));
         return;
       }
     }
@@ -703,10 +624,10 @@ const ASRConfigPage: React.FC = () => {
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="local" className="no-drag">
-                本地识别
+                {t('tabs.local')}
               </TabsTrigger>
               <TabsTrigger value="cloud" disabled>
-                云端转写
+                {t('tabs.cloud')}
               </TabsTrigger>
             </TabsList>
           </Tabs>
@@ -715,9 +636,9 @@ const ASRConfigPage: React.FC = () => {
           {/* macOS/Windows 需要系统麦克风授权,未授权时给出引导(语音识别能力树依赖该授权信号) */}
           {micStatus !== 'granted' && micStatus !== 'unknown' && (
             <div className="flex items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-400">
-              <span>语音识别需要麦克风权限，当前未授权。</span>
+              <span>{t('micPermission.banner')}</span>
               <Button size="sm" variant="outline" className="h-7 text-xs shrink-0" onClick={handleRequestMicAccess}>
-                授权麦克风
+                {t('micPermission.grant')}
               </Button>
             </div>
           )}
@@ -733,7 +654,7 @@ const ASRConfigPage: React.FC = () => {
                       onClick={() => !loadingModels && setSelectedScene(scene.id)}
                     >
                       <CardHeader>
-                        <CardTitle>{scene.name}</CardTitle>
+                        <CardTitle>{t(scene.name)}</CardTitle>
                       </CardHeader>
                     </Card>
                   ))}
@@ -750,14 +671,14 @@ const ASRConfigPage: React.FC = () => {
                   onClick={() => setIsAdvancedSettingsVisible(!isAdvancedSettingsVisible)}
                   className="w-full flex items-center justify-between px-4 py-2 text-sm font-medium hover:bg-muted/50 transition-colors rounded-t-lg"
                 >
-                  <span className="no-drag">自定义</span>
+                  <span className="no-drag">{t('advanced.toggle')}</span>
                   {isAdvancedSettingsVisible ? <TbChevronUp className="h-4 w-4 no-drag" /> : <TbChevronDown className="h-4 w-4 no-drag" />}
                 </button>
                 {isAdvancedSettingsVisible && (
                   <div className="px-4 pb-4 space-y-4 border-t">
                     <div className="space-y-2 pt-4">
                       <Label className="no-drag" htmlFor="model">
-                        模型
+                        {t('advanced.model')}
                       </Label>
                       {(() => {
                         // 分离推荐模型和其他模型
@@ -767,7 +688,7 @@ const ASRConfigPage: React.FC = () => {
                         return (
                           <Select value={selectedModel} onValueChange={setSelectedModel} disabled={loadingModels}>
                             <SelectTrigger className="no-drag" id="model">
-                              <SelectValue placeholder={loadingModels ? '加载中...' : '请选择模型'}>
+                              <SelectValue placeholder={loadingModels ? t('advanced.loading') : t('advanced.selectModel')}>
                                 {(() => {
                                   const selectedModelInfo = selectedModel ? sherpaModels.find((m) => m.id === selectedModel) : null;
                                   if (!selectedModelInfo) return null;
@@ -775,7 +696,7 @@ const ASRConfigPage: React.FC = () => {
                                   return (
                                     <div className="flex items-center gap-2">
                                       <span>{selectedModelInfo.displayName || selectedModelInfo.name}</span>
-                                      {isStreaming && <span className="text-xs text-primary shrink-0">流式</span>}
+                                      {isStreaming && <span className="text-xs text-primary shrink-0">{t('advanced.streaming')}</span>}
                                     </div>
                                   );
                                 })()}
@@ -784,25 +705,25 @@ const ASRConfigPage: React.FC = () => {
                             <SelectContent className="max-w-md no-drag">
                               {sherpaModels.length === 0 && !loadingModels && (
                                 <SelectItem value="__no_models__" disabled>
-                                  暂无可用模型
+                                  {t('advanced.noModels')}
                                 </SelectItem>
                               )}
                               {recommendedModels.length > 0 && (
                                 <SelectGroup>
-                                  <SelectLabel>推荐模型</SelectLabel>
+                                  <SelectLabel>{t('advanced.recommendedModels')}</SelectLabel>
                                   {recommendedModels.map((model) => {
                                     const isStreaming = model.id.toLowerCase().includes('stream');
                                     const supportedLanguages = model.languages || [];
-                                    const languageDisplay = supportedLanguages.includes('multi') ? '多语言' : supportedLanguages.map((lang) => getLanguageName(lang)).join('、');
+                                    const languageDisplay = supportedLanguages.includes('multi') ? getLanguageName('multi') : supportedLanguages.map((lang) => getLanguageName(lang)).join('、');
                                     return (
                                       <SelectItem key={model.id} value={model.id} disabled={!model.isInstalled} className="items-center box-border" textValue={model.displayName || model.name}>
                                         <div className="flex flex-col gap-0.5 py-0.5 w-full min-w-0">
                                           <div className="flex items-center gap-2 flex-wrap">
                                             <span className="font-medium break-words">{model.displayName || model.name}</span>
-                                            {isStreaming && <span className="text-xs text-primary shrink-0">流式</span>}
-                                            {!model.isInstalled && <span className="text-xs text-muted-foreground shrink-0">(未安装)</span>}
+                                            {isStreaming && <span className="text-xs text-primary shrink-0">{t('advanced.streaming')}</span>}
+                                            {!model.isInstalled && <span className="text-xs text-muted-foreground shrink-0">{t('advanced.notInstalled')}</span>}
                                           </div>
-                                          {supportedLanguages.length > 0 && <div className="text-xs text-muted-foreground">支持语言: {languageDisplay}</div>}
+                                          {supportedLanguages.length > 0 && <div className="text-xs text-muted-foreground">{t('advanced.supportedLanguages', { languages: languageDisplay })}</div>}
                                           {model.description && <div className="text-xs text-muted-foreground leading-relaxed break-words">{model.description}</div>}
                                         </div>
                                       </SelectItem>
@@ -814,20 +735,20 @@ const ASRConfigPage: React.FC = () => {
                                 <>
                                   {recommendedModels.length > 0 && <SelectSeparator />}
                                   <SelectGroup>
-                                    <SelectLabel>其他模型</SelectLabel>
+                                    <SelectLabel>{t('advanced.otherModels')}</SelectLabel>
                                     {otherModels.map((model) => {
                                       const isStreaming = model.id.toLowerCase().includes('stream');
                                       const supportedLanguages = model.languages || [];
-                                      const languageDisplay = supportedLanguages.includes('multi') ? '多语言' : supportedLanguages.map((lang) => getLanguageName(lang)).join('、');
+                                      const languageDisplay = supportedLanguages.includes('multi') ? getLanguageName('multi') : supportedLanguages.map((lang) => getLanguageName(lang)).join('、');
                                       return (
                                         <SelectItem key={model.id} value={model.id} disabled={!model.isInstalled} className="items-center box-border" textValue={model.displayName || model.name}>
                                           <div className="flex flex-col gap-0.5 py-0.5 w-full min-w-0">
                                             <div className="flex items-center gap-2 flex-wrap">
                                               <span className="font-medium break-words">{model.displayName || model.name}</span>
-                                              {isStreaming && <span className="text-xs text-primary shrink-0">流式</span>}
-                                              {!model.isInstalled && <span className="text-xs text-muted-foreground shrink-0">(未安装)</span>}
+                                              {isStreaming && <span className="text-xs text-primary shrink-0">{t('advanced.streaming')}</span>}
+                                              {!model.isInstalled && <span className="text-xs text-muted-foreground shrink-0">{t('advanced.notInstalled')}</span>}
                                             </div>
-                                            {supportedLanguages.length > 0 && <div className="text-xs text-muted-foreground">支持语言: {languageDisplay}</div>}
+                                            {supportedLanguages.length > 0 && <div className="text-xs text-muted-foreground">{t('advanced.supportedLanguages', { languages: languageDisplay })}</div>}
                                             {model.description && <div className="text-xs text-muted-foreground leading-relaxed break-words">{model.description}</div>}
                                           </div>
                                         </SelectItem>
@@ -856,11 +777,11 @@ const ASRConfigPage: React.FC = () => {
                       return (
                         <div className="space-y-2">
                           <Label className="no-drag" htmlFor="language">
-                            语言
+                            {t('advanced.language')}
                           </Label>
                           <Select value={language} onValueChange={setLanguage} disabled={!selectedModel || loadingModels}>
                             <SelectTrigger className="no-drag" id="language">
-                              <SelectValue placeholder={!selectedModel ? '请先选择模型' : '请选择语言'} />
+                              <SelectValue placeholder={!selectedModel ? t('advanced.selectModelFirst') : t('advanced.selectLanguage')} />
                             </SelectTrigger>
                             <SelectContent className="no-drag">
                               {(() => {
@@ -886,7 +807,7 @@ const ASRConfigPage: React.FC = () => {
                                 // 如果没有指定语言，显示提示
                                 return (
                                   <SelectItem value="__no_language__" disabled>
-                                    该模型未指定支持的语言
+                                    {t('advanced.noLanguagesSpecified')}
                                   </SelectItem>
                                 );
                               })()}
@@ -899,14 +820,14 @@ const ASRConfigPage: React.FC = () => {
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
                           <Label className="no-drag" htmlFor="punctuationModel">
-                            标点符号模型
+                            {t('advanced.punctuationModel')}
                           </Label>
                           {(() => {
                             const sceneConfig = SCENE_CONFIGS.find((s) => s.id === selectedScene);
                             if (sceneConfig?.recommendedPunctuationModelId) {
                               const recommendedModel = punctuationModels.find((m) => m.id === sceneConfig.recommendedPunctuationModelId);
                               if (recommendedModel && selectedPunctuationModel === recommendedModel.id) {
-                                return <span className="text-xs text-muted-foreground">场景推荐</span>;
+                                return <span className="text-xs text-muted-foreground">{t('advanced.sceneRecommended')}</span>;
                               }
                             }
                             return null;
@@ -914,15 +835,15 @@ const ASRConfigPage: React.FC = () => {
                         </div>
                         <Select value={selectedPunctuationModel || '__none__'} onValueChange={(value) => setSelectedPunctuationModel(value === '__none__' ? '' : value)} disabled={loadingModels}>
                           <SelectTrigger className="no-drag" id="punctuationModel">
-                            <SelectValue placeholder="不启用标点符号">
+                            <SelectValue placeholder={t('advanced.noPunctuation')}>
                               {selectedPunctuationModel
                                 ? punctuationModels.find((m) => m.id === selectedPunctuationModel)?.displayName || punctuationModels.find((m) => m.id === selectedPunctuationModel)?.name
-                                : '不使用标点符号'}
+                                : t('advanced.punctuationDisabled')}
                             </SelectValue>
                           </SelectTrigger>
                           <SelectContent className="max-w-md no-drag">
                             <SelectItem value="__none__">
-                              <span className="text-muted-foreground">不启用标点符号</span>
+                              <span className="text-muted-foreground">{t('advanced.noPunctuation')}</span>
                             </SelectItem>
                             {(() => {
                               const sceneConfig = SCENE_CONFIGS.find((s) => s.id === selectedScene);
@@ -934,13 +855,13 @@ const ASRConfigPage: React.FC = () => {
                                 <>
                                   {recommendedModels.length > 0 && (
                                     <SelectGroup>
-                                      <SelectLabel>场景推荐</SelectLabel>
+                                      <SelectLabel>{t('advanced.sceneRecommended')}</SelectLabel>
                                       {recommendedModels.map((model) => (
                                         <SelectItem key={model.id} value={model.id} disabled={!model.isInstalled} className="items-start box-border" textValue={model.displayName || model.name}>
                                           <div className="flex flex-col gap-0.5 py-0.5 w-full min-w-0">
                                             <div className="flex items-center gap-2 flex-wrap">
                                               <span className="font-medium break-words">{model.displayName || model.name}</span>
-                                              {!model.isInstalled && <span className="text-xs text-muted-foreground shrink-0">(未安装)</span>}
+                                              {!model.isInstalled && <span className="text-xs text-muted-foreground shrink-0">{t('advanced.notInstalled')}</span>}
                                             </div>
                                             {model.description && <div className="text-xs text-muted-foreground leading-relaxed break-words">{model.description}</div>}
                                           </div>
@@ -952,13 +873,13 @@ const ASRConfigPage: React.FC = () => {
                                     <>
                                       {recommendedModels.length > 0 && <SelectSeparator />}
                                       <SelectGroup>
-                                        <SelectLabel>其他模型</SelectLabel>
+                                        <SelectLabel>{t('advanced.otherModels')}</SelectLabel>
                                         {otherModels.map((model) => (
                                           <SelectItem key={model.id} value={model.id} disabled={!model.isInstalled} className="items-start box-border" textValue={model.displayName || model.name}>
                                             <div className="flex flex-col gap-0.5 py-0.5 w-full min-w-0">
                                               <div className="flex items-center gap-2 flex-wrap">
                                                 <span className="font-medium break-words">{model.displayName || model.name}</span>
-                                                {!model.isInstalled && <span className="text-xs text-muted-foreground shrink-0">(未安装)</span>}
+                                                {!model.isInstalled && <span className="text-xs text-muted-foreground shrink-0">{t('advanced.notInstalled')}</span>}
                                               </div>
                                               {model.description && <div className="text-xs text-muted-foreground leading-relaxed break-words">{model.description}</div>}
                                             </div>
@@ -983,11 +904,11 @@ const ASRConfigPage: React.FC = () => {
               <div className="space-y-4">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label className="no-drag">服务商与模型</Label>
+                    <Label className="no-drag">{t('cloud.providerAndModel')}</Label>
                     {cloudProviderId && (
                       <div className="flex items-center gap-2">
                         <Button size="sm" variant="outline" className="h-6 text-xs px-2 no-drag" onClick={() => void handleOpenCloudProviderConfig()}>
-                          配置
+                          {t('cloud.configure')}
                         </Button>
                       </div>
                     )}
@@ -1011,15 +932,15 @@ const ASRConfigPage: React.FC = () => {
                     onProvidersLoaded={(providers) => {
                       setAvailableCloudProviderIds(providers.map((provider) => provider.id));
                     }}
-                    placeholder="请选择云端转写模型"
+                    placeholder={t('cloud.selectModelPlaceholder')}
                     buttonVariant="outline"
                     buttonSize="default"
                     className="w-full justify-between rounded-md no-drag"
                   />
-                  {!cloudModelId && <div className="text-xs text-amber-600 dark:text-amber-400">请选择一个支持转写的模型后再启动云端转写</div>}
+                  {!cloudModelId && <div className="text-xs text-amber-600 dark:text-amber-400">{t('cloud.selectModelHint')}</div>}
                 </div>
 
-                <p className="text-xs text-muted-foreground">仅展示当前声明了转写能力的 AI 服务商和模型</p>
+                <p className="text-xs text-muted-foreground">{t('cloud.capabilityNote')}</p>
               </div>
             </TabsContent>
           </Tabs>
@@ -1027,18 +948,18 @@ const ASRConfigPage: React.FC = () => {
 
         <div className="flex gap-2 border-t p-2 px-4">
           <Button variant="outline" className="flex-1 no-drag" onClick={() => window.chobits.window['window:close']('asrConfig')}>
-            关闭
+            {t('action.close')}
           </Button>
           {isASRRunning ? (
             <Button variant="destructive" disabled={isLoading} onClick={handleStopASR} className="flex-1 no-drag">
               {isLoading ? (
                 <>
                   <TbLoader2 className="animate-spin" />
-                  停止中...
+                  {t('action.stopping')}
                 </>
               ) : (
                 <>
-                  停止识别
+                  {t('action.stop')}
                   <TbPlayerStop />
                 </>
               )}
@@ -1056,11 +977,11 @@ const ASRConfigPage: React.FC = () => {
               {isLoading ? (
                 <>
                   <TbLoader2 className="animate-spin" />
-                  启动中...
+                  {t('action.starting')}
                 </>
               ) : (
                 <>
-                  启动语音识别
+                  {t('action.start')}
                   <TbPlayerPlay />
                 </>
               )}

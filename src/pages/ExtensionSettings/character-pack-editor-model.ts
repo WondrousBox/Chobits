@@ -1,5 +1,6 @@
 import type { CharacterPackEditorDraft, CharacterPackEditorSaveOptions, CharacterPackSource, CharacterPackSummary } from '@packages/sprite-core/character-pack-manager';
 import { buildDefaultCharacterMessageEditorFields } from '@packages/sprite-core/messages/default-character';
+import type { TFunction } from 'i18next';
 
 export const CHARACTER_PACK_EDITOR_WINDOW_KEY = 'characterPackEditor';
 export const CHARACTER_PACK_EDITOR_EVENT_CHANNEL = 'chobits:character-pack-editor';
@@ -76,9 +77,11 @@ export function withCharacterPackEditorDraft(editor: CharacterPackEditorState | 
   };
 }
 
-export function buildCreateCharacterPackEditorState(basePack: CharacterPackSummary | null | undefined, packs: CharacterPackSummary[]): CharacterPackEditorState {
-  const seed = basePack?.name ? `${basePack.name} 自定义版` : '我的自定义角色';
+export function buildCreateCharacterPackEditorState(t: TFunction, basePack: CharacterPackSummary | null | undefined, packs: CharacterPackSummary[]): CharacterPackEditorState {
+  const seed = basePack?.name ? t('character:editor.defaults.customVersionName', { name: basePack.name }) : t('character:editor.defaults.seedName');
   const id = getUniquePackId(`custom-${Date.now().toString(36)}`, packs);
+  const firstPerson = t('character:editor.defaults.firstPerson');
+  const addressUser = t('character:editor.defaults.addressUser');
   return {
     saveMode: 'create',
     editorIntent: 'create',
@@ -88,7 +91,7 @@ export function buildCreateCharacterPackEditorState(basePack: CharacterPackSumma
         name: seed,
         version: '1.0.0',
         author: 'Local User',
-        description: '本地创建的自定义角色包',
+        description: t('character:editor.defaults.packDescription'),
         license: 'Custom',
         tags: ['custom'],
         platform: [window.chobits.platform]
@@ -97,26 +100,26 @@ export function buildCreateCharacterPackEditorState(basePack: CharacterPackSumma
         id,
         name: seed,
         nameAliases: [],
-        tagline: '我的桌面伙伴',
-        background: '你是一个居住在用户电脑桌面上的智能精灵，会陪伴用户工作、学习和生活。',
-        coreTraits: ['温暖真诚', '认真负责', '有一点自己的小个性'],
-        boundaries: ['真诚帮助，不表演。', '像人一样自然说话。', '遇到问题先尝试解决，实在卡住再询问用户。'],
-        speechTone: '温和、自然、略带活泼',
+        tagline: t('character:editor.defaults.tagline'),
+        background: t('character:editor.defaults.background'),
+        coreTraits: [t('character:editor.defaults.coreTraitWarm'), t('character:editor.defaults.coreTraitResponsible'), t('character:editor.defaults.coreTraitPersonality')],
+        boundaries: [t('character:editor.defaults.boundaryHonest'), t('character:editor.defaults.boundaryNatural'), t('character:editor.defaults.boundarySolve')],
+        speechTone: t('character:editor.defaults.speechTone'),
         language: 'zh-CN',
-        firstPerson: '我',
-        addressUser: '你',
-        quirks: ['偶尔用轻快的语气回应', '完成任务时会简短确认结果'],
+        firstPerson,
+        addressUser,
+        quirks: [t('character:editor.defaults.quirkTone'), t('character:editor.defaults.quirkConfirm')],
         speechExamples: [
-          { situation: '打招呼', response: '嗨，今天想做点什么？' },
-          { situation: '完成任务', response: '搞定啦。' }
+          { situation: t('character:editor.defaults.exampleGreetingSituation'), response: t('character:editor.defaults.exampleGreetingResponse') },
+          { situation: t('character:editor.defaults.exampleTaskSituation'), response: t('character:editor.defaults.exampleTaskResponse') }
         ],
-        metaDescription: '本地创建的自定义角色',
+        metaDescription: t('character:editor.defaults.metaDescription'),
         metaTags: ['custom']
       },
       messages: buildDefaultCharacterMessageEditorFields({
         name: seed,
-        firstPerson: '我',
-        addressUser: '你'
+        firstPerson,
+        addressUser
       })
     },
     basePack: basePack ?? undefined,
@@ -124,10 +127,10 @@ export function buildCreateCharacterPackEditorState(basePack: CharacterPackSumma
   };
 }
 
-export async function loadCharacterPackEditorStateForPack(pack: CharacterPackSummary, packs: CharacterPackSummary[]): Promise<CharacterPackEditorState> {
+export async function loadCharacterPackEditorStateForPack(t: TFunction, pack: CharacterPackSummary, packs: CharacterPackSummary[]): Promise<CharacterPackEditorState> {
   const draft = await window.chobits.character.getCharacterPackEditorDraft(pack.id, pack.source);
   if (!draft) {
-    throw new Error(`读取角色包草稿失败: ${pack.name}`);
+    throw new Error(t('character:editor.error.draftLoadFailed', { name: pack.name }));
   }
 
   if (pack.source !== 'installed') {
@@ -140,13 +143,13 @@ export async function loadCharacterPackEditorStateForPack(pack: CharacterPackSum
         pack: {
           ...draft.pack,
           id: nextId,
-          name: `${draft.pack.name} 自定义版`,
+          name: t('character:editor.defaults.customVersionName', { name: draft.pack.name }),
           author: draft.pack.author || 'Local User'
         },
         character: {
           ...draft.character,
           id: getUniquePackId(`${draft.character.id}-custom`, packs),
-          name: `${draft.character.name} 自定义版`
+          name: t('character:editor.defaults.customVersionName', { name: draft.character.name })
         }
       },
       basePack: pack,
@@ -164,55 +167,56 @@ export async function loadCharacterPackEditorStateForPack(pack: CharacterPackSum
   };
 }
 
-export function validateCharacterPackEditorDraft(draft: CharacterPackEditorDraft): string | null {
+export function validateCharacterPackEditorDraft(t: TFunction, draft: CharacterPackEditorDraft): string | null {
   if (!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(draft.pack.id.trim())) {
-    return '角色包 ID 只能使用小写字母、数字、点、横线或下划线。';
+    return t('character:editor.validation.packIdInvalid');
   }
-  if (!draft.pack.name.trim()) return '角色包名称不能为空。';
-  if (!draft.pack.version.trim()) return '版本不能为空。';
-  if (!draft.pack.author.trim()) return '作者不能为空。';
+  if (!draft.pack.name.trim()) return t('character:editor.validation.packNameRequired');
+  if (!draft.pack.version.trim()) return t('character:editor.validation.versionRequired');
+  if (!draft.pack.author.trim()) return t('character:editor.validation.authorRequired');
   if (!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(draft.character.id.trim())) {
-    return '角色 ID 只能使用小写字母、数字、点、横线或下划线。';
+    return t('character:editor.validation.characterIdInvalid');
   }
-  if (!draft.character.name.trim()) return '角色名称不能为空。';
-  if (!draft.character.tagline.trim()) return '角色标语不能为空。';
-  if (!draft.character.background.trim()) return '角色背景不能为空。';
-  if (!draft.character.speechTone.trim()) return '说话语气不能为空。';
+  if (!draft.character.name.trim()) return t('character:editor.validation.characterNameRequired');
+  if (!draft.character.tagline.trim()) return t('character:editor.validation.taglineRequired');
+  if (!draft.character.background.trim()) return t('character:editor.validation.backgroundRequired');
+  if (!draft.character.speechTone.trim()) return t('character:editor.validation.speechToneRequired');
   return null;
 }
 
-export function getCharacterPackEditorTitle(editor: CharacterPackEditorState | null): string {
-  return editor?.editorIntent === 'edit' ? '编辑角色包' : '创建自定义角色包';
+export function getCharacterPackEditorTitle(t: TFunction, editor: CharacterPackEditorState | null): string {
+  return editor?.editorIntent === 'edit' ? t('character:editor.titleEdit') : t('character:editor.titleCreate');
 }
 
-export function getCharacterPackEditorDescription(editor: CharacterPackEditorState | null): string {
+export function getCharacterPackEditorDescription(t: TFunction, editor: CharacterPackEditorState | null): string {
   if (!editor) {
     return '';
   }
 
   if (editor.saveMode === 'edit') {
-    return '保存后会更新本地角色包目录。';
+    return t('character:editor.descriptionEdit');
   }
 
   if (editor.editorIntent === 'edit' && editor.basePack) {
-    return `内置角色包会保存为本地可编辑版本，动画会使用新的独立动画包。来源：${editor.basePack.name}`;
+    return t('character:editor.descriptionBuiltinCopy', { name: editor.basePack.name });
   }
 
-  return editor.basePack ? `将基于 ${editor.basePack.name} 创建角色，动画会使用新的独立动画包。` : '保存后会写入本地角色包目录。';
+  return editor.basePack ? t('character:editor.descriptionBasedOn', { name: editor.basePack.name }) : t('character:editor.descriptionCreate');
 }
 
 export async function saveCharacterPackEditorState(
+  t: TFunction,
   editor: CharacterPackEditorState,
   packs: CharacterPackSummary[]
 ): Promise<NonNullable<Awaited<ReturnType<typeof window.chobits.character.saveCharacterPackEditorDraft>>>> {
-  const validationError = validateCharacterPackEditorDraft(editor.draft);
+  const validationError = validateCharacterPackEditorDraft(t, editor.draft);
   if (validationError) {
     throw new Error(validationError);
   }
 
   const idConflict = editor.saveMode === 'create' && packs.some((pack) => pack.source === 'installed' && pack.id === editor.draft.pack.id);
   if (idConflict) {
-    throw new Error('已存在同 ID 的本地角色包，请换一个角色包 ID。');
+    throw new Error(t('character:editor.error.idConflict'));
   }
 
   const options: CharacterPackEditorSaveOptions = {
@@ -224,7 +228,7 @@ export async function saveCharacterPackEditorState(
 
   const result = await window.chobits.character.saveCharacterPackEditorDraft(editor.draft, options);
   if (!result?.ok) {
-    throw new Error((result as { error?: string } | null)?.error || '保存角色包失败');
+    throw new Error((result as { error?: string } | null)?.error || t('character:editor.error.saveFailed'));
   }
 
   return result;

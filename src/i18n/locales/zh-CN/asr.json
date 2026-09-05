@@ -1,0 +1,87 @@
+{
+  "tabs": {
+    "local": "本地识别",
+    "cloud": "云端转写"
+  },
+  "micPermission": {
+    "banner": "语音识别需要麦克风权限，当前未授权。",
+    "grant": "授权麦克风",
+    "granted": "麦克风授权成功",
+    "denied": "麦克风授权被拒绝，请在系统设置中允许访问麦克风"
+  },
+  "scene": {
+    "meeting": {
+      "name": "会议",
+      "description": "适用于中文会议场景，自动识别中文语音"
+    },
+    "english-learning": {
+      "name": "英语学习",
+      "description": "适用于英语学习场景，自动识别英语语音"
+    },
+    "english": {
+      "name": "英语",
+      "description": "适用于中英双语场景，自动识别中英文混合语音"
+    },
+    "chinese": {
+      "name": "中英",
+      "description": "适用于中英双语场景，自动识别中英文混合语音"
+    },
+    "multilingual": {
+      "name": "简繁中文",
+      "description": "适用于多语言场景，支持多种语言识别"
+    }
+  },
+  "advanced": {
+    "toggle": "自定义",
+    "model": "模型",
+    "selectModel": "请选择模型",
+    "loading": "加载中...",
+    "streaming": "流式",
+    "noModels": "暂无可用模型",
+    "recommendedModels": "推荐模型",
+    "otherModels": "其他模型",
+    "notInstalled": "(未安装)",
+    "supportedLanguages": "支持语言: {{languages}}",
+    "language": "语言",
+    "selectModelFirst": "请先选择模型",
+    "selectLanguage": "请选择语言",
+    "noLanguagesSpecified": "该模型未指定支持的语言",
+    "punctuationModel": "标点符号模型",
+    "sceneRecommended": "场景推荐",
+    "noPunctuation": "不启用标点符号",
+    "punctuationDisabled": "不使用标点符号"
+  },
+  "cloud": {
+    "providerAndModel": "服务商与模型",
+    "configure": "配置",
+    "selectModelPlaceholder": "请选择云端转写模型",
+    "selectModelHint": "请选择一个支持转写的模型后再启动云端转写",
+    "capabilityNote": "仅展示当前声明了转写能力的 AI 服务商和模型"
+  },
+  "action": {
+    "close": "关闭",
+    "stopping": "停止中...",
+    "stop": "停止识别",
+    "starting": "启动中...",
+    "start": "启动语音识别"
+  },
+  "toast": {
+    "modelNotInstalled": "模型未安装，请先使用上方一键安装",
+    "punctuationNotInstalled": "标点模型未安装，请先使用上方一键安装"
+  },
+  "test": {
+    "title": "语音识别测试",
+    "currentModel": "当前模型：{{model}}",
+    "subtitle": "对着麦克风说话，验证识别效果",
+    "openSettings": "识别服务设置",
+    "serviceNotRunning": "语音识别服务未运行，请先在配置页启动",
+    "openConfig": "打开配置",
+    "listening": "聆听中，请开始说话...",
+    "idleHint": "点击下方「开始测试」，然后对着麦克风说话",
+    "close": "关闭",
+    "stop": "停止",
+    "checking": "检查中...",
+    "startTest": "开始测试",
+    "micAccessFailed": "无法访问麦克风，请检查系统授权"
+  }
+}

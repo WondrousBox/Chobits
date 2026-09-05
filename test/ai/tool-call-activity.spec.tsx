@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { installMiniDom } from '../utils/minidom';
 
@@ -24,6 +24,12 @@ function findButtonsByTitle(root: any, title: string): any[] {
 }
 
 describe('ToolCallActivity', () => {
+  beforeAll(async () => {
+    // i18n 默认按系统语言初始化，测试环境（Node navigator）为英文，这里固定为中文以匹配断言文案
+    const { default: i18n } = await import('../../src/i18n');
+    await i18n.changeLanguage('zh-CN');
+  });
+
   it('copies full tool input and output values from detail blocks', async () => {
     const { act } = await import('react');
     const { createRoot } = await import('react-dom/client');

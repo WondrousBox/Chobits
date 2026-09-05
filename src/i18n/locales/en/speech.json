@@ -1,0 +1,210 @@
+{
+  "speak": {
+    "item": {
+      "title": "Character Speech",
+      "description": "Choose Edge or provider-based speech synthesis."
+    },
+    "loading": "Loading...",
+    "enableHint": "Enable Character Speech on the left first.",
+    "engine": {
+      "label": "Speech Method",
+      "placeholder": "Select a speech method",
+      "aiProvider": "Provider Voice"
+    },
+    "voice": {
+      "label": "Voice",
+      "placeholder": "Select a voice"
+    },
+    "providerModel": {
+      "label": "Provider & Model",
+      "placeholder": "Select a speech synthesis model",
+      "configure": "Configure"
+    },
+    "preset": {
+      "label": "Provider Preset",
+      "auto": "Auto-select an available preset"
+    },
+    "audioFormat": {
+      "label": "Audio Format"
+    },
+    "speechLanguage": {
+      "label": "Reading Language",
+      "auto": "Auto (follow character language)",
+      "zh": "Chinese",
+      "ja": "Japanese",
+      "description": "When set to auto, it follows the language defined by the character. If the text language differs from the reading language, the text is translated with an LLM before being read aloud; the bubble still shows the original text. This also applies to real-time conversation reading."
+    },
+    "volume": {
+      "label": "Playback Volume"
+    },
+    "test": {
+      "testing": "Synthesizing...",
+      "idle": "Preview"
+    },
+    "clearCache": "Clear cache ({{count}} entries, {{size}})",
+    "testText": "Hello, I'm your desktop sprite assistant!"
+  },
+  "spontaneous": {
+    "item": {
+      "title": "Spontaneous Utterances",
+      "description": "Control the frequency and style of spontaneous utterances and view history."
+    },
+    "loading": "Loading...",
+    "header": {
+      "title": "Spontaneous Utterances",
+      "description": "Let the sprite proactively say something based on context, with a searchable history."
+    },
+    "tabs": {
+      "settings": "Settings",
+      "history": "History"
+    },
+    "overview": {
+      "title": "Overview",
+      "enabled": {
+        "title": "Enable Spontaneous Utterances",
+        "descriptionOn": "When idle, the sprite will proactively generate a sentence within the frequency limits.",
+        "descriptionOff": "History is kept when disabled, but nothing new is generated."
+      },
+      "latestSpoken": {
+        "title": "Last Spoken",
+        "noText": "No text",
+        "empty": "No spontaneous utterances to show yet"
+      }
+    },
+    "frequency": {
+      "title": "Frequency Control",
+      "cooldown": {
+        "label": "Cooldown",
+        "value": "{{count}} min",
+        "description": "The minimum interval between two AI spontaneous utterances."
+      },
+      "dailyLimit": {
+        "label": "Daily Limit",
+        "value": "{{count}} times",
+        "description": "Avoid interrupting you too often during highly active periods."
+      }
+    },
+    "tone": {
+      "title": "Style Preference",
+      "label": "Preferred Tone",
+      "placeholder": "Select a tone",
+      "description": "Only a preference. When the context is stronger, the current state still takes priority.",
+      "options": {
+        "auto": "Auto",
+        "gentle": "Gentle",
+        "playful": "Playful",
+        "calm": "Calm",
+        "firm": "Firm",
+        "curious": "Curious",
+        "tender": "Tender"
+      }
+    },
+    "intents": {
+      "title": "Allowed Categories",
+      "hint": "Keep at least one category so the sprite retains a generatable scope.",
+      "options": {
+        "encouragement": { "label": "Encouragement", "description": "Leans toward cheering you on and keeping you moving" },
+        "reminder": { "label": "Reminder", "description": "Lightly reminds you of tasks, pace, and points to note" },
+        "empathy": { "label": "Empathy", "description": "Focuses more on comfort and companionship" },
+        "planning": { "label": "Planning", "description": "Leans toward next steps and scheduling suggestions" },
+        "reflection": { "label": "Reflection", "description": "Leans toward insights and self-observation" },
+        "philosophy": { "label": "Philosophy", "description": "Leans toward a short insight" },
+        "playful": { "label": "Playful", "description": "Leans toward light jokes and witty expression" }
+      }
+    },
+    "history": {
+      "query": {
+        "title": "Query",
+        "placeholder": "Search text, reasons, actions...",
+        "statusPlaceholder": "Status",
+        "intentPlaceholder": "Category",
+        "allIntents": "All categories",
+        "refresh": "Refresh"
+      },
+      "count": "Showing the latest {{count}} records, including spoken, skipped, and failed events.",
+      "records": {
+        "title": "Records"
+      },
+      "loading": "Loading history...",
+      "empty": "No spontaneous utterance records under the current filters.",
+      "status": {
+        "all": "All statuses",
+        "spoken": "Spoken",
+        "generated": "Generated only",
+        "skipped": "Skipped",
+        "failed": "Failed"
+      },
+      "intentUncategorized": "Uncategorized",
+      "card": {
+        "noText": "No displayable text was generated this time.",
+        "action": "Action: {{action}}",
+        "fallbackAction": "Fallback action: {{action}}",
+        "reason": "Reason: {{reason}}",
+        "usedFallback": "Used fallback action",
+        "aiMapped": "Action from AI/style mapping"
+      },
+      "reasons": {
+        "generation_in_progress": "A generation task is already in progress",
+        "preferences_disabled": "Spontaneous utterances are disabled",
+        "daily_limit_reached": "Daily limit reached",
+        "cooldown_active": "Still within the cooldown period",
+        "no_provider_context": "No available AI context",
+        "duplicate_text": "Duplicate of recent text",
+        "intent_overrepresented": "Too many recent utterances of the same category",
+        "parse_failed": "Failed to parse model output",
+        "intent_filtered": "Generated category is outside the allowed range",
+        "first_activity_timeout": "Timed out waiting for the model's first response",
+        "stream_idle_timeout": "Model output interrupted and timed out",
+        "generation_max_timeout": "Total generation time exceeded the limit",
+        "generation_failed": "Generation failed"
+      }
+    }
+  },
+  "recognition": {
+    "item": {
+      "title": "Speech Recognition Service",
+      "description": "Real-time speech recognition that converts speech to text."
+    },
+    "lockedHint": "Speech recognition is a growth-type capability. The settings page and runtime service are only available after it is unlocked.",
+    "status": {
+      "running": "Speech recognition service running",
+      "stopped": "Speech recognition service not started"
+    },
+    "description": {
+      "running": "The service is running. You can use real-time speech recognition in the recording window. Closing the recording window does not stop the service.",
+      "stopped": "The speech recognition model will load after starting. Control the service via the switch or the right-click menu."
+    },
+    "action": {
+      "stop": "Stop Service",
+      "start": "Start Service",
+      "config": "Recognition Settings"
+    }
+  },
+  "chatEntry": {
+    "item": {
+      "title": "Mini Chat Box"
+    },
+    "description": "When enabled, double-clicking the desktop sprite opens a small input window that follows the sprite, showing only the model, microphone, and send entry. Other conversation options continue to use the local cache.",
+    "detail": {
+      "title": "Mini Chat Box",
+      "descriptionOn": "Double-clicking the desktop sprite opens a small input window that follows the sprite.",
+      "descriptionOff": "Double-clicking the desktop sprite opens the full chat window."
+    },
+    "setFailed": "Failed to configure the mini input window"
+  },
+  "capability": {
+    "locked": "{{name}} is not unlocked yet",
+    "lockedEnablePrerequisites": "Prerequisite capabilities must be enabled first: {{names}}",
+    "lockedUnlockPrerequisites": "Prerequisite capabilities must be unlocked first: {{names}}",
+    "lockedNotOpen": "This capability is not yet available in this version",
+    "lockedGeneric": "This capability is not unlocked yet",
+    "unavailableHint": "This capability is currently unavailable; related features cannot be used.",
+    "nameListSeparator": ", ",
+    "microphone": "Microphone Recording",
+    "speechRecognition": "Speech Recognition",
+    "spriteManage": "Sprite Appearance",
+    "customAppearance": "Appearance Customization",
+    "actionChoreography": "Action Choreography",
+    "emotionExpression": "Emotion Expression"
+  }
+}

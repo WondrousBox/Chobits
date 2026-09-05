@@ -1,0 +1,58 @@
+{
+  "action": {
+    "save": "保存",
+    "cancel": "キャンセル"
+  },
+  "providerModelSelect": {
+    "placeholder": "プロバイダー · モデルを選択",
+    "searchPlaceholder": "プロバイダーまたはモデルを検索...",
+    "noMatchingModels": "一致するモデルが見つかりません",
+    "loading": "読み込み中...",
+    "free": "無料",
+    "noModels": "モデルがありません",
+    "modelType": {
+      "chat": "チャット",
+      "vision": "ビジョン",
+      "image": "画像",
+      "text2music": "音楽",
+      "tts": "音声合成",
+      "stt": "文字起こし",
+      "video": "動画",
+      "audio": "オーディオ",
+      "embedding": "埋め込み",
+      "realtime": "リアルタイム",
+      "tool": "ツール"
+    }
+  },
+  "voiceSelect": {
+    "placeholder": "音色を選択",
+    "searchPlaceholder": "音色名または voiceId を検索...",
+    "emptyVoices": "このプロバイダーには組み込みの音色リストがありません。voiceId を手動で入力してください。",
+    "noMatch": "一致する音色がありません"
+  },
+  "errorBoundary": {
+    "title": "アプリでエラーが発生しました",
+    "unknownError": "不明なエラー",
+    "errorInfo": "エラー情報:",
+    "stackInfo": "スタック情報:",
+    "componentStack": "コンポーネントスタック:",
+    "copied": "コピーしました",
+    "copy": "コピー",
+    "copyErrorInfo": "エラー情報をコピー",
+    "expandDetails": "詳細を展開",
+    "collapseDetails": "詳細を折りたたむ",
+    "expand": "詳細",
+    "collapse": "折りたたむ",
+    "retry": "再試行"
+  },
+  "modelInstall": {
+    "downloading": "{{name}} をダウンロード中",
+    "failed": "モデルのインストールに失敗しました",
+    "failedWithError": "モデルのインストールに失敗しました：{{error}}",
+    "notInstalled": "モデル {{names}} が未インストール",
+    "notInstalledWithSize": "モデル {{names}} が未インストール（合計約 {{size}}）",
+    "retry": "再試行",
+    "installAll": "一括インストール",
+    "errorFallback": "インストールに失敗しました"
+  }
+}

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 export type ModelInstallStatus = 'idle' | 'installing' | 'installed' | 'failed' | 'cancelled';
 
@@ -29,6 +30,7 @@ export function usePluginModelInstall(
   cancel: () => Promise<void>;
 } {
   // state 携带归属的 resourceId，切换目标资源时自然回退到 idle，无需重置 effect
+  const { t } = useTranslation('common');
   const [innerState, setInnerState] = useState<(ModelInstallState & { forId: string }) | null>(null);
   const state = innerState && innerState.forId === resourceId ? innerState : IDLE_STATE;
   const recordIdRef = useRef<string | undefined>(undefined);
@@ -77,13 +79,13 @@ export function usePluginModelInstall(
         setInnerState((prev) => (prev ? { ...prev, recordId: res.data.id } : prev));
       } else if (!res.ok) {
         installingRef.current = false;
-        setInnerState({ forId: resourceId, status: 'failed', error: res.error || '安装失败' });
+        setInnerState({ forId: resourceId, status: 'failed', error: res.error || t('modelInstall.errorFallback') });
       }
     } catch (error) {
       installingRef.current = false;
       setInnerState({ forId: resourceId, status: 'failed', error: error instanceof Error ? error.message : String(error) });
     }
-  }, [pluginId, resourceId]);
+  }, [pluginId, resourceId, t]);
 
   const cancel = useCallback(async (): Promise<void> => {
     const recordId = recordIdRef.current;

@@ -1,0 +1,47 @@
+{
+  "test": {
+    "title": "TTS 语音合成测试",
+    "speaker": "说话人",
+    "speakerLabel": "说话人: ",
+    "speedLabel": "语速: ",
+    "speakerGroup": {
+      "americanFemale": "🇺🇸 美式英文女性",
+      "americanMale": "🇺🇸 美式英文男性",
+      "britishFemale": "🇬🇧 英式英文女性",
+      "britishMale": "🇬🇧 英式英文男性",
+      "chineseFemale": "🇨🇳 中文女性",
+      "chineseMale": "🇨🇳 中文男性"
+    },
+    "speed": "语速: {{speed}}x",
+    "confirmConfig": "确认配置",
+    "reconfigure": "重新配置",
+    "inputText": "输入文本",
+    "textPlaceholder": "粘贴或输入要合成的文本...",
+    "generating": "生成中...",
+    "playing": "播放中...",
+    "generateAndPlay": "生成并播放",
+    "stopPlayback": "停止播放",
+    "downloadAudio": "下载音频",
+    "generationComplete": "生成完成",
+    "duration": "时长: ",
+    "elapsed": "耗时: ",
+    "rtf": "RTF: ",
+    "errorLabel": "错误: ",
+    "playbackFailed": "播放失败",
+    "generateFailed": "生成失败",
+    "downloadFailed": "下载失败"
+  },
+  "config": {
+    "title": "TTS 语音合成配置",
+    "subtitle": "选择要使用的语音合成模型",
+    "model": "TTS 模型",
+    "loading": "加载中...",
+    "selectModel": "请选择模型",
+    "noModels": "暂无可用模型",
+    "recommended": "推荐",
+    "notInstalled": "(未安装)",
+    "modelNotInstalled": "模型未安装，请先使用一键安装",
+    "starting": "启动中...",
+    "start": "启动"
+  }
+}

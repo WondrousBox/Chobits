@@ -1,5 +1,6 @@
 import type { SpriteCapabilityState } from '@packages/sprite-core/capability-registry';
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -20,13 +21,19 @@ type SkillKey = 'chatEntry' | 'speak' | 'windowAnimation' | 'spontaneous' | 'spe
 
 const ExtensionSettings: React.FC = () => {
   const [selected, setSelected] = useState<SkillKey>('chatEntry');
+  const { t } = useTranslation('speech');
   const { snapshot: capabilitySnapshot, refresh: refreshCapabilitySnapshot } = useSpriteCapabilitySnapshot();
 
-  const handleCapabilityBlocked = React.useCallback((capability: SpriteCapabilityState) => {
-    toast.info(`${capability.name} 尚未解锁`, {
-      description: getSpriteCapabilityLockedReason(capability)
-    });
-  }, []);
+  const handleCapabilityBlocked = React.useCallback(
+    (capability: SpriteCapabilityState) => {
+      // capability-registry 的 name 为中文数据，这里按 id 映射到 i18n 文案，未命中时回退原始 name
+      const capabilityName = t(`capability.${capability.id}`, { defaultValue: capability.name });
+      toast.info(t('capability.locked', { name: capabilityName }), {
+        description: getSpriteCapabilityLockedReason(capability, t)
+      });
+    },
+    [t]
+  );
 
   const speechRecognitionCapability = getSpriteCapabilityState(capabilitySnapshot, 'speechRecognition');
   const chatEntryState = useChatEntrySettings();

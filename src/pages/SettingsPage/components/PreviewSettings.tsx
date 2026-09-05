@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TbCheck, TbLayoutSidebarRight, TbLoader2, TbWindow } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
@@ -11,6 +12,7 @@ import { SettingGroup, SettingItem } from './SettingComponents';
 type PreviewMode = 'window' | 'panel';
 
 const PreviewSettings: React.FC = () => {
+  const { t } = useTranslation('settings');
   const [mode, setMode] = useState<PreviewMode>('window');
   const [pending, setPending] = useState<PreviewMode | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -20,16 +22,16 @@ const PreviewSettings: React.FC = () => {
     () => [
       {
         value: 'window' as const,
-        label: '独立窗口',
+        label: t('preview.options.window'),
         icon: TbWindow
       },
       {
         value: 'panel' as const,
-        label: '右侧面板',
+        label: t('preview.options.panel'),
         icon: TbLayoutSidebarRight
       }
     ],
-    []
+    [t]
   );
 
   // 加载当前配置
@@ -77,16 +79,16 @@ const PreviewSettings: React.FC = () => {
   const CurrentIcon = currentOption.icon;
 
   return (
-    <SettingGroup title="预览">
+    <SettingGroup title={t('preview.groupTitle')}>
       <SettingItem
-        title="预览模式"
-        description="选择资源预览的显示方式"
+        title={t('preview.mode.label')}
+        description={t('preview.mode.description')}
         action={
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" disabled={isLoading || pending !== null} className="min-w-[100px]">
                 {isLoading || pending !== null ? <TbLoader2 className="animate-spin" /> : <CurrentIcon />}
-                {isLoading ? '加载中...' : pending !== null ? '切换中...' : currentOption.label}
+                {isLoading ? t('common.loading') : pending !== null ? t('preview.switching') : currentOption.label}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">

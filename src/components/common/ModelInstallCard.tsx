@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { TbDownload, TbLoader2 } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
@@ -30,6 +31,7 @@ function formatMB(bytes?: number): string {
 
 // 模型未安装时的一键安装引导卡片：安装按钮 / 下载进度 / 失败重试（支持一次安装多个模型）
 export const ModelInstallCard: React.FC<ModelInstallCardProps> = ({ items, onInstall, onCancel }) => {
+  const { t } = useTranslation('common');
   if (items.length === 0) return null;
 
   const installingItems = items.filter((item) => item.state.status === 'installing');
@@ -48,7 +50,7 @@ export const ModelInstallCard: React.FC<ModelInstallCardProps> = ({ items, onIns
               <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
                 <span className="flex items-center gap-1 min-w-0">
                   <TbLoader2 className="animate-spin shrink-0" />
-                  <span className="truncate">正在下载 {item.name}</span>
+                  <span className="truncate">{t('modelInstall.downloading', { name: item.name })}</span>
                   {item.state.sizeBytes ? ` (${formatMB(item.state.progressBytes)} / ${formatMB(item.state.sizeBytes)})` : ''}
                 </span>
                 <span className="shrink-0">{percent}%</span>
@@ -59,7 +61,7 @@ export const ModelInstallCard: React.FC<ModelInstallCardProps> = ({ items, onIns
         })}
         <div className="flex justify-end">
           <Button size="sm" variant="outline" className="h-6 text-xs px-2" onClick={onCancel}>
-            取消
+            {t('action.cancel')}
           </Button>
         </div>
       </div>
@@ -73,11 +75,17 @@ export const ModelInstallCard: React.FC<ModelInstallCardProps> = ({ items, onIns
     <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-800 dark:bg-amber-950/40">
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs text-amber-700 dark:text-amber-400 break-words">
-          {hasFailed ? `模型安装失败${failedItems[0]?.state.error ? `：${failedItems[0].state.error}` : ''}` : `模型 ${names} 未安装${totalBytes > 0 ? `（共约 ${formatMB(totalBytes)}）` : ''}`}
+          {hasFailed
+            ? failedItems[0]?.state.error
+              ? t('modelInstall.failedWithError', { error: failedItems[0].state.error })
+              : t('modelInstall.failed')
+            : totalBytes > 0
+              ? t('modelInstall.notInstalledWithSize', { names, size: formatMB(totalBytes) })
+              : t('modelInstall.notInstalled', { names })}
         </span>
         {(pendingItems.length > 0 || hasFailed) && (
           <Button size="sm" variant="outline" className="h-7 text-xs shrink-0" onClick={onInstall}>
-            {hasFailed ? '重试' : '一键安装'}
+            {hasFailed ? t('modelInstall.retry') : t('modelInstall.installAll')}
             <TbDownload />
           </Button>
         )}

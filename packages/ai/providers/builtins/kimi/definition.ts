@@ -21,6 +21,13 @@ const kimiSchema: ProviderConfig = {
         apiKey: 'API Key',
         baseUrl: 'Base URL'
       }
+    },
+    ja: {
+      label: 'Kimi',
+      fields: {
+        apiKey: 'API Key',
+        baseUrl: 'Base URL'
+      }
     }
   },
   fields: [

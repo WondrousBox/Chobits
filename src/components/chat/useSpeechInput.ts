@@ -1,5 +1,6 @@
 import type { ASRResultPayload } from '@packages/sherpa/ipc-renderer';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
 import { WebRecorder } from '@/lib/web-recorder';
@@ -120,6 +121,7 @@ function sleep(ms: number): Promise<void> {
 }
 
 export function useSpeechInput({ onTranscriptFinal, onTranscriptInterim, onStopped, onCancelled }: UseSpeechInputOptions = {}): UseSpeechInputResult {
+  const { t } = useTranslation('chat');
   const [status, setStatus] = useState<SpeechInputStatus>('idle');
   const [interimText, setInterimText] = useState('');
 
@@ -208,7 +210,7 @@ export function useSpeechInput({ onTranscriptFinal, onTranscriptInterim, onStopp
       }
 
       pendingCloudTasksRef.current += 1;
-      updateInterim('正在识别...');
+      updateInterim(t('components.speechInput.recognizing'));
 
       try {
         const samples = new Float32Array(data.samples || []);
@@ -237,7 +239,7 @@ export function useSpeechInput({ onTranscriptFinal, onTranscriptInterim, onStopp
         }
       }
     },
-    [rememberTranscript, updateInterim]
+    [rememberTranscript, t, updateInterim]
   );
 
   const subscribeASRResult = useCallback((): void => {
@@ -351,10 +353,10 @@ export function useSpeechInput({ onTranscriptFinal, onTranscriptInterim, onStopp
       if (Date.now() - sessionStartedAtRef.current >= MIN_SPEECH_DURATION_MS) {
         onStoppedRef.current?.();
       } else {
-        toast.warning('按住时间太短，未发送');
+        toast.warning(t('components.speechInput.holdTooShort'));
       }
     },
-    [unsubscribeASRResult, teardownRecorder, updateInterim]
+    [t, unsubscribeASRResult, teardownRecorder, updateInterim]
   );
 
   const start = useCallback(async (): Promise<void> => {
@@ -398,7 +400,7 @@ export function useSpeechInput({ onTranscriptFinal, onTranscriptInterim, onStopp
 
       if (!asrStatus.ok || !asrStatus.running) {
         await recorder.destroy();
-        toast.error('请先启动语音识别服务');
+        toast.error(t('components.speechInput.serviceNotRunning'));
         window.chobits.window['window:open']('asrConfig');
         setStatus('idle');
         return;
@@ -406,7 +408,7 @@ export function useSpeechInput({ onTranscriptFinal, onTranscriptInterim, onStopp
 
       if (!asrConfigResult.ok || !asrConfigResult.config) {
         await recorder.destroy();
-        toast.error('读取语音识别配置失败');
+        toast.error(t('components.speechInput.configReadFailed'));
         setStatus('idle');
         return;
       }
@@ -415,7 +417,7 @@ export function useSpeechInput({ onTranscriptFinal, onTranscriptInterim, onStopp
 
       if (asrConfig.backend === 'cloud' && (!asrConfig.cloud?.providerId || !asrConfig.cloud?.providerPresetId)) {
         await recorder.destroy();
-        toast.error('云端语音识别配置不完整');
+        toast.error(t('components.speechInput.cloudConfigIncomplete'));
         window.chobits.window['window:open']('asrConfig');
         setStatus('idle');
         return;
@@ -445,16 +447,16 @@ export function useSpeechInput({ onTranscriptFinal, onTranscriptInterim, onStopp
       setStatus('idle');
 
       if (error?.name === 'NotAllowedError' || error?.name === 'PermissionDeniedError') {
-        toast.error('麦克风权限被拒绝，请先允许访问麦克风');
+        toast.error(t('components.speechInput.micPermissionDenied'));
       } else if (error?.name === 'NotFoundError') {
-        toast.error('未检测到麦克风设备');
+        toast.error(t('components.speechInput.micNotFound'));
       } else if (error?.name === 'NotReadableError') {
-        toast.error('麦克风被其他程序占用');
+        toast.error(t('components.speechInput.micBusy'));
       } else {
-        toast.error('启动语音输入失败');
+        toast.error(t('components.speechInput.startFailed'));
       }
     }
-  }, [subscribeASRResult, buildRecorder, unsubscribeASRResult, status, stopSession, teardownRecorder, updateInterim]);
+  }, [subscribeASRResult, buildRecorder, unsubscribeASRResult, status, stopSession, t, teardownRecorder, updateInterim]);
 
   const stop = useCallback(async (): Promise<void> => {
     if (status === 'idle' || status === 'stopping') {

@@ -1,3 +1,5 @@
+import type { TFunction } from 'i18next';
+
 import { normalizeSpriteAnimationCondition, type SpriteAnimationCondition, type SpriteAnimationMeta, type SpriteAnimationTrigger } from '../../../../packages/sprite-core/types';
 import { normalizeSpriteTriggerInput } from './sprite-trigger-picker-utils';
 
@@ -31,7 +33,7 @@ export function formatSpriteAnimationConditionInput(condition?: SpriteAnimationC
   return condition ? JSON.stringify(condition, null, 2) : '';
 }
 
-export function parseSpriteAnimationConditionInput(value?: string | null): { condition?: SpriteAnimationCondition; error?: string } {
+export function parseSpriteAnimationConditionInput(value?: string | null, t?: TFunction): { condition?: SpriteAnimationCondition; error?: string } {
   const normalized = value?.trim() ?? '';
   if (!normalized) return {};
 
@@ -39,24 +41,30 @@ export function parseSpriteAnimationConditionInput(value?: string | null): { con
     const parsed = JSON.parse(normalized);
     const condition = normalizeSpriteAnimationCondition(parsed);
     if (!condition) {
-      return { error: '条件规则格式无效，请检查 type / field / operator / value。' };
+      return { error: t ? t('sprite:conditionBuilder.errors.invalid') : '条件规则格式无效，请检查 type / field / operator / value。' };
     }
 
     return { condition };
   } catch (error) {
+    if (t) {
+      return { error: error instanceof Error ? t('sprite:conditionBuilder.errors.jsonParse', { message: error.message }) : t('sprite:conditionBuilder.errors.jsonParseUnknown') };
+    }
     return { error: error instanceof Error ? `条件规则 JSON 解析失败：${error.message}` : '条件规则 JSON 解析失败。' };
   }
 }
 
-export function createSpriteAnimationMetaDraft(input: {
-  conditionInput?: string | null;
-  primaryTrigger?: string | null;
-  priority?: string | number | null;
-  triggerAliasesInput?: string | null;
-}): Pick<SpriteAnimationMeta, 'condition' | 'primaryTrigger' | 'triggerAliases' | 'priority'> {
+export function createSpriteAnimationMetaDraft(
+  input: {
+    conditionInput?: string | null;
+    primaryTrigger?: string | null;
+    priority?: string | number | null;
+    triggerAliasesInput?: string | null;
+  },
+  t?: TFunction
+): Pick<SpriteAnimationMeta, 'condition' | 'primaryTrigger' | 'triggerAliases' | 'priority'> {
   const primaryTrigger = normalizeSpriteTriggerInput(input.primaryTrigger);
   const triggerAliases = parseSpriteTriggerAliasesInput(input.triggerAliasesInput, primaryTrigger);
-  const condition = parseSpriteAnimationConditionInput(input.conditionInput).condition;
+  const condition = parseSpriteAnimationConditionInput(input.conditionInput, t).condition;
 
   return {
     condition,

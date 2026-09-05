@@ -1,0 +1,203 @@
+{
+  "page": {
+    "loading": "加载中...",
+    "tab": {
+      "available": "可用插件",
+      "installed": "已安装"
+    },
+    "filter": {
+      "label": "分类",
+      "clear": "清除筛选"
+    },
+    "storage": {
+      "label": "存储位置",
+      "tooltip": "设置下载文件夹"
+    },
+    "downloadSettings": {
+      "label": "下载设置",
+      "title": "下载设置",
+      "description": "控制下载取消、失败清理和续传校验行为。",
+      "items": {
+        "deletePartialDownloadOnCancel": {
+          "title": "取消后删除临时文件",
+          "description": "关闭后，取消下载会保留 .download 文件，方便下次继续下载。"
+        },
+        "deletePartialDownloadOnFailure": {
+          "title": "失败后删除临时文件",
+          "description": "关闭后，下载失败时保留未完成的临时文件。"
+        },
+        "deleteDownloadedFileOnFailure": {
+          "title": "失败后删除目标文件",
+          "description": "控制非压缩资源下载失败时是否清理目标文件。"
+        },
+        "deleteArchiveAfterInstall": {
+          "title": "安装后删除压缩包",
+          "description": "开启后，解压安装完成会清理原始压缩包。"
+        },
+        "downloaderResumeValidation": {
+          "title": "续传前校验远端资源",
+          "description": "开启后，继续下载前会用 HEAD 校验资源是否变化。"
+        },
+        "downloaderDebug": {
+          "title": "下载器 debug 日志",
+          "description": "开启后打印 aim-downloader 的内部调试日志。"
+        }
+      }
+    },
+    "networkTest": "网络测试",
+    "empty": {
+      "title": "暂无插件",
+      "hiddenByFeatureFlags": "插件已被隐藏，请先在「功能管理」中开启「本地 AI 推理」"
+    },
+    "installedBadge": "已安装",
+    "modelCount": "{{count}} 个模型",
+    "installEngineFirst": "请先安装引擎后再选择模型",
+    "availableModelCount": "该引擎有 {{count}} 个可用模型",
+    "modelListTitle": "模型列表 ({{count}})"
+  },
+  "category": {
+    "core": "核心引擎",
+    "asr": "语音识别",
+    "tts": "语音合成",
+    "stt": "语音转文字",
+    "vad": "语音检测",
+    "voice-clone": "声音克隆",
+    "llm": "大语言模型",
+    "nlp": "自然语言处理",
+    "translation": "翻译",
+    "punctuation": "标点恢复",
+    "embedding": "文本嵌入",
+    "image-gen": "图像生成",
+    "image-edit": "图像编辑",
+    "ocr": "文字识别",
+    "image-recognition": "图像识别",
+    "face": "人脸识别",
+    "image-super-res": "图像超分",
+    "audio-process": "音频处理",
+    "video-gen": "视频生成",
+    "video-edit": "视频编辑",
+    "video-analysis": "视频分析",
+    "multimodal": "多模态",
+    "agent": "AI代理",
+    "code": "代码生成",
+    "music": "音乐生成",
+    "three-d": "3D生成",
+    "other": "其他"
+  },
+  "item": {
+    "type": {
+      "engine": "引擎",
+      "model": "模型",
+      "plugin": "插件"
+    },
+    "supportedLanguages": "支持语言：",
+    "status": {
+      "queued": "排队",
+      "downloading": "下载中",
+      "extracting": "解压中",
+      "verifying": "校验中",
+      "installed": "已安装",
+      "failed": "失败",
+      "cancelled": "已取消",
+      "removed": "已移除",
+      "unknown": "未知"
+    },
+    "progress": {
+      "queued": "排队中…",
+      "extracting": "解压中…",
+      "verifying": "校验中…",
+      "failedWithError": "安装失败: {{error}}",
+      "failedRetryable": "安装失败，可重试"
+    },
+    "action": {
+      "cancel": "取消",
+      "retry": "重试",
+      "install": "安装",
+      "installing": "安装中...",
+      "delete": "删除"
+    },
+    "systemPreset": "系统预设",
+    "delete": {
+      "title": "删除{{type}}",
+      "description": "确定要删除 \"{{name}}\" 吗？此操作会移除安装记录并删除本地已下载文件，之后再次使用需要重新下载。"
+    }
+  },
+  "language": {
+    "multi": "多语言",
+    "en": "英语",
+    "zh": "中文",
+    "ja": "日语",
+    "ko": "韩语",
+    "yue": "粤语",
+    "de": "德语",
+    "es": "西班牙语",
+    "ru": "俄语",
+    "fr": "法语",
+    "pt": "葡萄牙语",
+    "tr": "土耳其语",
+    "pl": "波兰语",
+    "ca": "加泰罗尼亚语",
+    "nl": "荷兰语",
+    "ar": "阿拉伯语",
+    "sv": "瑞典语",
+    "it": "意大利语",
+    "id": "印尼语",
+    "hi": "印地语",
+    "fi": "芬兰语",
+    "vi": "越南语",
+    "he": "希伯来语",
+    "uk": "乌克兰语",
+    "el": "希腊语",
+    "ms": "马来语",
+    "cs": "捷克语",
+    "ro": "罗马尼亚语",
+    "da": "丹麦语",
+    "hu": "匈牙利语",
+    "ta": "泰米尔语",
+    "no": "挪威语",
+    "th": "泰语",
+    "ur": "乌尔都语",
+    "hr": "克罗地亚语",
+    "bg": "保加利亚语",
+    "lt": "立陶宛语",
+    "la": "拉丁语",
+    "mi": "毛利语",
+    "ml": "马拉雅拉姆语",
+    "cy": "威尔士语",
+    "sk": "斯洛伐克语",
+    "te": "泰卢固语",
+    "fa": "波斯语",
+    "lv": "拉脱维亚语",
+    "bn": "孟加拉语",
+    "sr": "塞尔维亚语",
+    "az": "阿塞拜疆语",
+    "sl": "斯洛文尼亚语",
+    "kn": "卡纳达语",
+    "et": "爱沙尼亚语",
+    "mk": "马其顿语",
+    "br": "布列塔尼语",
+    "eu": "巴斯克语",
+    "is": "冰岛语",
+    "hy": "亚美尼亚语",
+    "ne": "尼泊尔语",
+    "mn": "蒙古语",
+    "bs": "波斯尼亚语",
+    "kk": "哈萨克语",
+    "sq": "阿尔巴尼亚语",
+    "sw": "斯瓦希里语",
+    "gl": "加利西亚语",
+    "mr": "马拉地语",
+    "pa": "旁遮普语",
+    "si": "僧伽罗语",
+    "km": "高棉语",
+    "sn": "绍纳语",
+    "yo": "约鲁巴语",
+    "so": "索马里语",
+    "af": "南非荷兰语",
+    "oc": "奥克西唐语",
+    "ka": "格鲁吉亚语",
+    "be": "白俄罗斯语",
+    "tg": "塔吉克语",
+    "sd": "信德语"
+  }
+}

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
 import { Switch } from '@/components/ui/switch';
@@ -11,6 +12,7 @@ import { SettingGroup, SettingItem } from './SettingComponents';
  * 切换后主进程立即调用 app.setLoginItemSettings,无需重启应用。
  */
 const LaunchAtLoginSettings: React.FC = () => {
+  const { t } = useTranslation('settings');
   const [isEnabled, setIsEnabled] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -47,21 +49,25 @@ const LaunchAtLoginSettings: React.FC = () => {
           config: { launchAtLoginEnabled: checked }
         });
         if (!result.ok) {
-          throw new Error(result.error || '更新开机自启动失败');
+          throw new Error(result.error || t('launch.launchAtLogin.updateFailed'));
         }
       } catch (error) {
         setIsEnabled(previous);
-        toast.error('更新开机自启动失败', {
+        toast.error(t('launch.launchAtLogin.updateFailed'), {
           description: error instanceof Error ? error.message : String(error)
         });
       }
     },
-    [isEnabled]
+    [isEnabled, t]
   );
 
   return (
-    <SettingGroup title="启动">
-      <SettingItem title="开机自启动" description="登录系统后自动启动 Chobits" action={<Switch checked={isEnabled} disabled={isLoading} onCheckedChange={(checked) => void handleToggle(checked)} />} />
+    <SettingGroup title={t('launch.groupTitle')}>
+      <SettingItem
+        title={t('launch.launchAtLogin.label')}
+        description={t('launch.launchAtLogin.description')}
+        action={<Switch checked={isEnabled} disabled={isLoading} onCheckedChange={(checked) => void handleToggle(checked)} />}
+      />
     </SettingGroup>
   );
 };

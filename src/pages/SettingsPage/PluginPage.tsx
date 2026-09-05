@@ -2,6 +2,7 @@ import type { FeatureKey } from '@packages/common/feature-flags';
 import type { PluginConfig } from '@packages/plugins/plugin-config-store';
 import { isPluginCompatibleWithPlatform, isSystemPresetPlugin, PluginCategory, PluginDefinition } from '@packages/plugins/types';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TbBox, TbFilter, TbLoader, TbPlug, TbSettings, TbWifi, TbX } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
@@ -21,34 +22,34 @@ const PLUGIN_FEATURE_FLAGS: Record<string, FeatureKey> = {
   'paddle-ocr-runtime': 'localAI'
 };
 
-// 分类配置：中文名称和显示顺序
-const CATEGORY_CONFIG: { value: PluginCategory; label: string }[] = [
-  { value: 'core', label: '核心引擎' },
-  { value: 'asr', label: '语音识别' },
-  { value: 'tts', label: '语音合成' },
-  { value: 'stt', label: '语音转文字' },
-  { value: 'vad', label: '语音检测' },
-  { value: 'voice-clone', label: '声音克隆' },
-  { value: 'llm', label: '大语言模型' },
-  { value: 'nlp', label: '自然语言处理' },
-  { value: 'translation', label: '翻译' },
-  { value: 'punctuation', label: '标点恢复' },
-  { value: 'embedding', label: '文本嵌入' },
-  { value: 'image-gen', label: '图像生成' },
-  { value: 'image-edit', label: '图像编辑' },
-  { value: 'ocr', label: '文字识别' },
-  { value: 'image-recognition', label: '图像识别' },
-  { value: 'face', label: '人脸识别' },
-  { value: 'image-super-res', label: '图像超分' },
-  { value: 'video-gen', label: '视频生成' },
-  { value: 'video-edit', label: '视频编辑' },
-  { value: 'video-analysis', label: '视频分析' },
-  { value: 'multimodal', label: '多模态' },
-  { value: 'agent', label: 'AI代理' },
-  { value: 'code', label: '代码生成' },
-  { value: 'music', label: '音乐生成' },
-  { value: 'three-d', label: '3D生成' },
-  { value: 'other', label: '其他' }
+// 分类配置：显示顺序（名称走 plugins namespace 的 category.* key）
+const CATEGORY_CONFIG: { value: PluginCategory; labelKey: string }[] = [
+  { value: 'core', labelKey: 'category.core' },
+  { value: 'asr', labelKey: 'category.asr' },
+  { value: 'tts', labelKey: 'category.tts' },
+  { value: 'stt', labelKey: 'category.stt' },
+  { value: 'vad', labelKey: 'category.vad' },
+  { value: 'voice-clone', labelKey: 'category.voice-clone' },
+  { value: 'llm', labelKey: 'category.llm' },
+  { value: 'nlp', labelKey: 'category.nlp' },
+  { value: 'translation', labelKey: 'category.translation' },
+  { value: 'punctuation', labelKey: 'category.punctuation' },
+  { value: 'embedding', labelKey: 'category.embedding' },
+  { value: 'image-gen', labelKey: 'category.image-gen' },
+  { value: 'image-edit', labelKey: 'category.image-edit' },
+  { value: 'ocr', labelKey: 'category.ocr' },
+  { value: 'image-recognition', labelKey: 'category.image-recognition' },
+  { value: 'face', labelKey: 'category.face' },
+  { value: 'image-super-res', labelKey: 'category.image-super-res' },
+  { value: 'video-gen', labelKey: 'category.video-gen' },
+  { value: 'video-edit', labelKey: 'category.video-edit' },
+  { value: 'video-analysis', labelKey: 'category.video-analysis' },
+  { value: 'multimodal', labelKey: 'category.multimodal' },
+  { value: 'agent', labelKey: 'category.agent' },
+  { value: 'code', labelKey: 'category.code' },
+  { value: 'music', labelKey: 'category.music' },
+  { value: 'three-d', labelKey: 'category.three-d' },
+  { value: 'other', labelKey: 'category.other' }
 ];
 
 import { NetworkCheckDialog } from './components/NetworkCheckDialog';
@@ -61,42 +62,17 @@ type DownloadSettingKey =
 
 const DOWNLOAD_SETTING_ITEMS: Array<{
   key: DownloadSettingKey;
-  title: string;
-  description: string;
 }> = [
-  {
-    key: 'deletePartialDownloadOnCancel',
-    title: '取消后删除临时文件',
-    description: '关闭后，取消下载会保留 .download 文件，方便下次继续下载。'
-  },
-  {
-    key: 'deletePartialDownloadOnFailure',
-    title: '失败后删除临时文件',
-    description: '关闭后，下载失败时保留未完成的临时文件。'
-  },
-  {
-    key: 'deleteDownloadedFileOnFailure',
-    title: '失败后删除目标文件',
-    description: '控制非压缩资源下载失败时是否清理目标文件。'
-  },
-  {
-    key: 'deleteArchiveAfterInstall',
-    title: '安装后删除压缩包',
-    description: '开启后，解压安装完成会清理原始压缩包。'
-  },
-  {
-    key: 'downloaderResumeValidation',
-    title: '续传前校验远端资源',
-    description: '开启后，继续下载前会用 HEAD 校验资源是否变化。'
-  },
-  {
-    key: 'downloaderDebug',
-    title: '下载器 debug 日志',
-    description: '开启后打印 aim-downloader 的内部调试日志。'
-  }
+  { key: 'deletePartialDownloadOnCancel' },
+  { key: 'deletePartialDownloadOnFailure' },
+  { key: 'deleteDownloadedFileOnFailure' },
+  { key: 'deleteArchiveAfterInstall' },
+  { key: 'downloaderResumeValidation' },
+  { key: 'downloaderDebug' }
 ];
 
 const PluginPage: React.FC = () => {
+  const { t } = useTranslation('plugins');
   const [supported, setSupported] = useState<PluginDefinition[]>([]);
   const [installed, setInstalled] = useState<InstalledResource[]>([]);
   const [downloadConfig, setDownloadConfig] = useState<PluginConfig | null>(null);
@@ -428,7 +404,7 @@ const PluginPage: React.FC = () => {
     return (
       <div className="p-4 flex items-center justify-center text-muted-foreground">
         <TbLoader className="h-4 w-4 mr-2 animate-spin" />
-        加载中...
+        {t('page.loading')}
       </div>
     );
   }
@@ -440,10 +416,10 @@ const PluginPage: React.FC = () => {
         <Tabs value={tabValue} onValueChange={(v) => setTabValue(v as 'available' | 'installed')} className="no-drag flex-1">
           <TabsList className="h-8">
             <TabsTrigger value="available" className="text-xs px-3">
-              可用插件
+              {t('page.tab.available')}
             </TabsTrigger>
             <TabsTrigger value="installed" className="text-xs px-3">
-              已安装
+              {t('page.tab.installed')}
             </TabsTrigger>
           </TabsList>
         </Tabs>
@@ -453,7 +429,7 @@ const PluginPage: React.FC = () => {
           <PopoverTrigger asChild>
             <Button size="sm" variant={selectedCategory ? 'default' : 'ghost'} className="h-8 text-xs">
               <TbFilter />
-              {selectedCategory ? CATEGORY_CONFIG.find((c) => c.value === selectedCategory)?.label : '分类'}
+              {selectedCategory ? t(CATEGORY_CONFIG.find((c) => c.value === selectedCategory)?.labelKey ?? 'category.other') : t('page.filter.label')}
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-56 p-2" align="end">
@@ -466,7 +442,7 @@ const PluginPage: React.FC = () => {
                     selectedCategory === category.value ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground'
                   }`}
                 >
-                  {category.label}
+                  {t(category.labelKey)}
                 </button>
               ))}
             </div>
@@ -475,16 +451,16 @@ const PluginPage: React.FC = () => {
 
         {/* 清除筛选 */}
         {selectedCategory && (
-          <Button size="sm" variant="ghost" className="h-8 text-xs px-2" onClick={() => setSelectedCategory(null)} title="清除筛选">
+          <Button size="sm" variant="ghost" className="h-8 text-xs px-2" onClick={() => setSelectedCategory(null)} title={t('page.filter.clear')}>
             <TbX />
           </Button>
         )}
 
         <Popover>
           <PopoverTrigger asChild>
-            <Button size="sm" variant="ghost" title="设置下载文件夹">
+            <Button size="sm" variant="ghost" title={t('page.storage.tooltip')}>
               <TbSettings />
-              存储位置
+              {t('page.storage.label')}
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-80" align="end">
@@ -495,23 +471,23 @@ const PluginPage: React.FC = () => {
           <PopoverTrigger asChild>
             <Button size="sm" variant="ghost" className="h-8 text-xs">
               <TbSettings />
-              下载设置
+              {t('page.downloadSettings.label')}
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-96 p-0" align="end">
             <div className="border-b border-border px-4 py-3">
-              <div className="text-sm font-medium">下载设置</div>
-              <div className="text-xs text-muted-foreground mt-1">控制下载取消、失败清理和续传校验行为。</div>
+              <div className="text-sm font-medium">{t('page.downloadSettings.title')}</div>
+              <div className="text-xs text-muted-foreground mt-1">{t('page.downloadSettings.description')}</div>
             </div>
             <div className="divide-y divide-border">
               {DOWNLOAD_SETTING_ITEMS.map((item) => (
                 <div key={item.key} className="flex items-center gap-4 px-4 py-3">
                   <div className="min-w-0 flex-1">
-                    <div className="text-sm leading-5">{item.title}</div>
-                    <div className="text-xs leading-5 text-muted-foreground">{item.description}</div>
+                    <div className="text-sm leading-5">{t(`page.downloadSettings.items.${item.key}.title`)}</div>
+                    <div className="text-xs leading-5 text-muted-foreground">{t(`page.downloadSettings.items.${item.key}.description`)}</div>
                   </div>
                   <Switch
-                    aria-label={item.title}
+                    aria-label={t(`page.downloadSettings.items.${item.key}.title`)}
                     checked={getDownloadSettingChecked(item.key)}
                     disabled={!downloadConfig}
                     onCheckedChange={(checked) => {
@@ -525,7 +501,7 @@ const PluginPage: React.FC = () => {
         </Popover>
         <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setIsNetworkDialogOpen(true)}>
           <TbWifi />
-          网络测试
+          {t('page.networkTest')}
         </Button>
       </div>
 
@@ -539,9 +515,9 @@ const PluginPage: React.FC = () => {
             <div className="flex items-center justify-center h-full">
               <div className="text-center text-muted-foreground p-4">
                 <TbBox className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                <p className="text-xs">暂无插件</p>
+                <p className="text-xs">{t('page.empty.title')}</p>
                 {/* 插件被功能旗标过滤掉时，引导用户去功能管理开启「本地 AI 推理」 */}
-                {supported.length > 0 && visibleSupported.length === 0 && <p className="text-xs mt-2 opacity-70">插件已被隐藏，请先在「功能管理」中开启「本地 AI 推理」</p>}
+                {supported.length > 0 && visibleSupported.length === 0 && <p className="text-xs mt-2 opacity-70">{t('page.empty.hiddenByFeatureFlags')}</p>}
               </div>
             </div>
           ) : (
@@ -554,7 +530,8 @@ const PluginPage: React.FC = () => {
                 const isEngineDownloading = installed.some((r) => r.pluginId === pluginId && r.type === 'engine' && ['queued', 'downloading', 'extracting', 'verifying'].includes(r.status || ''));
                 const category = engineDef?.category;
                 const firstCategory = Array.isArray(category) ? category[0] : category;
-                const categoryLabel = firstCategory ? CATEGORY_CONFIG.find((c) => c.value === firstCategory)?.label || firstCategory : '';
+                const categoryLabel = firstCategory ? CATEGORY_CONFIG.find((c) => c.value === firstCategory)?.labelKey || '' : '';
+                const categoryLabelText = categoryLabel ? t(categoryLabel) : firstCategory || '';
 
                 return (
                   <div
@@ -573,12 +550,12 @@ const PluginPage: React.FC = () => {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-medium truncate">{pluginName}</span>
-                        {hasInstalledEngine && <span className="text-[10px] px-1.5 rounded-md bg-green-500/90 text-white shrink-0">已安装</span>}
+                        {hasInstalledEngine && <span className="text-[10px] px-1.5 rounded-md bg-green-500/90 text-white shrink-0">{t('page.installedBadge')}</span>}
                       </div>
                       <div className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
-                        {categoryLabel}
-                        {categoryLabel && models.length > 0 && ' · '}
-                        {models.length > 0 && `${models.length} 个模型`}
+                        {categoryLabelText}
+                        {categoryLabelText && models.length > 0 && ' · '}
+                        {models.length > 0 && t('page.modelCount', { count: models.length })}
                       </div>
                     </div>
                   </div>
@@ -612,8 +589,8 @@ const PluginPage: React.FC = () => {
                   return (
                     <div className="border-t border-border/70 px-4 py-8 text-center text-muted-foreground">
                       <TbBox className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                      <p className="text-sm">请先安装引擎后再选择模型</p>
-                      <p className="text-xs mt-1 opacity-70">该引擎有 {activePlugin.models.length} 个可用模型</p>
+                      <p className="text-sm">{t('page.installEngineFirst')}</p>
+                      <p className="text-xs mt-1 opacity-70">{t('page.availableModelCount', { count: activePlugin.models.length })}</p>
                     </div>
                   );
                 }
@@ -622,7 +599,7 @@ const PluginPage: React.FC = () => {
                   <div className="border-t border-border/70">
                     <div className="px-4 py-2.5 text-sm text-muted-foreground flex items-center gap-2 bg-muted/20">
                       <TbBox className="h-4 w-4" />
-                      <span>模型列表 ({activePlugin.models.length})</span>
+                      <span>{t('page.modelListTitle', { count: activePlugin.models.length })}</span>
                     </div>
                     <div className="divide-y divide-border/50">{activePlugin.models.map((resource) => renderResourceItem(resource))}</div>
                   </div>
@@ -633,7 +610,7 @@ const PluginPage: React.FC = () => {
             <div className="flex items-center justify-center h-full">
               <div className="text-center text-muted-foreground">
                 <TbBox className="h-12 w-12 mx-auto mb-3 opacity-30" />
-                <p className="text-sm">暂无插件</p>
+                <p className="text-sm">{t('page.empty.title')}</p>
               </div>
             </div>
           )}

@@ -7,6 +7,29 @@ const zaiSchema: ProviderConfig = {
   label: '智谱 Coding (ZAI)',
   enabled: true,
   icon: 'providers/icons/zhipu-color.svg',
+  locales: {
+    en: {
+      label: 'Zhipu Coding (ZAI)',
+      fields: {
+        apiKey: 'API Key',
+        baseUrl: 'Base URL (optional)'
+      }
+    },
+    'zh-CN': {
+      label: '智谱 Coding (ZAI)',
+      fields: {
+        apiKey: 'API Key',
+        baseUrl: 'Base URL (可选)'
+      }
+    },
+    ja: {
+      label: 'Zhipu Coding (ZAI)',
+      fields: {
+        apiKey: 'API Key',
+        baseUrl: 'Base URL（任意）'
+      }
+    }
+  },
   fields: [
     { key: 'apiKey', label: 'API Key', type: 'password', required: true },
     { key: 'baseUrl', label: 'Base URL (可选)', type: 'text' }

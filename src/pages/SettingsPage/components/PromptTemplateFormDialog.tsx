@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -20,13 +21,14 @@ export default function PromptTemplateFormDialog(props: {
   onSubmit: (values: PromptTemplateFormValues) => void;
 }): JSX.Element {
   const { isOpen, mode, title, initialValues, onClose, onSubmit } = props;
+  const { t } = useTranslation('settings');
   const [values, setValues] = useState<PromptTemplateFormValues>(initialValues);
 
   // Initialize values when dialog opens using onOpenChange to avoid setState in effect lint warning
 
   const submit = (): void => {
     if (!values.name?.trim()) {
-      alert('名称必填');
+      alert(t('prompt.dialog.nameRequired'));
       return;
     }
     onSubmit({ name: values.name.trim(), content: values.content || '', type: values.type || 'user' });
@@ -42,23 +44,28 @@ export default function PromptTemplateFormDialog(props: {
     >
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>{title || (mode === 'create' ? '新建模板' : '编辑模板')}</DialogTitle>
+          <DialogTitle>{title || (mode === 'create' ? t('prompt.dialog.createTitle') : t('prompt.dialog.editTitle'))}</DialogTitle>
         </DialogHeader>
         <div className="grid gap-3 text-sm">
           <label className="grid gap-1">
-            <span className="text-xs text-muted-foreground">名称</span>
-            <Input className="h-9" placeholder="模板名称" value={values.name} onChange={(e) => setValues((v) => ({ ...v, name: e.target.value }))} />
+            <span className="text-xs text-muted-foreground">{t('prompt.dialog.nameLabel')}</span>
+            <Input className="h-9" placeholder={t('prompt.dialog.namePlaceholder')} value={values.name} onChange={(e) => setValues((v) => ({ ...v, name: e.target.value }))} />
           </label>
           <label className="grid gap-1">
-            <span className="text-xs text-muted-foreground">内容</span>
-            <Textarea className="min-h-[140px] block w-full box-border" placeholder="模板内容" value={values.content} onChange={(e) => setValues((v) => ({ ...v, content: e.target.value }))} />
+            <span className="text-xs text-muted-foreground">{t('prompt.dialog.contentLabel')}</span>
+            <Textarea
+              className="min-h-[140px] block w-full box-border"
+              placeholder={t('prompt.dialog.contentPlaceholder')}
+              value={values.content}
+              onChange={(e) => setValues((v) => ({ ...v, content: e.target.value }))}
+            />
           </label>
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={onClose}>
-            取消
+            {t('common.cancel')}
           </Button>
-          <Button onClick={submit}>{mode === 'create' ? '创建' : '保存'}</Button>
+          <Button onClick={submit}>{mode === 'create' ? t('common.create') : t('common.save')}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -21,6 +21,13 @@ const minimaxSchema: ProviderConfig = {
         apiKey: 'API Key',
         baseUrl: 'Base URL'
       }
+    },
+    ja: {
+      label: 'MiniMax Token Plan',
+      fields: {
+        apiKey: 'API Key',
+        baseUrl: 'Base URL'
+      }
     }
   },
   fields: [

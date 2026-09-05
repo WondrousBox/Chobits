@@ -1,6 +1,8 @@
 import { CHARACTER_PACK_ARCHIVE_EXTENSION, CHARACTER_PACK_ARCHIVE_EXTENSION_NAME } from '@packages/sprite-core/character-pack-archive';
 import type { CharacterPackExportResult, CharacterPackSummary, CharacterPackTrustAssessment } from '@packages/sprite-core/character-pack-manager';
+import type { TFunction } from 'i18next';
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TbArchive, TbCheck, TbDownload, TbFolderOpen, TbLoader2, TbPencil, TbPlus, TbRefresh, TbShieldX, TbTrash } from 'react-icons/tb';
 import { toast } from 'sonner';
 
@@ -98,8 +100,8 @@ function getPackBusyKey(prefix: string, pack: Pick<CharacterPackSummary, 'id' | 
   return `${prefix}:${pack.source}:${pack.id}`;
 }
 
-function formatPackSource(source: CharacterPackSummary['source']): string {
-  return source === 'builtin' ? '内置' : '已安装';
+function formatPackSource(t: TFunction, source: CharacterPackSummary['source']): string {
+  return source === 'builtin' ? t('pack.source.builtin') : t('pack.source.installed');
 }
 
 function getPackBusyState(busyKey: string | null, pack: Pick<CharacterPackSummary, 'id' | 'source'>): { active: boolean; key: string | null } {
@@ -155,95 +157,95 @@ function getPackPreviewMedia(pack: Pick<CharacterPackSummary, 'resolvedAssets'>)
   };
 }
 
-function formatTrustLevel(level: CharacterPackTrustAssessment['level']): string {
+function formatTrustLevel(t: TFunction, level: CharacterPackTrustAssessment['level']): string {
   switch (level) {
     case 'signature-declared':
-      return '已声明签名';
+      return t('trust.level.signatureDeclared');
     case 'publisher-declared':
-      return '已声明来源';
+      return t('trust.level.publisherDeclared');
     default:
-      return '未声明来源';
+      return t('trust.level.undeclared');
   }
 }
 
-function formatTrustVerificationStatus(status: CharacterPackTrustAssessment['verificationStatus']): string | null {
+function formatTrustVerificationStatus(t: TFunction, status: CharacterPackTrustAssessment['verificationStatus']): string | null {
   if (status === 'builtin-bundled') {
-    return '应用内置';
+    return t('trust.verification.builtinBundled');
   }
 
   if (status === 'signature-verified') {
-    return '签名已验证';
+    return t('trust.verification.signatureVerified');
   }
 
   if (status === 'signature-mismatch') {
-    return '签名校验失败';
+    return t('trust.verification.signatureMismatch');
   }
 
   if (status === 'signature-untrusted') {
-    return '签名未受信';
+    return t('trust.verification.signatureUntrusted');
   }
 
   if (status === 'digest-verified') {
-    return '摘要已校验';
+    return t('trust.verification.digestVerified');
   }
 
   if (status === 'digest-mismatch') {
-    return '摘要不匹配';
+    return t('trust.verification.digestMismatch');
   }
 
   if (status === 'declared-unverified') {
-    return '未验签';
+    return t('trust.verification.declaredUnverified');
   }
 
   return null;
 }
 
-function formatSignatureVerificationStatus(status: CharacterPackSignatureStatus | undefined): string | null {
+function formatSignatureVerificationStatus(t: TFunction, status: CharacterPackSignatureStatus | undefined): string | null {
   if (status === 'verified') {
-    return '签名已验证';
+    return t('trust.signature.verified');
   }
 
   if (status === 'mismatch') {
-    return '签名校验失败';
+    return t('trust.signature.mismatch');
   }
 
   if (status === 'untrusted') {
-    return '签名未受信';
+    return t('trust.signature.untrusted');
   }
 
   if (status === 'unsupported' || status === 'error') {
-    return '签名未校验';
+    return t('trust.signature.unchecked');
   }
 
   return null;
 }
 
-function formatDigestVerificationStatus(status: CharacterPackDigestStatus | undefined): string | null {
+function formatDigestVerificationStatus(t: TFunction, status: CharacterPackDigestStatus | undefined): string | null {
   if (status === 'verified') {
-    return '摘要已校验';
+    return t('trust.digest.verified');
   }
 
   if (status === 'mismatch') {
-    return '摘要不匹配';
+    return t('trust.digest.mismatch');
   }
 
   if (status === 'unsupported' || status === 'error') {
-    return '摘要未校验';
+    return t('trust.digest.unchecked');
   }
 
   return null;
 }
 
-function formatTrustLinkLabel(label: CharacterPackTrustAssessment['links'][number]['label']): string {
+function formatTrustLinkLabel(t: TFunction, label: CharacterPackTrustAssessment['links'][number]['label']): string {
   switch (label) {
     case 'homepage':
-      return '主页';
+      return t('trust.link.homepage');
     case 'repository':
-      return '仓库';
+      return t('trust.link.repository');
     case 'support':
-      return '支持';
+      return t('trust.link.support');
     default:
-      return 'Canonical';
+      return t('trust.link.canonical');
   }
 }
 
@@ -261,50 +263,55 @@ function abbreviateMetadataValue(value: string | undefined, maxLength = 24): str
   return `${value.slice(0, head)}...${value.slice(-tail)}`;
 }
 
-function formatSignatureSummary(pack: TrustPackLike): string | null {
+function formatSignatureSummary(t: TFunction, pack: TrustPackLike): string | null {
   const details = [
-    pack.signature?.algorithm ? `算法 ${pack.signature.algorithm}` : null,
-    pack.signature?.keyId ? `Key ${abbreviateMetadataValue(pack.signature.keyId, 22)}` : null,
-    pack.signature?.digest ? `Digest ${abbreviateMetadataValue(pack.signature.digest, 28)}` : null,
-    formatSignatureVerificationStatus(pack.trust.signatureVerification?.status),
-    formatDigestVerificationStatus(pack.trust.digest?.status)
+    pack.signature?.algorithm ? t('trust.signature.algorithm', { value: pack.signature.algorithm }) : null,
+    pack.signature?.keyId ? t('trust.signature.keyId', { value: abbreviateMetadataValue(pack.signature.keyId, 22) }) : null,
+    pack.signature?.digest ? t('trust.signature.digest', { value: abbreviateMetadataValue(pack.signature.digest, 28) }) : null,
+    formatSignatureVerificationStatus(t, pack.trust.signatureVerification?.status),
+    formatDigestVerificationStatus(t, pack.trust.digest?.status)
   ].filter((value): value is string => !!value);
 
   if (details.length > 0) {
     return details.join(' · ');
   }
 
-  return pack.trust.signatureDeclared ? '已声明签名值' : null;
+  return pack.trust.signatureDeclared ? t('trust.signature.declaredValue') : null;
 }
 
-function getPackTrustBadges(pack: TrustPackLike): string[] {
-  const verificationStatus = formatTrustVerificationStatus(pack.trust.verificationStatus);
+function getPackTrustBadges(t: TFunction, pack: TrustPackLike): string[] {
+  const verificationStatus = formatTrustVerificationStatus(t, pack.trust.verificationStatus);
   const signatureStatus =
     pack.trust.verificationStatus === 'signature-verified' || pack.trust.verificationStatus === 'signature-mismatch' || pack.trust.verificationStatus === 'signature-untrusted'
       ? null
-      : formatSignatureVerificationStatus(pack.trust.signatureVerification?.status);
-  const digestStatus = pack.trust.verificationStatus === 'digest-verified' || pack.trust.verificationStatus === 'digest-mismatch' ? null : formatDigestVerificationStatus(pack.trust.digest?.status);
+      : formatSignatureVerificationStatus(t, pack.trust.signatureVerification?.status);
+  const digestStatus = pack.trust.verificationStatus === 'digest-verified' || pack.trust.verificationStatus === 'digest-mismatch' ? null : formatDigestVerificationStatus(t, pack.trust.digest?.status);
 
   return [
-    formatTrustLevel(pack.trust.level),
-    pack.trust.publisher ? `发布者: ${pack.trust.publisher}` : null,
-    pack.trust.channel ? `渠道: ${pack.trust.channel}` : null,
-    pack.trust.signatureDeclared ? '签名声明' : null,
+    formatTrustLevel(t, pack.trust.level),
+    pack.trust.publisher ? t('trust.publisher', { name: pack.trust.publisher }) : null,
+    pack.trust.channel ? t('trust.channel', { name: pack.trust.channel }) : null,
+    pack.trust.signatureDeclared ? t('trust.signature.declared') : null,
     verificationStatus,
     signatureStatus,
     digestStatus
   ].filter((value): value is string => !!value);
 }
 
-function formatPackTrustSummary(pack: TrustPackLike): string {
+function formatPackTrustSummary(t: TFunction, pack: TrustPackLike): string {
   const signatureStatus =
     pack.trust.verificationStatus === 'signature-verified' || pack.trust.verificationStatus === 'signature-mismatch' || pack.trust.verificationStatus === 'signature-untrusted'
       ? null
-      : formatSignatureVerificationStatus(pack.trust.signatureVerification?.status);
-  const digestStatus = pack.trust.verificationStatus === 'digest-verified' || pack.trust.verificationStatus === 'digest-mismatch' ? null : formatDigestVerificationStatus(pack.trust.digest?.status);
-  const parts = [formatTrustLevel(pack.trust.level), pack.trust.publisher, pack.trust.channel, formatTrustVerificationStatus(pack.trust.verificationStatus), signatureStatus, digestStatus].filter(
-    (value): value is string => !!value
-  );
+      : formatSignatureVerificationStatus(t, pack.trust.signatureVerification?.status);
+  const digestStatus = pack.trust.verificationStatus === 'digest-verified' || pack.trust.verificationStatus === 'digest-mismatch' ? null : formatDigestVerificationStatus(t, pack.trust.digest?.status);
+  const parts = [
+    formatTrustLevel(t, pack.trust.level),
+    pack.trust.publisher,
+    pack.trust.channel,
+    formatTrustVerificationStatus(t, pack.trust.verificationStatus),
+    signatureStatus,
+    digestStatus
+  ].filter((value): value is string => !!value);
 
   return parts.join(' · ');
 }
@@ -321,9 +328,9 @@ function getErrorMessage(error: unknown): string | null {
   return null;
 }
 
-function formatActionError(prefix: string, error: unknown): string {
+function formatActionError(t: TFunction, prefix: string, error: unknown): string {
   const message = getErrorMessage(error);
-  return message ? `${prefix}：${message}` : prefix;
+  return message ? t('pack.actionError', { prefix, message }) : prefix;
 }
 
 function sanitizeExportFilenameSegment(value: string | undefined): string {
@@ -341,15 +348,15 @@ function buildCharacterPackExportFilename(pack: Pick<CharacterPackSummary, 'id' 
   return `${sanitizeExportFilenameSegment(pack.id)}-${sanitizeExportFilenameSegment(pack.version)}${CHARACTER_PACK_ARCHIVE_EXTENSION}`;
 }
 
-function getPackMetadataBadges(pack: Pick<CharacterPackSummary, 'formatVersion' | 'minAppVersion' | 'platform' | 'capabilities'>): string[] {
+function getPackMetadataBadges(t: TFunction, pack: Pick<CharacterPackSummary, 'formatVersion' | 'minAppVersion' | 'platform' | 'capabilities'>): string[] {
   return [
-    `format v${pack.formatVersion}`,
-    pack.minAppVersion ? `App >= ${pack.minAppVersion}` : null,
-    pack.platform && pack.platform.length > 0 ? `平台: ${pack.platform.join(', ')}` : null,
-    pack.capabilities?.supportedLanguages && pack.capabilities.supportedLanguages.length > 0 ? `语言: ${pack.capabilities.supportedLanguages.join(', ')}` : null,
-    pack.capabilities?.hasVoice ? '语音' : null,
-    pack.capabilities?.hasCustomAnimations ? '自定义动画' : null,
-    pack.capabilities?.has3DModel ? '3D' : null
+    t('metadata.formatVersion', { version: pack.formatVersion }),
+    pack.minAppVersion ? t('metadata.minAppVersion', { version: pack.minAppVersion }) : null,
+    pack.platform && pack.platform.length > 0 ? t('metadata.platform', { platforms: pack.platform.join(', ') }) : null,
+    pack.capabilities?.supportedLanguages && pack.capabilities.supportedLanguages.length > 0 ? t('metadata.languages', { languages: pack.capabilities.supportedLanguages.join(', ') }) : null,
+    pack.capabilities?.hasVoice ? t('metadata.voice') : null,
+    pack.capabilities?.hasCustomAnimations ? t('metadata.customAnimations') : null,
+    pack.capabilities?.has3DModel ? t('metadata.model3d') : null
   ].filter((value): value is string => !!value);
 }
 
@@ -360,6 +367,7 @@ export default function CharacterPackManager({ afterRuntimeChange, editorExtra, 
   const [importPrompt, setImportPrompt] = useState<ImportPromptState | null>(null);
   const [removeTarget, setRemoveTarget] = useState<CharacterPackSummary | null>(null);
   const [editor, setEditor] = useState<CharacterPackEditorState | null>(null);
+  const { t } = useTranslation('character');
 
   const refresh = useCallback(async (): Promise<void> => {
     setIsLoading(true);
@@ -368,11 +376,11 @@ export default function CharacterPackManager({ afterRuntimeChange, editorExtra, 
       setPacks(nextPacks ?? []);
     } catch (error) {
       console.error('Failed to load character packs:', error);
-      toast.error('读取角色包失败');
+      toast.error(t('pack.toast.loadFailed'));
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- 挂载时异步加载角色包列表,加载态切换是有意的
@@ -406,19 +414,19 @@ export default function CharacterPackManager({ afterRuntimeChange, editorExtra, 
       try {
         const result = (await window.chobits.character.activateCharacterPack(pack.id, pack.source)) as CharacterPackMutationResult | null;
         if (!result?.ok) {
-          throw new Error(result?.error || `激活角色包失败: ${pack.name}`);
+          throw new Error(result?.error || t('pack.toast.activateFailedWithName', { name: pack.name }));
         }
 
         await runAfterPackMutation();
-        toast.success(`已切换到 ${result.pack?.name ?? pack.name}`);
+        toast.success(t('pack.toast.switched', { name: result.pack?.name ?? pack.name }));
       } catch (error) {
         console.error('Failed to activate character pack:', error);
-        toast.error('激活角色包失败');
+        toast.error(t('pack.toast.activateFailed'));
       } finally {
         setBusyKey(null);
       }
     },
-    [runAfterPackMutation]
+    [runAfterPackMutation, t]
   );
 
   const openImportPrompt = useCallback((inspection: Awaited<ReturnType<typeof window.chobits.character.inspectCharacterPackFromArchive>>): void => {
@@ -436,12 +444,12 @@ export default function CharacterPackManager({ afterRuntimeChange, editorExtra, 
         openImportPrompt(inspection);
       } catch (error) {
         console.error('Failed to inspect character pack archive:', error);
-        toast.error(formatActionError('读取角色包信息失败', error));
+        toast.error(formatActionError(t, t('pack.toast.inspectFailed'), error));
       } finally {
         setBusyKey(null);
       }
     },
-    [openImportPrompt]
+    [openImportPrompt, t]
   );
 
   const installFromArchive = useCallback(
@@ -454,23 +462,23 @@ export default function CharacterPackManager({ afterRuntimeChange, editorExtra, 
         })) as CharacterPackMutationResult | null;
 
         if (!result?.ok) {
-          throw new Error(result?.error || `导入角色包失败: ${archivePath}`);
+          throw new Error(result?.error || t('pack.toast.importFailedWithPath', { path: archivePath }));
         }
 
         await runAfterPackMutation();
         if (result.pack?.name && options?.activate) {
-          toast.success(`${result.pack.name} 已导入并切换`);
+          toast.success(t('pack.toast.importedAndActivated', { name: result.pack.name }));
         } else {
-          toast.success(`${result.pack?.name ?? '角色包'} 已导入`);
+          toast.success(t('pack.toast.imported', { name: result.pack?.name ?? t('pack.fallbackName') }));
         }
       } catch (error) {
         console.error('Failed to install character pack archive:', error);
-        toast.error(formatActionError('导入角色包失败', error));
+        toast.error(formatActionError(t, t('pack.toast.importFailed'), error));
       } finally {
         setBusyKey(null);
       }
     },
-    [runAfterPackMutation]
+    [runAfterPackMutation, t]
   );
 
   const handleImportArchive = useCallback(async (): Promise<void> => {
@@ -489,37 +497,40 @@ export default function CharacterPackManager({ afterRuntimeChange, editorExtra, 
     await inspectArchiveImport(pick.path);
   }, [inspectArchiveImport]);
 
-  const handleExportPack = useCallback(async (pack: CharacterPackSummary): Promise<void> => {
-    const save = await window.chobits.file['file:save-file']({
-      title: '导出角色包',
-      defaultPath: buildCharacterPackExportFilename(pack),
-      filters: [
-        { name: 'Chobits Character Pack', extensions: [CHARACTER_PACK_ARCHIVE_EXTENSION_NAME] },
-        { name: 'Zip Archive', extensions: ['zip'] }
-      ]
-    });
+  const handleExportPack = useCallback(
+    async (pack: CharacterPackSummary): Promise<void> => {
+      const save = await window.chobits.file['file:save-file']({
+        title: t('pack.exportDialogTitle'),
+        defaultPath: buildCharacterPackExportFilename(pack),
+        filters: [
+          { name: 'Chobits Character Pack', extensions: [CHARACTER_PACK_ARCHIVE_EXTENSION_NAME] },
+          { name: 'Zip Archive', extensions: ['zip'] }
+        ]
+      });
 
-    if (!save.ok || !save.path) {
-      return;
-    }
-
-    const actionKey = getPackBusyKey('export', pack);
-    setBusyKey(actionKey);
-    try {
-      const result = (await window.chobits.character.exportCharacterPack(pack.id, save.path, pack.source)) as (CharacterPackExportResult & { ok: true }) | null;
-      if (!result?.ok) {
-        throw new Error(`导出角色包失败: ${pack.name}`);
+      if (!save.ok || !save.path) {
+        return;
       }
 
-      toast.success(`${result.pack.name} 已导出为 zip`);
-      await window.chobits.file['file:reveal'](result.outputPath);
-    } catch (error) {
-      console.error('Failed to export character pack:', error);
-      toast.error(formatActionError('导出角色包失败', error));
-    } finally {
-      setBusyKey(null);
-    }
-  }, []);
+      const actionKey = getPackBusyKey('export', pack);
+      setBusyKey(actionKey);
+      try {
+        const result = (await window.chobits.character.exportCharacterPack(pack.id, save.path, pack.source)) as (CharacterPackExportResult & { ok: true }) | null;
+        if (!result?.ok) {
+          throw new Error(t('pack.toast.exportFailedWithName', { name: pack.name }));
+        }
+
+        toast.success(t('pack.toast.exported', { name: result.pack.name }));
+        await window.chobits.file['file:reveal'](result.outputPath);
+      } catch (error) {
+        console.error('Failed to export character pack:', error);
+        toast.error(formatActionError(t, t('pack.toast.exportFailed'), error));
+      } finally {
+        setBusyKey(null);
+      }
+    },
+    [t]
+  );
 
   const handleConfirmImport = useCallback(async (): Promise<void> => {
     if (!importPrompt || !importPrompt.inspection.installable) {
@@ -542,23 +553,23 @@ export default function CharacterPackManager({ afterRuntimeChange, editorExtra, 
     try {
       const result = (await window.chobits.character.removeCharacterPack(target.id, target.source)) as CharacterPackMutationResult | null;
       if (!result?.ok) {
-        throw new Error(result?.error || `删除角色包失败: ${target.name}`);
+        throw new Error(result?.error || t('pack.toast.removeFailedWithName', { name: target.name }));
       }
 
       setRemoveTarget(null);
       await runAfterPackMutation();
       if (result.didSwitchActivePack && result.activePack?.name) {
-        toast.success(`已删除 ${target.name}，当前切回 ${result.activePack.name}`);
+        toast.success(t('pack.toast.removedAndSwitched', { name: target.name, activeName: result.activePack.name }));
       } else {
-        toast.success(`已删除 ${target.name}`);
+        toast.success(t('pack.toast.removed', { name: target.name }));
       }
     } catch (error) {
       console.error('Failed to remove character pack:', error);
-      toast.error('删除角色包失败');
+      toast.error(t('pack.toast.removeFailed'));
     } finally {
       setBusyKey(null);
     }
-  }, [removeTarget, runAfterPackMutation]);
+  }, [removeTarget, runAfterPackMutation, t]);
 
   const openEditorWindow = useCallback(async (payload: CharacterPackEditorWindowPayload): Promise<void> => {
     await window.chobits.window['window:open'](CHARACTER_PACK_EDITOR_WINDOW_KEY as any, payload, { sameDisplayAsSender: true });
@@ -571,8 +582,8 @@ export default function CharacterPackManager({ afterRuntimeChange, editorExtra, 
     }
 
     const basePack = activePack ?? packs.find((pack) => pack.source === 'builtin') ?? packs[0] ?? undefined;
-    setEditor(buildCreateCharacterPackEditorState(basePack, packs));
-  }, [activePack, editorPresentation, openEditorWindow, packs]);
+    setEditor(buildCreateCharacterPackEditorState(t, basePack, packs));
+  }, [activePack, editorPresentation, openEditorWindow, packs, t]);
 
   const handleEditPack = useCallback(
     async (pack: CharacterPackSummary): Promise<void> => {
@@ -583,15 +594,15 @@ export default function CharacterPackManager({ afterRuntimeChange, editorExtra, 
 
       setBusyKey(getPackBusyKey('editor-draft', pack));
       try {
-        setEditor(await loadCharacterPackEditorStateForPack(pack, packs));
+        setEditor(await loadCharacterPackEditorStateForPack(t, pack, packs));
       } catch (error) {
         console.error('Failed to load character pack editor:', error);
-        toast.error(formatActionError('读取角色包草稿失败', error));
+        toast.error(formatActionError(t, t('pack.toast.draftLoadFailed'), error));
       } finally {
         setBusyKey(null);
       }
     },
-    [editorPresentation, openEditorWindow, packs]
+    [editorPresentation, openEditorWindow, packs, t]
   );
 
   const handleSaveEditor = useCallback(async (): Promise<void> => {
@@ -599,22 +610,23 @@ export default function CharacterPackManager({ afterRuntimeChange, editorExtra, 
 
     setBusyKey('editor-save');
     try {
-      const result = await saveCharacterPackEditorState(editor, packs);
+      const result = await saveCharacterPackEditorState(t, editor, packs);
       setEditor(null);
       await runAfterPackMutation();
-      toast.success(editor.activateAfterSave ? `${result.pack?.name ?? editor.draft.pack.name} 已保存并切换` : `${result.pack?.name ?? editor.draft.pack.name} 已保存`);
+      const savedPackName = result.pack?.name ?? editor.draft.pack.name;
+      toast.success(editor.activateAfterSave ? t('editor.toast.savedAndActivated', { name: savedPackName }) : t('editor.toast.saved', { name: savedPackName }));
     } catch (error) {
       console.error('Failed to save character pack editor draft:', error);
-      toast.error(formatActionError('保存角色包失败', error));
+      toast.error(formatActionError(t, t('editor.error.saveFailed'), error));
     } finally {
       setBusyKey(null);
     }
-  }, [editor, packs, runAfterPackMutation]);
+  }, [editor, packs, runAfterPackMutation, t]);
 
   const importPreviewMedia = getInspectionPreviewMedia(importPrompt);
-  const importMetadataBadges = importPrompt ? getPackMetadataBadges(importPrompt.inspection.pack) : [];
-  const importTrustBadges = importPrompt ? getPackTrustBadges(importPrompt.inspection.pack) : [];
-  const importSignatureSummary = importPrompt ? formatSignatureSummary(importPrompt.inspection.pack) : null;
+  const importMetadataBadges = importPrompt ? getPackMetadataBadges(t, importPrompt.inspection.pack) : [];
+  const importTrustBadges = importPrompt ? getPackTrustBadges(t, importPrompt.inspection.pack) : [];
+  const importSignatureSummary = importPrompt ? formatSignatureSummary(t, importPrompt.inspection.pack) : null;
   const editorUsesExpandedModal = editorPresentation === 'modal';
   const editorDialogContentClassName = editorUsesExpandedModal
     ? 'grid h-[min(92vh,900px)] w-[min(1180px,calc(100vw-32px))] max-w-none grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0'
@@ -630,11 +642,11 @@ export default function CharacterPackManager({ afterRuntimeChange, editorExtra, 
           <div className="flex flex-wrap gap-2">
             <Button size="sm" onClick={handleCreatePack} disabled={busyKey === 'editor-save'}>
               <TbPlus />
-              创建
+              {t('pack.action.create')}
             </Button>
             <Button variant={'outline'} size="sm" onClick={() => void handleImportArchive()} disabled={busyKey === 'inspect-archive' || busyKey === 'install-archive'}>
               {busyKey === 'inspect-archive' || busyKey === 'install-archive' ? <TbLoader2 className="animate-spin" /> : <TbArchive />}
-              导入
+              {t('pack.action.import')}
             </Button>
             <Button size="icon" className="w-8 h-8" variant="ghost" onClick={() => void refresh()} disabled={isLoading}>
               {isLoading ? <TbLoader2 className="animate-spin" /> : <TbRefresh />}
@@ -642,44 +654,44 @@ export default function CharacterPackManager({ afterRuntimeChange, editorExtra, 
           </div>
         </div>
 
-        <SettingGroup title="已发现角色包">
+        <SettingGroup title={t('pack.listTitle')}>
           {packs.length === 0 ? (
-            <div className="px-4 py-6 text-sm text-muted-foreground">当前还没有可用的角色包。</div>
+            <div className="px-4 py-6 text-sm text-muted-foreground">{t('pack.empty')}</div>
           ) : (
             packs.map((pack) => {
               const packBusyState = getPackBusyState(busyKey, pack);
               const packPreviewMedia = getPackPreviewMedia(pack);
-              const packMetadataBadges = getPackMetadataBadges(pack);
-              const packTrustBadges = getPackTrustBadges(pack);
+              const packMetadataBadges = getPackMetadataBadges(t, pack);
+              const packTrustBadges = getPackTrustBadges(t, pack);
               return (
                 <SettingItem
                   key={`${pack.source}:${pack.id}`}
                   title={pack.name}
-                  description={`${formatPackSource(pack.source)} · v${pack.version}${pack.description ? ` · ${pack.description}` : ''}`}
+                  description={`${formatPackSource(t, pack.source)} · v${pack.version}${pack.description ? ` · ${pack.description}` : ''}`}
                   action={
                     <TooltipProvider delayDuration={120}>
                       <div className="flex items-center gap-1">
                         {pack.isActive ? (
-                          <PackActionButton label="当前使用" disabled>
+                          <PackActionButton label={t('pack.action.current')} disabled>
                             <TbCheck className="h-4 w-4" />
                           </PackActionButton>
                         ) : (
-                          <PackActionButton label="切换" onClick={() => void handleActivatePack(pack)} disabled={packBusyState.active}>
+                          <PackActionButton label={t('pack.action.activate')} onClick={() => void handleActivatePack(pack)} disabled={packBusyState.active}>
                             {packBusyState.key === getPackBusyKey('activate', pack) ? <TbLoader2 className="h-4 w-4 animate-spin" /> : <TbCheck className="h-4 w-4" />}
                           </PackActionButton>
                         )}
-                        <PackActionButton label="打开" onClick={() => void window.chobits.file['file:open-path'](pack.rootDir)}>
+                        <PackActionButton label={t('pack.action.open')} onClick={() => void window.chobits.file['file:open-path'](pack.rootDir)}>
                           <TbFolderOpen className="h-4 w-4" />
                         </PackActionButton>
-                        <PackActionButton label="导出" onClick={() => void handleExportPack(pack)} disabled={packBusyState.active}>
+                        <PackActionButton label={t('pack.action.export')} onClick={() => void handleExportPack(pack)} disabled={packBusyState.active}>
                           {packBusyState.key === getPackBusyKey('export', pack) ? <TbLoader2 className="h-4 w-4 animate-spin" /> : <TbDownload className="h-4 w-4" />}
                         </PackActionButton>
-                        <PackActionButton label="编辑" onClick={() => void handleEditPack(pack)} disabled={packBusyState.active || busyKey === getPackBusyKey('editor-draft', pack)}>
+                        <PackActionButton label={t('pack.action.edit')} onClick={() => void handleEditPack(pack)} disabled={packBusyState.active || busyKey === getPackBusyKey('editor-draft', pack)}>
                           {busyKey === getPackBusyKey('editor-draft', pack) ? <TbLoader2 className="h-4 w-4 animate-spin" /> : <TbPencil className="h-4 w-4" />}
                         </PackActionButton>
                         {pack.source === 'installed' && (
                           <PackActionButton
-                            label="删除"
+                            label={t('pack.action.remove')}
                             className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                             onClick={() => setRemoveTarget(pack)}
                             disabled={packBusyState.active}
@@ -699,7 +711,7 @@ export default function CharacterPackManager({ afterRuntimeChange, editorExtra, 
                         <img src={packPreviewMedia.src} alt={pack.name} className="h-14 w-14 shrink-0 rounded-md object-cover" />
                       )
                     ) : (
-                      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md bg-muted text-[11px] text-muted-foreground">无预览</div>
+                      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md bg-muted text-[11px] text-muted-foreground">{t('pack.noPreview')}</div>
                     )}
                     <div className="min-w-0 flex-1 space-y-2">
                       {(pack.tags.length > 0 || packMetadataBadges.length > 0 || packTrustBadges.length > 0) && (
@@ -721,12 +733,12 @@ export default function CharacterPackManager({ afterRuntimeChange, editorExtra, 
                           ))}
                         </div>
                       )}
-                      <div className="text-[11px] text-muted-foreground">{formatPackTrustSummary(pack)}</div>
+                      <div className="text-[11px] text-muted-foreground">{formatPackTrustSummary(t, pack)}</div>
                       {pack.trust.links.length > 0 && (
                         <div className="flex flex-wrap gap-2 text-[11px]">
                           {pack.trust.links.map((link) => (
                             <a key={`${link.label}:${link.url}`} href={link.url} target="_blank" rel="noreferrer" className="text-primary hover:underline">
-                              {formatTrustLinkLabel(link.label)}
+                              {formatTrustLinkLabel(t, link.label)}
                             </a>
                           ))}
                         </div>
@@ -743,13 +755,15 @@ export default function CharacterPackManager({ afterRuntimeChange, editorExtra, 
       <AlertDialog open={!!importPrompt} onOpenChange={(open) => !open && setImportPrompt(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{!importPrompt?.inspection.installable ? '角色包暂不可安装' : importPrompt?.inspection.requiresReplace ? '替换已安装角色包？' : '安装角色包'}</AlertDialogTitle>
+            <AlertDialogTitle>
+              {!importPrompt?.inspection.installable ? t('pack.import.titleBlocked') : importPrompt?.inspection.requiresReplace ? t('pack.import.titleReplace') : t('pack.import.titleInstall')}
+            </AlertDialogTitle>
             <AlertDialogDescription>
               {!importPrompt?.inspection.installable
-                ? `已读取到角色包 ${importPrompt?.inspection.pack.name}，但当前运行环境还不满足安装条件。你可以先查看下面的阻塞原因，再决定是否升级应用或调整角色包格式。`
+                ? t('pack.import.descriptionBlocked', { name: importPrompt?.inspection.pack.name })
                 : importPrompt?.inspection.requiresReplace
-                  ? `检测到同 ID 的已安装角色包：${importPrompt.inspection.pack.name}。继续后会覆盖已安装内容；如果当前运行时正在使用这个角色包，也会同步刷新。`
-                  : `即将导入角色包 ${importPrompt?.inspection.pack.name}。确认后会写入本地角色包目录。`}
+                  ? t('pack.import.descriptionReplace', { name: importPrompt.inspection.pack.name })
+                  : t('pack.import.descriptionInstall', { name: importPrompt?.inspection.pack.name })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           {importPrompt && (
@@ -771,7 +785,7 @@ export default function CharacterPackManager({ afterRuntimeChange, editorExtra, 
                     <img src={importPreviewMedia.src} alt={importPrompt.inspection.pack.name} className="h-16 w-16 rounded-md object-cover shrink-0" />
                   )
                 ) : (
-                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-md bg-muted text-xs text-muted-foreground">无预览</div>
+                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-md bg-muted text-xs text-muted-foreground">{t('pack.noPreview')}</div>
                 )}
                 <div className="min-w-0 space-y-1 text-sm">
                   <div className="font-medium text-foreground">{importPrompt.inspection.pack.name}</div>
@@ -802,15 +816,15 @@ export default function CharacterPackManager({ afterRuntimeChange, editorExtra, 
               </div>
 
               <div className="space-y-2 rounded-lg border border-border/60 p-3 text-xs text-muted-foreground">
-                <div className="text-sm font-medium text-foreground">来源与信任</div>
-                <div>信任摘要：{formatPackTrustSummary(importPrompt.inspection.pack)}</div>
-                {importSignatureSummary && <div>签名声明：{importSignatureSummary}</div>}
+                <div className="text-sm font-medium text-foreground">{t('pack.import.trustTitle')}</div>
+                <div>{t('pack.import.trustSummary', { summary: formatPackTrustSummary(t, importPrompt.inspection.pack) })}</div>
+                {importSignatureSummary && <div>{t('pack.import.signatureDeclaration', { summary: importSignatureSummary })}</div>}
                 <div>{importPrompt.inspection.pack.trust.note}</div>
                 {importPrompt.inspection.pack.trust.links.length > 0 && (
                   <div className="flex flex-wrap gap-2 pt-1">
                     {importPrompt.inspection.pack.trust.links.map((link) => (
                       <a key={`${link.label}:${link.url}`} href={link.url} target="_blank" rel="noreferrer" className="text-primary hover:underline">
-                        {formatTrustLinkLabel(link.label)}
+                        {formatTrustLinkLabel(t, link.label)}
                       </a>
                     ))}
                   </div>
@@ -818,35 +832,31 @@ export default function CharacterPackManager({ afterRuntimeChange, editorExtra, 
               </div>
 
               <div className="space-y-2 rounded-lg border border-border/60 p-3 text-xs text-muted-foreground">
-                <div>来源：{importPrompt.inspection.sourcePath}</div>
-                {importPrompt.inspection.activePack && <div>当前角色包：{importPrompt.inspection.activePack.name}</div>}
+                <div>{t('pack.import.sourcePath', { path: importPrompt.inspection.sourcePath })}</div>
+                {importPrompt.inspection.activePack && <div>{t('pack.import.activePack', { name: importPrompt.inspection.activePack.name })}</div>}
                 {importPrompt.inspection.existingPack && (
-                  <div>
-                    已安装冲突项：{importPrompt.inspection.existingPack.name} ({formatPackSource(importPrompt.inspection.existingPack.source)})
-                  </div>
+                  <div>{t('pack.import.existingConflict', { name: importPrompt.inspection.existingPack.name, source: formatPackSource(t, importPrompt.inspection.existingPack.source) })}</div>
                 )}
-                {importPrompt.inspection.willReplaceActive && <div className="text-amber-600">该角色包当前正在使用，替换后会立即刷新当前 runtime。</div>}
+                {importPrompt.inspection.willReplaceActive && <div className="text-amber-600">{t('pack.import.willReplaceActiveNote')}</div>}
               </div>
 
               <div className="space-y-2 rounded-lg border border-border/60 p-3 text-xs text-muted-foreground">
-                <div className="text-sm font-medium text-foreground">兼容性检查</div>
-                <div>
-                  Pack Format：v{importPrompt.inspection.pack.formatVersion} / 当前支持至 v{importPrompt.inspection.compatibility.supportedFormatVersion}
-                </div>
+                <div className="text-sm font-medium text-foreground">{t('pack.import.compatibilityTitle')}</div>
+                <div>{t('pack.import.formatVersion', { packVersion: importPrompt.inspection.pack.formatVersion, supportedVersion: importPrompt.inspection.compatibility.supportedFormatVersion })}</div>
                 {importPrompt.inspection.compatibility.currentAppVersion && (
                   <div>
-                    应用版本：{importPrompt.inspection.compatibility.currentAppVersion}
-                    {importPrompt.inspection.compatibility.minAppVersion ? ` / 角色包要求 >= ${importPrompt.inspection.compatibility.minAppVersion}` : ' / 角色包未声明最低版本'}
+                    {importPrompt.inspection.compatibility.minAppVersion
+                      ? t('pack.import.appVersionWithMin', { version: importPrompt.inspection.compatibility.currentAppVersion, minVersion: importPrompt.inspection.compatibility.minAppVersion })
+                      : t('pack.import.appVersionNoMin', { version: importPrompt.inspection.compatibility.currentAppVersion })}
                   </div>
                 )}
                 <div>
-                  平台：{importPrompt.inspection.compatibility.currentPlatform}
                   {importPrompt.inspection.pack.platform && importPrompt.inspection.pack.platform.length > 0
-                    ? ` / 角色包声明 ${importPrompt.inspection.pack.platform.join(', ')}`
-                    : ' / 角色包未限制平台'}
+                    ? t('pack.import.platformDeclared', { platform: importPrompt.inspection.compatibility.currentPlatform, packPlatforms: importPrompt.inspection.pack.platform.join(', ') })
+                    : t('pack.import.platformUnrestricted', { platform: importPrompt.inspection.compatibility.currentPlatform })}
                 </div>
                 {importPrompt.inspection.pack.capabilities?.supportedLanguages && importPrompt.inspection.pack.capabilities.supportedLanguages.length > 0 && (
-                  <div>支持语言：{importPrompt.inspection.pack.capabilities.supportedLanguages.join(', ')}</div>
+                  <div>{t('pack.import.supportedLanguages', { languages: importPrompt.inspection.pack.capabilities.supportedLanguages.join(', ') })}</div>
                 )}
               </div>
 
@@ -854,7 +864,7 @@ export default function CharacterPackManager({ afterRuntimeChange, editorExtra, 
                 <div className="space-y-2 rounded-lg border border-red-500/30 bg-red-500/5 p-3">
                   <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                     <TbShieldX className="h-4 w-4 text-red-500" />
-                    当前不可安装
+                    {t('pack.import.blockedTitle')}
                   </div>
                   <div className="space-y-1 text-xs text-muted-foreground">
                     {importPrompt.inspection.blockingErrors.map((error) => (
@@ -866,7 +876,7 @@ export default function CharacterPackManager({ afterRuntimeChange, editorExtra, 
 
               {importPrompt.inspection.warnings.length > 0 && (
                 <div className="space-y-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
-                  <div className="text-sm font-medium text-foreground">导入警告</div>
+                  <div className="text-sm font-medium text-foreground">{t('pack.import.warningsTitle')}</div>
                   <div className="space-y-1 text-xs text-muted-foreground">
                     {importPrompt.inspection.warnings.map((warning) => (
                       <div key={warning.code}>{warning.message}</div>
@@ -877,13 +887,13 @@ export default function CharacterPackManager({ afterRuntimeChange, editorExtra, 
 
               <div className="flex items-center justify-between rounded-lg border border-border/60 p-3">
                 <div className="space-y-1">
-                  <div className="text-sm font-medium text-foreground">安装后立即切换</div>
+                  <div className="text-sm font-medium text-foreground">{t('pack.import.activateAfterInstall')}</div>
                   <div className="text-xs text-muted-foreground">
                     {!importPrompt.inspection.installable
-                      ? '当前角色包尚未通过安装校验，暂时不能切换。'
+                      ? t('pack.import.activateBlockedHint')
                       : importPrompt.inspection.willReplaceActive
-                        ? '当前角色包会在替换后保持激活，无需额外切换。'
-                        : '开启后，安装完成会直接切换到这个角色包。'}
+                        ? t('pack.import.activateReplacedHint')
+                        : t('pack.import.activateHint')}
                   </div>
                 </div>
                 <Switch
@@ -897,9 +907,9 @@ export default function CharacterPackManager({ afterRuntimeChange, editorExtra, 
             </div>
           )}
           <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogCancel>{t('common:action.cancel')}</AlertDialogCancel>
             <AlertDialogAction onClick={() => void handleConfirmImport()} disabled={!!importPrompt && (!importPrompt.inspection.installable || busyKey === getImportBusyKey())}>
-              {!importPrompt?.inspection.installable ? '当前不可安装' : importPrompt?.inspection.requiresReplace ? '确认替换' : '确认安装'}
+              {!importPrompt?.inspection.installable ? t('pack.import.blockedTitle') : importPrompt?.inspection.requiresReplace ? t('pack.import.confirmReplace') : t('pack.import.confirmInstall')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -908,15 +918,15 @@ export default function CharacterPackManager({ afterRuntimeChange, editorExtra, 
       <AlertDialog open={!!removeTarget} onOpenChange={(open) => !open && setRemoveTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>删除角色包</AlertDialogTitle>
+            <AlertDialogTitle>{t('pack.remove.title')}</AlertDialogTitle>
             <AlertDialogDescription>
-              {removeTarget?.isActive ? `当前正在使用 ${removeTarget?.name}。删除前会先切回其他可用角色包，再移除此安装包。` : `将从本地移除 ${removeTarget?.name} 的安装目录。`}
+              {removeTarget?.isActive ? t('pack.remove.descriptionActive', { name: removeTarget?.name }) : t('pack.remove.description', { name: removeTarget?.name })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           {removeTarget && <SettingPath path={maskPath(removeTarget.rootDir)} />}
           <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={() => void handleRemovePack()}>确认删除</AlertDialogAction>
+            <AlertDialogCancel>{t('common:action.cancel')}</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void handleRemovePack()}>{t('pack.remove.confirm')}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -924,8 +934,8 @@ export default function CharacterPackManager({ afterRuntimeChange, editorExtra, 
       <Dialog open={!!editor} onOpenChange={(open) => !open && setEditor(null)}>
         <DialogContent className={editorDialogContentClassName}>
           <DialogHeader className={editorHeaderClassName}>
-            <DialogTitle>{getCharacterPackEditorTitle(editor)}</DialogTitle>
-            <DialogDescription>{getCharacterPackEditorDescription(editor)}</DialogDescription>
+            <DialogTitle>{getCharacterPackEditorTitle(t, editor)}</DialogTitle>
+            <DialogDescription>{getCharacterPackEditorDescription(t, editor)}</DialogDescription>
           </DialogHeader>
 
           <div className={editorBodyClassName}>
@@ -940,11 +950,11 @@ export default function CharacterPackManager({ afterRuntimeChange, editorExtra, 
 
           <DialogFooter className={editorFooterClassName}>
             <Button variant="outline" onClick={() => setEditor(null)} disabled={busyKey === 'editor-save'}>
-              取消
+              {t('common:action.cancel')}
             </Button>
             <Button onClick={() => void handleSaveEditor()} disabled={busyKey === 'editor-save'}>
               {busyKey === 'editor-save' && <TbLoader2 className="animate-spin" />}
-              保存角色包
+              {t('editor.action.save')}
             </Button>
           </DialogFooter>
         </DialogContent>

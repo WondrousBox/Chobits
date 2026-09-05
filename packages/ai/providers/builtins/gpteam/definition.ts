@@ -7,6 +7,29 @@ const gpteamSchema: ProviderConfig = {
   label: 'GPTeam',
   enabled: true,
   icon: 'providers/icons/openai.svg',
+  locales: {
+    en: {
+      label: 'GPTeam',
+      fields: {
+        apiKey: 'API Key',
+        baseUrl: 'Base URL (optional, GPTeam gateway)'
+      }
+    },
+    'zh-CN': {
+      label: 'GPTeam',
+      fields: {
+        apiKey: 'API Key',
+        baseUrl: 'Base URL (可选，GPTeam 入口)'
+      }
+    },
+    ja: {
+      label: 'GPTeam',
+      fields: {
+        apiKey: 'API Key',
+        baseUrl: 'Base URL（任意、GPTeam ゲートウェイ）'
+      }
+    }
+  },
   fields: [
     { key: 'apiKey', label: 'API Key', type: 'password', required: true },
     { key: 'baseUrl', label: 'Base URL (可选，GPTeam 入口)', type: 'text' }

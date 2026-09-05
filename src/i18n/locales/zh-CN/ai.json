@@ -1,0 +1,91 @@
+{
+  "provider": {
+    "group": {
+      "selfHosted": "自托管",
+      "cloud": "云服务"
+    },
+    "configured": "已配置",
+    "empty": "暂无服务商",
+    "preset": {
+      "edit": "编辑",
+      "collapse": "收起",
+      "test": "测试",
+      "testSuccess": "测试成功",
+      "testFailed": "测试失败: {{message}}",
+      "deleteConfirm": "删除该预设？",
+      "create": "新增预设",
+      "createTitle": "新增预设",
+      "editTitle": "编辑预设 · {{name}}",
+      "save": "保存预设",
+      "cancelCreate": "取消新增",
+      "required": "必填"
+    }
+  },
+  "presetForm": {
+    "submit": "保存",
+    "cancel": "取消",
+    "description": "填写并保存后会立即生效",
+    "delete": "删除",
+    "models": {
+      "title": "可用模型 ({{count}})",
+      "expand": "展开",
+      "collapse": "收起",
+      "empty": "当前还没有可读取到的模型列表",
+      "free": "免费",
+      "hint": "这里只做查看，实际使用时在聊天里选择模型。",
+      "types": {
+        "chat": "对话",
+        "vision": "视觉",
+        "image": "图像",
+        "video": "视频",
+        "audio": "音频",
+        "embedding": "向量",
+        "realtime": "实时",
+        "tool": "工具"
+      }
+    }
+  },
+  "keys": {
+    "groupTitle": "安全",
+    "clear": {
+      "label": "清理所有密钥",
+      "description": "清除系统密钥链中存储的所有 API 密钥，此操作不可恢复",
+      "action": "一键清理",
+      "clearing": "清理中...",
+      "confirmTitle": "确认清理",
+      "confirmDescription": "将永久删除所有存储在系统密钥链中的 API Key",
+      "confirmAction": "确认清理",
+      "cancel": "取消"
+    }
+  },
+  "networkCheck": {
+    "title": "网络连通性检测",
+    "description": "检测是否能访问插件和模型下载所需的网站",
+    "checking": "正在检测...",
+    "accessible": "可访问",
+    "inaccessible": "无法访问",
+    "checkFailed": "检测失败"
+  },
+  "modelFolder": {
+    "loading": "读取配置...",
+    "currentLocation": "当前存储位置",
+    "notSet": "未设置",
+    "hint": "插件占用较大空间，建议选择非系统盘存储。",
+    "selectLocation": "选择存储位置",
+    "changeLocation": "更改存储位置"
+  },
+  "configWindow": {
+    "loading": "载入中...",
+    "providerNotFound": "未找到服务商：{{providerId}}",
+    "titlePreset": "🔑 预设秘钥配置",
+    "titleProvider": "🔑 服务商配置",
+    "presetDescription": "配置当前预设所需的秘钥；仅当前预设会使用这些配置",
+    "providerDescription": "配置访问该服务所需的秘钥（兼容旧入口）",
+    "presetBadge": "预设秘钥",
+    "noFields": "当前没有可配置字段。",
+    "selectPlaceholder": "选择{{label}}",
+    "autoSaving": "正在自动保存...",
+    "autoSaveFailed": "自动保存失败",
+    "cancel": "取消"
+  }
+}

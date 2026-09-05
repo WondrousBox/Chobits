@@ -9,16 +9,16 @@ export type FeatureKey = 'localAI';
 
 export interface FeatureDefinition {
   key: FeatureKey;
-  label: string;
-  description: string;
+  labelKey: string;
+  descriptionKey: string;
   defaultEnabled: boolean;
 }
 
 export const FEATURE_DEFINITIONS: FeatureDefinition[] = [
   {
     key: 'localAI',
-    label: '本地 AI 推理',
-    description: '本地语音识别(sherpa),无需联网但占用更多磁盘与内存',
+    labelKey: 'settings:features.items.localAI.label',
+    descriptionKey: 'settings:features.items.localAI.description',
     defaultEnabled: true
   }
 ];

@@ -1,4 +1,6 @@
+import type { TFunction } from 'i18next';
 import React, { useCallback, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TbClock, TbHistory, TbMessage2Heart, TbRefresh, TbSparkles } from 'react-icons/tb';
 
 import { Badge } from '@/components/ui/badge';
@@ -17,33 +19,19 @@ import { SettingGroup, SettingItem } from '@/pages/SettingsPage/components/Setti
 import type { HistoryStatus, IntentCategory, SpontaneousUtteranceHistoryItem, SpontaneousUtteranceSettingsState, TonePreference } from './useSpontaneousUtteranceSettings';
 import { useSpontaneousUtteranceSettings } from './useSpontaneousUtteranceSettings';
 
-const INTENT_OPTIONS: Array<{ value: IntentCategory; label: string; description: string }> = [
-  { value: 'encouragement', label: '鼓励', description: '更偏向打气和继续前进' },
-  { value: 'reminder', label: '提醒', description: '轻量提醒任务、节奏和注意点' },
-  { value: 'empathy', label: '共情', description: '更关注安抚和陪伴感' },
-  { value: 'planning', label: '计划', description: '更偏向下一步和安排建议' },
-  { value: 'reflection', label: '反思', description: '更偏向感悟和自我观察' },
-  { value: 'philosophy', label: '哲思', description: '更偏向一句短感悟' },
-  { value: 'playful', label: '有趣', description: '更偏向轻松玩笑和俏皮表达' }
+const INTENT_OPTIONS: Array<{ value: IntentCategory }> = [
+  { value: 'encouragement' },
+  { value: 'reminder' },
+  { value: 'empathy' },
+  { value: 'planning' },
+  { value: 'reflection' },
+  { value: 'philosophy' },
+  { value: 'playful' }
 ];
 
-const TONE_OPTIONS: Array<{ value: TonePreference; label: string }> = [
-  { value: 'auto', label: '自动' },
-  { value: 'gentle', label: '温柔' },
-  { value: 'playful', label: '俏皮' },
-  { value: 'calm', label: '沉静' },
-  { value: 'firm', label: '笃定' },
-  { value: 'curious', label: '好奇' },
-  { value: 'tender', label: '体贴' }
-];
+const TONE_OPTIONS: Array<{ value: TonePreference }> = [{ value: 'auto' }, { value: 'gentle' }, { value: 'playful' }, { value: 'calm' }, { value: 'firm' }, { value: 'curious' }, { value: 'tender' }];
 
-const STATUS_OPTIONS: Array<{ value: HistoryStatus | 'all'; label: string }> = [
-  { value: 'all', label: '全部状态' },
-  { value: 'spoken', label: '已说出' },
-  { value: 'generated', label: '仅生成' },
-  { value: 'skipped', label: '已跳过' },
-  { value: 'failed', label: '执行失败' }
-];
+const STATUS_OPTIONS: Array<{ value: HistoryStatus | 'all' }> = [{ value: 'all' }, { value: 'spoken' }, { value: 'generated' }, { value: 'skipped' }, { value: 'failed' }];
 
 function getStatusBadgeClass(status: HistoryStatus): string {
   switch (status) {
@@ -60,57 +48,44 @@ function getStatusBadgeClass(status: HistoryStatus): string {
   }
 }
 
-function getStatusLabel(status: HistoryStatus): string {
+function getStatusLabel(t: TFunction, status: HistoryStatus): string {
   switch (status) {
     case 'spoken':
-      return '已说出';
     case 'generated':
-      return '仅生成';
     case 'skipped':
-      return '已跳过';
     case 'failed':
-      return '执行失败';
+      return t(`spontaneous.history.status.${status}`);
     default:
       return status;
   }
 }
 
-function getIntentLabel(intent?: IntentCategory): string {
-  return INTENT_OPTIONS.find((item) => item.value === intent)?.label ?? '未分类';
+function getIntentLabel(t: TFunction, intent?: IntentCategory): string {
+  if (!intent) return t('spontaneous.history.intentUncategorized');
+  return INTENT_OPTIONS.some((item) => item.value === intent) ? t(`spontaneous.intents.options.${intent}.label`) : t('spontaneous.history.intentUncategorized');
 }
 
-function getToneLabel(tone?: string): string {
-  return TONE_OPTIONS.find((item) => item.value === tone)?.label ?? tone ?? '自动';
+function getToneLabel(t: TFunction, tone?: string): string {
+  if (!tone) return t('spontaneous.tone.options.auto');
+  return TONE_OPTIONS.some((item) => item.value === tone) ? t(`spontaneous.tone.options.${tone}`) : tone;
 }
 
-function getReasonLabel(reason?: string): string | undefined {
+function getReasonLabel(t: TFunction, reason?: string): string | undefined {
   switch (reason) {
     case 'generation_in_progress':
-      return '已有生成任务进行中';
     case 'preferences_disabled':
-      return '主动发言已关闭';
     case 'daily_limit_reached':
-      return '已达到今日上限';
     case 'cooldown_active':
-      return '仍在冷却时间内';
     case 'no_provider_context':
-      return '缺少可用 AI 上下文';
     case 'duplicate_text':
-      return '与最近文案重复';
     case 'intent_overrepresented':
-      return '最近同类发言过多';
     case 'parse_failed':
-      return '模型输出解析失败';
     case 'intent_filtered':
-      return '生成类别不在允许范围';
     case 'first_activity_timeout':
-      return '等待模型首个响应超时';
     case 'stream_idle_timeout':
-      return '模型输出中断超时';
     case 'generation_max_timeout':
-      return '生成总时长超时';
     case 'generation_failed':
-      return '生成失败';
+      return t(`spontaneous.history.reasons.${reason}`);
     default:
       return reason;
   }
@@ -120,38 +95,45 @@ export const SpontaneousUtteranceItem: React.FC<{
   state: SpontaneousUtteranceSettingsState;
   selected: boolean;
   onSelect: () => void;
-}> = ({ state, selected, onSelect }) => (
-  <div onClick={onSelect} className={cn('flex items-center gap-3 rounded-xl p-3 transition-colors hover:bg-accent/50', selected && 'bg-accent ring-1 ring-primary/30')}>
-    <div
-      className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors', state.preferences.enabled ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground')}
-    >
-      <TbMessage2Heart className="h-5 w-5" />
+}> = ({ state, selected, onSelect }) => {
+  const { t } = useTranslation('speech');
+  return (
+    <div onClick={onSelect} className={cn('flex items-center gap-3 rounded-xl p-3 transition-colors hover:bg-accent/50', selected && 'bg-accent ring-1 ring-primary/30')}>
+      <div
+        className={cn(
+          'flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors',
+          state.preferences.enabled ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
+        )}
+      >
+        <TbMessage2Heart className="h-5 w-5" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="text-sm font-medium text-foreground">{t('spontaneous.item.title')}</div>
+        <div className="line-clamp-1 text-xs text-muted-foreground">{t('spontaneous.item.description')}</div>
+      </div>
+      <div onClick={(event) => event.stopPropagation()}>
+        <Switch checked={state.preferences.enabled} onCheckedChange={(checked) => void state.updatePreferences({ enabled: checked })} disabled={state.isLoading} />
+      </div>
     </div>
-    <div className="min-w-0 flex-1">
-      <div className="text-sm font-medium text-foreground">主动发言</div>
-      <div className="line-clamp-1 text-xs text-muted-foreground">控制主动发言频率、风格偏好，并查看历史记录。</div>
-    </div>
-    <div onClick={(event) => event.stopPropagation()}>
-      <Switch checked={state.preferences.enabled} onCheckedChange={(checked) => void state.updatePreferences({ enabled: checked })} disabled={state.isLoading} />
-    </div>
-  </div>
-);
+  );
+};
 
 function HistoryCard({ item }: { item: SpontaneousUtteranceHistoryItem }): JSX.Element {
+  const { t } = useTranslation('speech');
   return (
     <div className="rounded-xl border border-border/70 bg-card/60 p-3">
       <div className="flex flex-wrap items-center gap-2">
         <Badge variant="outline" className={cn('text-[10px]', getStatusBadgeClass(item.status))}>
-          {getStatusLabel(item.status)}
+          {getStatusLabel(t, item.status)}
         </Badge>
         {item.intentCategory && (
           <Badge variant="secondary" className="text-[10px]">
-            {getIntentLabel(item.intentCategory)}
+            {getIntentLabel(t, item.intentCategory)}
           </Badge>
         )}
         {item.tone && (
           <Badge variant="outline" className="text-[10px] text-muted-foreground">
-            {getToneLabel(item.tone)}
+            {getToneLabel(t, item.tone)}
           </Badge>
         )}
         <span className="ml-auto text-[11px] text-muted-foreground" title={getHistoryTime(item.timestamp)}>
@@ -159,13 +141,13 @@ function HistoryCard({ item }: { item: SpontaneousUtteranceHistoryItem }): JSX.E
         </span>
       </div>
 
-      <div className="mt-2 text-sm font-medium text-foreground">{item.text || '这次没有生成可展示的文案。'}</div>
+      <div className="mt-2 text-sm font-medium text-foreground">{item.text || t('spontaneous.history.card.noText')}</div>
 
       <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-        {item.executedAction && <span>动作: {item.executedAction}</span>}
-        {item.fallbackAction && !item.executedAction && <span>回退动作: {item.fallbackAction}</span>}
-        {item.reason && <span>原因: {getReasonLabel(item.reason)}</span>}
-        {item.didUseFallback != null && <span>{item.didUseFallback ? '使用了回退动作' : '动作来自 AI/风格映射'}</span>}
+        {item.executedAction && <span>{t('spontaneous.history.card.action', { action: item.executedAction })}</span>}
+        {item.fallbackAction && !item.executedAction && <span>{t('spontaneous.history.card.fallbackAction', { action: item.fallbackAction })}</span>}
+        {item.reason && <span>{t('spontaneous.history.card.reason', { reason: getReasonLabel(t, item.reason) })}</span>}
+        {item.didUseFallback != null && <span>{item.didUseFallback ? t('spontaneous.history.card.usedFallback') : t('spontaneous.history.card.aiMapped')}</span>}
       </div>
 
       {item.whyThisFits && <p className="mt-2 text-xs leading-5 text-muted-foreground">{item.whyThisFits}</p>}
@@ -174,6 +156,7 @@ function HistoryCard({ item }: { item: SpontaneousUtteranceHistoryItem }): JSX.E
 }
 
 export const SpontaneousUtteranceDetailContent: React.FC<{ state: SpontaneousUtteranceSettingsState }> = ({ state }) => {
+  const { t } = useTranslation('speech');
   const { preferences, isLoading, history, isHistoryLoading, query, setQuery, statusFilter, setStatusFilter, intentFilter, setIntentFilter, loadHistory, updatePreferences } = state;
 
   const latestSpoken = useMemo(() => history.find((item) => item.status === 'spoken'), [history]);
@@ -195,144 +178,149 @@ export const SpontaneousUtteranceDetailContent: React.FC<{ state: SpontaneousUtt
   );
 
   if (isLoading) {
-    return <div className="p-4 text-sm text-muted-foreground">加载中...</div>;
+    return <div className="p-4 text-sm text-muted-foreground">{t('spontaneous.loading')}</div>;
   }
 
   return (
     <Tabs defaultValue="settings" className="space-y-4 p-4">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-base font-semibold text-foreground">主动发言</h2>
-          <p className="text-sm text-muted-foreground">让精灵根据上下文主动说一句话，并保留可查询历史。</p>
+          <h2 className="text-base font-semibold text-foreground">{t('spontaneous.header.title')}</h2>
+          <p className="text-sm text-muted-foreground">{t('spontaneous.header.description')}</p>
         </div>
         <TabsList>
           <TabsTrigger value="settings">
             <TbSparkles className="h-4 w-4" />
-            设置
+            {t('spontaneous.tabs.settings')}
           </TabsTrigger>
           <TabsTrigger value="history">
             <TbHistory className="h-4 w-4" />
-            历史
+            {t('spontaneous.tabs.history')}
           </TabsTrigger>
         </TabsList>
       </div>
 
       <TabsContent value="settings" className="space-y-5">
-        <SettingGroup title="总览">
+        <SettingGroup title={t('spontaneous.overview.title')}>
           <SettingItem
-            title="启用主动发言"
-            description={preferences.enabled ? '闲置时，精灵会在符合频率限制时主动生成一句话。' : '关闭后仍保留历史，但不再主动生成。'}
+            title={t('spontaneous.overview.enabled.title')}
+            description={preferences.enabled ? t('spontaneous.overview.enabled.descriptionOn') : t('spontaneous.overview.enabled.descriptionOff')}
             action={<Switch checked={preferences.enabled} onCheckedChange={(checked) => void updatePreferences({ enabled: checked })} />}
           />
-          <SettingItem title="最近一次说出" description={latestSpoken ? `${formatRelativeTime(latestSpoken.timestamp)} · ${latestSpoken.text || '无文案'}` : '还没有可展示的主动发言记录'} />
+          <SettingItem
+            title={t('spontaneous.overview.latestSpoken.title')}
+            description={
+              latestSpoken ? `${formatRelativeTime(latestSpoken.timestamp)} · ${latestSpoken.text || t('spontaneous.overview.latestSpoken.noText')}` : t('spontaneous.overview.latestSpoken.empty')
+            }
+          />
         </SettingGroup>
 
-        <SettingGroup title="频率控制">
+        <SettingGroup title={t('spontaneous.frequency.title')}>
           <div className="space-y-4 px-4 py-3">
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm">
-                <span className="font-medium text-foreground">冷却时间</span>
-                <span className="text-muted-foreground">{preferences.cooldownMinutes} 分钟</span>
+                <span className="font-medium text-foreground">{t('spontaneous.frequency.cooldown.label')}</span>
+                <span className="text-muted-foreground">{t('spontaneous.frequency.cooldown.value', { count: preferences.cooldownMinutes })}</span>
               </div>
               <Slider value={[preferences.cooldownMinutes]} min={5} max={120} step={5} onValueChange={([value]) => void updatePreferences({ cooldownMinutes: value })} />
-              <p className="text-xs text-muted-foreground">两次 AI 主动发言之间至少间隔多久。</p>
+              <p className="text-xs text-muted-foreground">{t('spontaneous.frequency.cooldown.description')}</p>
             </div>
 
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm">
-                <span className="font-medium text-foreground">每日上限</span>
-                <span className="text-muted-foreground">{preferences.dailyLimit} 次</span>
+                <span className="font-medium text-foreground">{t('spontaneous.frequency.dailyLimit.label')}</span>
+                <span className="text-muted-foreground">{t('spontaneous.frequency.dailyLimit.value', { count: preferences.dailyLimit })}</span>
               </div>
               <Slider value={[preferences.dailyLimit]} min={1} max={16} step={1} onValueChange={([value]) => void updatePreferences({ dailyLimit: value })} />
-              <p className="text-xs text-muted-foreground">避免高活跃场景下过于频繁地打扰你。</p>
+              <p className="text-xs text-muted-foreground">{t('spontaneous.frequency.dailyLimit.description')}</p>
             </div>
           </div>
         </SettingGroup>
 
-        <SettingGroup title="风格偏好">
+        <SettingGroup title={t('spontaneous.tone.title')}>
           <div className="space-y-2 px-4 py-3">
-            <label className="text-sm font-medium text-foreground">偏好语气</label>
+            <label className="text-sm font-medium text-foreground">{t('spontaneous.tone.label')}</label>
             <Select value={preferences.preferredTone} onValueChange={(value) => void updatePreferences({ preferredTone: value as TonePreference })}>
               <SelectTrigger>
-                <SelectValue placeholder="选择语气" />
+                <SelectValue placeholder={t('spontaneous.tone.placeholder')} />
               </SelectTrigger>
               <SelectContent>
                 {TONE_OPTIONS.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
-                    {option.label}
+                    {t(`spontaneous.tone.options.${option.value}`)}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">只作为偏好倾向。上下文更强时，仍会优先贴合当前状态。</p>
+            <p className="text-xs text-muted-foreground">{t('spontaneous.tone.description')}</p>
           </div>
         </SettingGroup>
 
-        <SettingGroup title="允许类别">
+        <SettingGroup title={t('spontaneous.intents.title')}>
           <div className="space-y-3 px-4 py-3">
             {INTENT_OPTIONS.map((option) => (
               <label key={option.value} className="flex items-start gap-3">
                 <Checkbox checked={allowedSet.has(option.value)} onCheckedChange={(checked) => handleToggleIntent(option.value, checked)} className="mt-0.5" />
                 <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium text-foreground">{option.label}</div>
-                  <div className="text-xs text-muted-foreground">{option.description}</div>
+                  <div className="text-sm font-medium text-foreground">{t(`spontaneous.intents.options.${option.value}.label`)}</div>
+                  <div className="text-xs text-muted-foreground">{t(`spontaneous.intents.options.${option.value}.description`)}</div>
                 </div>
               </label>
             ))}
-            <p className="text-xs text-muted-foreground">至少保留一个类别，避免精灵失去可生成范围。</p>
+            <p className="text-xs text-muted-foreground">{t('spontaneous.intents.hint')}</p>
           </div>
         </SettingGroup>
       </TabsContent>
 
       <TabsContent value="history" className="space-y-4">
-        <SettingGroup title="查询">
+        <SettingGroup title={t('spontaneous.history.query.title')}>
           <div className="space-y-3 px-4 py-3">
             <div className="flex flex-col gap-3 md:flex-row">
-              <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索文案、原因、动作..." className="flex-1" />
+              <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t('spontaneous.history.query.placeholder')} className="flex-1" />
               <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as HistoryStatus | 'all')}>
                 <SelectTrigger className="md:w-40">
-                  <SelectValue placeholder="状态" />
+                  <SelectValue placeholder={t('spontaneous.history.query.statusPlaceholder')} />
                 </SelectTrigger>
                 <SelectContent>
                   {STATUS_OPTIONS.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
-                      {option.label}
+                      {t(`spontaneous.history.status.${option.value}`)}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               <Select value={intentFilter} onValueChange={(value) => setIntentFilter(value as IntentCategory | 'all')}>
                 <SelectTrigger className="md:w-40">
-                  <SelectValue placeholder="类别" />
+                  <SelectValue placeholder={t('spontaneous.history.query.intentPlaceholder')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">全部类别</SelectItem>
+                  <SelectItem value="all">{t('spontaneous.history.query.allIntents')}</SelectItem>
                   {INTENT_OPTIONS.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
-                      {option.label}
+                      {t(`spontaneous.intents.options.${option.value}.label`)}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               <Button variant="outline" onClick={() => void loadHistory()}>
                 <TbRefresh className={cn('h-4 w-4', isHistoryLoading && 'animate-spin')} />
-                刷新
+                {t('spontaneous.history.query.refresh')}
               </Button>
             </div>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <TbClock className="h-3.5 w-3.5" />
-              最近展示 {history.length} 条记录，包含已说出、跳过和失败事件。
+              {t('spontaneous.history.count', { count: history.length })}
             </div>
           </div>
         </SettingGroup>
 
-        <SettingGroup title="记录">
+        <SettingGroup title={t('spontaneous.history.records.title')}>
           <ScrollArea className="h-[480px]">
             <div className="space-y-3 p-3">
               {isHistoryLoading ? (
-                <div className="py-10 text-center text-sm text-muted-foreground">加载历史中...</div>
+                <div className="py-10 text-center text-sm text-muted-foreground">{t('spontaneous.history.loading')}</div>
               ) : history.length === 0 ? (
-                <div className="py-10 text-center text-sm text-muted-foreground">当前筛选条件下还没有主动发言记录。</div>
+                <div className="py-10 text-center text-sm text-muted-foreground">{t('spontaneous.history.empty')}</div>
               ) : (
                 history.map((item) => <HistoryCard key={`${item.utteranceId || 'entry'}-${item.timestamp}-${item.status}`} item={item} />)
               )}

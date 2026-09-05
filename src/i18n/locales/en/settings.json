@@ -1,0 +1,309 @@
+{
+  "title": "Settings",
+  "nav": {
+    "preferences": {
+      "label": "Preferences",
+      "description": "Theme, appearance and folder settings"
+    },
+    "ai": {
+      "label": "Conversation",
+      "description": "AI providers, API keys, and conversation parameters"
+    },
+    "prompt": {
+      "label": "Prompts",
+      "description": "Manage and configure prompts"
+    },
+    "features": {
+      "label": "Features",
+      "description": "Enable or disable optional features"
+    },
+    "plugins": {
+      "label": "Plugins",
+      "description": "Manage local engine and model plugins"
+    },
+    "shortcuts": {
+      "label": "Shortcuts",
+      "description": "Global shortcut settings"
+    },
+    "proxy": {
+      "label": "Proxy",
+      "description": "Configure a network proxy to access restricted resources"
+    },
+    "extensions": {
+      "label": "Extensions",
+      "description": "Character packs and sprite capabilities"
+    },
+    "spriteManager": {
+      "label": "Sprite Management",
+      "description": "Manage desktop sprite animation resources, import and debug actions"
+    }
+  },
+  "appearance": {
+    "groupTitle": "Appearance",
+    "theme": {
+      "label": "Theme",
+      "description": "Switch the interface color mode, or follow the system automatically",
+      "switching": "Switching...",
+      "options": {
+        "system": "System",
+        "light": "Light",
+        "dark": "Dark"
+      }
+    }
+  },
+  "language": {
+    "groupTitle": "Language",
+    "label": "Interface language",
+    "description": "Switch the interface language, or follow the system setting",
+    "updateFailed": "Failed to update language setting",
+    "options": {
+      "system": "System",
+      "zh-CN": "简体中文",
+      "ja": "日本語",
+      "en": "English"
+    }
+  },
+  "launch": {
+    "groupTitle": "Startup",
+    "launchAtLogin": {
+      "label": "Launch at login",
+      "description": "Launch Chobits automatically after logging in",
+      "updateFailed": "Failed to update launch at login"
+    }
+  },
+  "features": {
+    "groupTitle": "Feature Flags",
+    "restartHint": "Disabled features hide their entry points and stop related background services; restart the app for changes to fully take effect.",
+    "items": {
+      "localAI": {
+        "label": "Local AI Inference",
+        "description": "Local speech recognition (sherpa); works offline but uses more disk and memory"
+      }
+    },
+    "toast": {
+      "updateFailed": "Failed to update feature flag"
+    }
+  },
+  "folder": {
+    "groupTitle": "Folders",
+    "open": "Open",
+    "select": "Choose",
+    "moving": "Moving",
+    "moveCompleted": "Move completed",
+    "movingFile": "Moving: {{file}}",
+    "movingFiles": "Moving files...",
+    "dataDir": {
+      "label": "Data Directory",
+      "description": "Where app data is stored"
+    },
+    "logsDir": {
+      "label": "Logs Directory",
+      "description": "Where app log files are stored"
+    },
+    "downloadDir": {
+      "label": "Download Directory",
+      "description": "Where downloaded files are saved"
+    },
+    "pluginsDir": {
+      "label": "Plugin Resources Directory",
+      "description": "Where plugin engines and model files are stored"
+    }
+  },
+  "preview": {
+    "groupTitle": "Preview",
+    "switching": "Switching...",
+    "mode": {
+      "label": "Preview Mode",
+      "description": "Choose how resource previews are displayed"
+    },
+    "options": {
+      "window": "Standalone Window",
+      "panel": "Side Panel"
+    }
+  },
+  "prompt": {
+    "searchPlaceholder": "Search...",
+    "noTemplates": "No templates yet",
+    "noResults": "No matching results",
+    "noSelection": "No template selected",
+    "reset": "Reset",
+    "editorPlaceholder": "Edit template content...",
+    "selectFirst": "Select or create a template first",
+    "createTitle": "New Template",
+    "deleteConfirm": "Delete this template?",
+    "dialog": {
+      "createTitle": "New Template",
+      "editTitle": "Edit Template",
+      "nameRequired": "Name is required",
+      "nameLabel": "Name",
+      "namePlaceholder": "Template name",
+      "contentLabel": "Content",
+      "contentPlaceholder": "Template content"
+    }
+  },
+  "proxy": {
+    "mode": {
+      "groupTitle": "Proxy Mode",
+      "label": "Proxy Type",
+      "description": "Choose a network proxy mode",
+      "options": {
+        "none": "Off",
+        "system": "System",
+        "custom": "Custom"
+      }
+    },
+    "systemInfo": {
+      "label": "System Proxy",
+      "notDetected": "No system proxy detected"
+    },
+    "refresh": "Refresh",
+    "custom": {
+      "groupTitle": "Custom Proxies",
+      "empty": "No proxy configured",
+      "add": "Add Proxy",
+      "enabled": "Enabled",
+      "enable": "Enable"
+    },
+    "test": {
+      "groupTitle": "Network Test",
+      "label": "Test Proxy Connection",
+      "description": "Check whether the current proxy configuration works",
+      "testing": "Testing...",
+      "button": "Test",
+      "failed": "Test failed",
+      "connected": "Connected, latency: {{latency}}ms",
+      "connectFailed": "Unable to connect to the proxy server"
+    },
+    "toast": {
+      "loadFailed": {
+        "title": "Load Failed",
+        "description": "Unable to load proxy configuration"
+      },
+      "setSuccess": {
+        "title": "Saved",
+        "description": "Proxy configuration updated"
+      },
+      "setFailed": {
+        "title": "Update Failed",
+        "description": "Unable to update proxy configuration"
+      },
+      "addSuccess": {
+        "title": "Added",
+        "description": "New proxy configuration added"
+      },
+      "addFailed": {
+        "title": "Add Failed",
+        "description": "Unable to add proxy configuration"
+      },
+      "updateSuccess": {
+        "title": "Updated",
+        "description": "Proxy configuration updated"
+      },
+      "updateFailed": {
+        "title": "Update Failed",
+        "description": "Unable to update proxy configuration"
+      },
+      "removeSuccess": {
+        "title": "Deleted",
+        "description": "Proxy configuration deleted"
+      },
+      "removeFailed": {
+        "title": "Delete Failed",
+        "description": "Unable to delete proxy configuration"
+      }
+    }
+  },
+  "shortcuts": {
+    "groupTitle": "Keyboard Shortcuts",
+    "multiHint": "Separate multiple shortcuts with commas",
+    "actions": {
+      "toggleChatWindow": "Toggle AI Chat Panel",
+      "toggleDevtools": "Toggle DevTools",
+      "toggleMainWindow": "Show/Hide Main Window"
+    },
+    "restoreDefaults": "Restore Defaults",
+    "saving": "Saving...",
+    "save": "Save",
+    "toast": {
+      "restored": "Default shortcuts restored",
+      "restoreFailed": "Failed to restore defaults",
+      "saved": "Shortcuts saved",
+      "saveFailed": "Save failed",
+      "invalidList": "The following shortcuts are unavailable:\n{{failures}}",
+      "invalid": "Some shortcuts are unavailable. Please fix them and try again."
+    }
+  },
+  "backup": {
+    "groupTitle": "Database Backup",
+    "create": {
+      "label": "Create Backup",
+      "description": "Save the current database as a backup file; backups are stored in the backups folder of the data directory"
+    },
+    "import": "Import",
+    "importing": "Importing...",
+    "backupNow": "Back Up Now",
+    "backingUp": "Backing up...",
+    "listTitle": "Backups ({{count}})",
+    "restoreTooltip": "Restore this backup",
+    "delete": "Delete",
+    "fileFilter": "SQLite Database",
+    "deleteDialog": {
+      "title": "Delete Backup",
+      "description": "This backup file will be permanently deleted. This action cannot be undone.",
+      "confirm": "Confirm Delete",
+      "deleting": "Deleting..."
+    },
+    "restoreDialog": {
+      "title": "Restore Database Backup",
+      "description": "The current database will be replaced with this backup and renamed to a .old file. Restart the app after restoring.",
+      "confirm": "Confirm Restore",
+      "restoring": "Restoring..."
+    },
+    "restartDialog": {
+      "title": "Restore Completed",
+      "description": "The database was restored successfully. Restart the app to load the new database.",
+      "later": "Restart Later",
+      "now": "Restart Now"
+    }
+  },
+  "update": {
+    "groupTitle": "Updates",
+    "check": {
+      "label": "Check for Updates",
+      "description": "New versions are downloaded automatically in the background and installed after restarting the app",
+      "checking": "Checking…",
+      "button": "Check for Updates"
+    },
+    "toast": {
+      "failed": {
+        "title": "Update Check Failed",
+        "description": "Please try again later, or check the logs for details"
+      },
+      "available": {
+        "title": "New Version {{version}} Found",
+        "description": "Downloading in the background; restart the app to install once the download completes"
+      },
+      "downloaded": {
+        "title": "Version {{version}} Downloaded",
+        "description": "It will be installed automatically after restarting the app"
+      },
+      "latest": "You're on the latest version",
+      "devUnsupported": {
+        "title": "Auto-update is not supported in development builds",
+        "description": "Update checks are only available in production builds"
+      },
+      "checking": "Checking for updates, please try again later"
+    }
+  },
+  "common": {
+    "notSet": "Not set",
+    "loading": "Loading...",
+    "save": "Save",
+    "cancel": "Cancel",
+    "create": "Create"
+  },
+  "unavailable": {
+    "title": "Page unavailable",
+    "description": "This page is not available in the current context"
+  }
+}

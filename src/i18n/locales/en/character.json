@@ -1,0 +1,324 @@
+{
+  "capability": {
+    "locked": "{{name}} is not unlocked yet"
+  },
+  "trust": {
+    "level": {
+      "signatureDeclared": "Signature declared",
+      "publisherDeclared": "Publisher declared",
+      "undeclared": "Source undeclared"
+    },
+    "verification": {
+      "builtinBundled": "Bundled with app",
+      "signatureVerified": "Signature verified",
+      "signatureMismatch": "Signature verification failed",
+      "signatureUntrusted": "Signature untrusted",
+      "digestVerified": "Digest verified",
+      "digestMismatch": "Digest mismatch",
+      "declaredUnverified": "Not verified"
+    },
+    "signature": {
+      "verified": "Signature verified",
+      "mismatch": "Signature verification failed",
+      "untrusted": "Signature untrusted",
+      "unchecked": "Signature not verified",
+      "declared": "Signature declared",
+      "declaredValue": "Signature value declared",
+      "algorithm": "Algorithm {{value}}",
+      "keyId": "Key {{value}}",
+      "digest": "Digest {{value}}"
+    },
+    "digest": {
+      "verified": "Digest verified",
+      "mismatch": "Digest mismatch",
+      "unchecked": "Digest not verified"
+    },
+    "link": {
+      "homepage": "Homepage",
+      "repository": "Repository",
+      "support": "Support",
+      "canonical": "Canonical"
+    },
+    "publisher": "Publisher: {{name}}",
+    "channel": "Channel: {{name}}"
+  },
+  "metadata": {
+    "formatVersion": "format v{{version}}",
+    "minAppVersion": "App >= {{version}}",
+    "platform": "Platform: {{platforms}}",
+    "languages": "Languages: {{languages}}",
+    "voice": "Voice",
+    "customAnimations": "Custom animations",
+    "model3d": "3D"
+  },
+  "pack": {
+    "source": {
+      "builtin": "Built-in",
+      "installed": "Installed"
+    },
+    "action": {
+      "create": "Create",
+      "import": "Import",
+      "current": "In use",
+      "activate": "Switch",
+      "open": "Open",
+      "export": "Export",
+      "edit": "Edit",
+      "remove": "Delete"
+    },
+    "listTitle": "Discovered character packs",
+    "empty": "No character packs available yet.",
+    "noPreview": "No preview",
+    "fallbackName": "Character pack",
+    "exportDialogTitle": "Export character pack",
+    "actionError": "{{prefix}}: {{message}}",
+    "toast": {
+      "loadFailed": "Failed to load character packs",
+      "switched": "Switched to {{name}}",
+      "activateFailed": "Failed to activate character pack",
+      "activateFailedWithName": "Failed to activate character pack: {{name}}",
+      "inspectFailed": "Failed to read character pack info",
+      "importFailed": "Failed to import character pack",
+      "importFailedWithPath": "Failed to import character pack: {{path}}",
+      "importedAndActivated": "{{name}} imported and switched",
+      "imported": "{{name}} imported",
+      "exportFailed": "Failed to export character pack",
+      "exportFailedWithName": "Failed to export character pack: {{name}}",
+      "exported": "{{name}} exported as zip",
+      "removeFailed": "Failed to remove character pack",
+      "removeFailedWithName": "Failed to remove character pack: {{name}}",
+      "removedAndSwitched": "Removed {{name}}; switched back to {{activeName}}",
+      "removed": "Removed {{name}}",
+      "draftLoadFailed": "Failed to load character pack draft"
+    },
+    "import": {
+      "titleInstall": "Install character pack",
+      "titleReplace": "Replace installed character pack?",
+      "titleBlocked": "Character pack cannot be installed yet",
+      "descriptionInstall": "About to import character pack {{name}}. It will be written to the local character pack directory after confirmation.",
+      "descriptionReplace": "An installed character pack with the same ID was found: {{name}}. Continuing will overwrite the installed content; if the current runtime is using this pack, it will also be refreshed.",
+      "descriptionBlocked": "Character pack {{name}} was read, but the current environment does not meet the installation requirements. Review the blocking reasons below before deciding whether to upgrade the app or adjust the pack format.",
+      "trustTitle": "Source & trust",
+      "trustSummary": "Trust summary: {{summary}}",
+      "signatureDeclaration": "Signature declaration: {{summary}}",
+      "sourcePath": "Source: {{path}}",
+      "activePack": "Current character pack: {{name}}",
+      "existingConflict": "Installed conflict: {{name}} ({{source}})",
+      "willReplaceActiveNote": "This character pack is currently in use; the current runtime will refresh immediately after replacement.",
+      "compatibilityTitle": "Compatibility check",
+      "formatVersion": "Pack Format: v{{packVersion}} / supported up to v{{supportedVersion}}",
+      "appVersionWithMin": "App version: {{version}} / pack requires >= {{minVersion}}",
+      "appVersionNoMin": "App version: {{version}} / pack declares no minimum version",
+      "platformDeclared": "Platform: {{platform}} / pack declares {{packPlatforms}}",
+      "platformUnrestricted": "Platform: {{platform}} / pack does not restrict platforms",
+      "supportedLanguages": "Supported languages: {{languages}}",
+      "blockedTitle": "Cannot install now",
+      "warningsTitle": "Import warnings",
+      "activateAfterInstall": "Switch right after install",
+      "activateBlockedHint": "This character pack has not passed installation checks and cannot be switched to yet.",
+      "activateReplacedHint": "The current character pack stays active after replacement; no extra switch is needed.",
+      "activateHint": "When enabled, the app switches to this character pack as soon as installation finishes.",
+      "confirmInstall": "Confirm install",
+      "confirmReplace": "Confirm replace"
+    },
+    "remove": {
+      "title": "Delete character pack",
+      "descriptionActive": "{{name}} is currently in use. The app will switch back to another available character pack before removing this installation.",
+      "description": "The installation directory of {{name}} will be removed locally.",
+      "confirm": "Confirm deletion"
+    }
+  },
+  "gallery": {
+    "kind": {
+      "pose": "Pose",
+      "action": "Action",
+      "expression": "Expression",
+      "prop": "Prop",
+      "outfit": "Outfit",
+      "reference": "Reference",
+      "background": "Background",
+      "custom": "Custom"
+    },
+    "view": {
+      "front": "Front",
+      "back": "Back",
+      "left": "Left",
+      "right": "Right",
+      "threeQuarterLeft": "Three-quarter left",
+      "threeQuarterRight": "Three-quarter right",
+      "top": "Top",
+      "bottom": "Bottom",
+      "custom": "Custom angle"
+    },
+    "referenceRole": {
+      "character": "Character consistency",
+      "pose": "Pose reference",
+      "style": "Style reference",
+      "prop": "Prop reference",
+      "background": "Background reference",
+      "storyboard": "Storyboard reference",
+      "custom": "Custom"
+    },
+    "builtinLockedTitle": "Built-in character packs must be saved as a local copy before editing the gallery",
+    "lockedHint": "The character gallery is part of character pack asset management. Before unlocking, you can view but not import, edit, replace, or delete images.",
+    "title": "Character reference gallery",
+    "itemCount": "{{name}} · {{count}} images",
+    "loading": "Loading character pack gallery...",
+    "loadingItems": "Loading...",
+    "searchPlaceholder": "Search name, action, angle, tags",
+    "builtinNotice": "This is a built-in character pack; the gallery is preview-only. Save it as a local custom character pack to import, replace, and edit images.",
+    "empty": "No images in the gallery yet. Click \"Import image\" to add one.",
+    "notSet": "Not set",
+    "action": {
+      "import": "Import image",
+      "refresh": "Refresh gallery",
+      "prev": "Previous",
+      "next": "Next",
+      "editMetadata": "Metadata",
+      "replaceImage": "Replace",
+      "removeImage": "Delete image",
+      "saving": "Saving..."
+    },
+    "detail": {
+      "kind": "Kind: {{value}}",
+      "view": "Angle: {{value}}",
+      "action": "Action: {{value}}",
+      "emotion": "Emotion: {{value}}",
+      "reference": "Reference: {{value}}",
+      "strength": "Strength: {{value}}",
+      "tags": "Tags: {{tags}}"
+    },
+    "dialog": {
+      "addTitle": "Add gallery image",
+      "editTitle": "Edit gallery image"
+    },
+    "field": {
+      "name": "Name",
+      "kind": "Kind",
+      "action": "Action",
+      "view": "Angle",
+      "emotion": "Emotion",
+      "propName": "Prop name",
+      "description": "Description",
+      "tags": "Tags",
+      "tagsPlaceholder": "Separate multiple tags with commas or newlines",
+      "referenceRole": "AI reference role",
+      "referenceStrength": "Reference strength",
+      "promptHint": "AI prompt hint",
+      "negativePrompt": "Negative prompt"
+    },
+    "toast": {
+      "loadFailed": "Failed to load character gallery",
+      "builtinReadonly": "Built-in character packs cannot be edited directly",
+      "builtinReadonlyDescription": "Save it as a local custom character pack in the character profile first, then manage the character gallery.",
+      "titleRequired": "The gallery item needs a name",
+      "missingFile": "Missing image file to import",
+      "added": "Image added to the character gallery",
+      "saved": "Gallery item saved",
+      "saveFailed": "Failed to save gallery item",
+      "replaceFailed": "Failed to replace gallery image",
+      "replaced": "Gallery image replaced",
+      "removeFailed": "Failed to delete gallery item",
+      "removed": "Gallery item deleted"
+    }
+  },
+  "editor": {
+    "field": {
+      "packId": "Character pack ID",
+      "packName": "Character pack name",
+      "version": "Version",
+      "author": "Author",
+      "license": "License",
+      "platform": "Platform",
+      "packDescription": "Character pack description",
+      "tags": "Tags",
+      "characterId": "Character ID",
+      "characterName": "Character name",
+      "tagline": "Character tagline",
+      "aliases": "Aliases",
+      "background": "Character background",
+      "coreTraits": "Core traits",
+      "boundaries": "Behavior boundaries",
+      "speechTone": "Speech tone",
+      "language": "Language",
+      "firstPerson": "First person",
+      "addressUser": "Addressing the user",
+      "quirks": "Verbal tics and habits",
+      "metaDescription": "Character summary",
+      "metaTags": "Character tags"
+    },
+    "speechExamples": "Dialogue examples",
+    "addExample": "Add example",
+    "exampleSituationPlaceholder": "Situation",
+    "exampleResponsePlaceholder": "Response",
+    "messagesTitle": "Event lines",
+    "messagesHint": "One per line; a random line is picked. Placeholders like {count} and {progress} are supported.",
+    "progressTitle": "Progress announcements",
+    "progressHint": "Used for voice announcements while waiting on downloads, imports, transcription, and workflows.",
+    "activateAfterSave": "Switch right after saving",
+    "activateAfterSaveHint": "Refreshes the current character persona, capability states, and animation assets.",
+    "action": {
+      "save": "Save character pack"
+    },
+    "titleEdit": "Edit character pack",
+    "titleCreate": "Create custom character pack",
+    "descriptionEdit": "Saving updates the local character pack directory.",
+    "descriptionBuiltinCopy": "Built-in character packs are saved as a locally editable version, and animations will use a new standalone animation pack. Source: {{name}}",
+    "descriptionBasedOn": "Creates a character based on {{name}}; animations will use a new standalone animation pack.",
+    "descriptionCreate": "Saving writes to the local character pack directory.",
+    "validation": {
+      "packIdInvalid": "Character pack ID may only contain lowercase letters, digits, dots, hyphens, or underscores.",
+      "packNameRequired": "Character pack name is required.",
+      "versionRequired": "Version is required.",
+      "authorRequired": "Author is required.",
+      "characterIdInvalid": "Character ID may only contain lowercase letters, digits, dots, hyphens, or underscores.",
+      "characterNameRequired": "Character name is required.",
+      "taglineRequired": "Character tagline is required.",
+      "backgroundRequired": "Character background is required.",
+      "speechToneRequired": "Speech tone is required."
+    },
+    "error": {
+      "draftLoadFailed": "Failed to load character pack draft: {{name}}",
+      "idConflict": "A local character pack with the same ID already exists. Please choose a different character pack ID.",
+      "saveFailed": "Failed to save character pack"
+    },
+    "defaults": {
+      "customVersionName": "{{name}} (Custom)",
+      "seedName": "My custom character",
+      "packDescription": "Locally created custom character pack",
+      "tagline": "My desktop companion",
+      "background": "You are a smart sprite living on the user's desktop, accompanying them in work, study, and daily life.",
+      "coreTraitWarm": "Warm and sincere",
+      "coreTraitResponsible": "Conscientious and responsible",
+      "coreTraitPersonality": "A little personality of its own",
+      "boundaryHonest": "Help honestly without putting on an act.",
+      "boundaryNatural": "Speak naturally, like a person.",
+      "boundarySolve": "Try to solve problems first; ask the user only when truly stuck.",
+      "speechTone": "Gentle, natural, slightly lively",
+      "firstPerson": "I",
+      "addressUser": "you",
+      "quirkTone": "Occasionally replies in a cheerful tone",
+      "quirkConfirm": "Briefly confirms the result after completing a task",
+      "exampleGreetingSituation": "Greeting",
+      "exampleGreetingResponse": "Hi, what would you like to do today?",
+      "exampleTaskSituation": "Task completed",
+      "exampleTaskResponse": "Done.",
+      "metaDescription": "Locally created custom character"
+    },
+    "toast": {
+      "saved": "{{name}} saved",
+      "savedAndActivated": "{{name}} saved and switched"
+    }
+  },
+  "editorWindow": {
+    "fallbackTitle": "Character pack editor",
+    "loading": "Loading character pack...",
+    "empty": "No character pack to edit.",
+    "tabProfile": "Character profile",
+    "tabGallery": "Character gallery",
+    "tabAnimations": "Sprite animations",
+    "close": "Close",
+    "errorNotFound": "The character pack to edit was not found.",
+    "loadFailed": "Failed to load the character pack editor"
+  }
+}

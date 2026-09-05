@@ -1,0 +1,208 @@
+{
+  "conversation": {
+    "untitled": "無題の会話",
+    "newChat": "新しいチャット",
+    "recent": "最近の会話",
+    "loading": "読み込み中…",
+    "empty": "会話はまだありません。「新しいチャット」をクリックして開始してください",
+    "messagesCount": "{{count}} 件のメッセージ",
+    "refreshList": "リストを更新",
+    "collapseHistory": "履歴を折りたたむ",
+    "expandHistory": "履歴を展開"
+  },
+  "menu": {
+    "share": "会話を共有",
+    "pin": "ピン留め",
+    "unpin": "ピン留めを解除",
+    "rename": "名前を変更",
+    "delete": "削除"
+  },
+  "toast": {
+    "deleted": "会話を削除しました",
+    "deleteFailed": "削除に失敗しました",
+    "titleCopied": "会話のタイトルをコピーしました",
+    "pinned": "会話をピン留めしました",
+    "unpinned": "ピン留めを解除しました",
+    "noUsablePreset": "現在のプロバイダーに利用可能なプリセットがありません。AI 設定で設定を完了してください",
+    "noChatModel": "現在のプロバイダーに利用可能なチャットモデルがありません",
+    "openChatWindowFailed": "チャットウィンドウを開けませんでした",
+    "debugOverlayEnabled": "デバッグ枠線をオンにしました",
+    "debugOverlayDisabled": "デバッグ枠線をオフにしました",
+    "debugOverlayToggleFailed": "デバッグ枠線の切り替えに失敗しました"
+  },
+  "stream": {
+    "errorInline": "\n[エラー] {{message}}",
+    "thinking": "考え中..."
+  },
+  "emptyStart": {
+    "greeting": "今日は何をお手伝いしましょうか？"
+  },
+  "usage": {
+    "conversationTotal": "会話合計",
+    "currentRound": "このターン"
+  },
+  "scroll": {
+    "toBottom": "一番下へスクロール"
+  },
+  "renameDialog": {
+    "title": "会話名を変更",
+    "confirm": "OK"
+  },
+  "deleteDialog": {
+    "title": "会話を削除",
+    "description": "この会話を削除しますか？この操作は取り消せません。"
+  },
+  "panel": {
+    "placeholders": {
+      "askQuestion": "質問を入力して会話を開始。ウェブ検索も有効にできます",
+      "summarizeText": "テキストを貼り付けると要点をまとめます",
+      "translateToEnglish": "この中国語を英語に翻訳して",
+      "tsComponentExample": "TypeScript の関数コンポーネントの例を書いて",
+      "analyzeWebpage": "このウェブページを分析して要約を出力して",
+      "skillCommand": "/ で始まるコマンドでスキルをすばやく呼び出せます"
+    },
+    "miniPlaceholder": "何か聞いてみる..."
+  },
+  "spriteMenu": {
+    "quit": "終了",
+    "status": "ステータス",
+    "voiceService": "音声サービス",
+    "asrTest": "ASR テスト",
+    "ttsConfig": "TTS 設定",
+    "chat": "チャット",
+    "settings": "設定",
+    "debugTest": "デバッグテスト",
+    "debugOverlay": "デバッグ枠線",
+    "debugOverlayOff": "枠線をオフ",
+    "bubbleTop": "上部バブル",
+    "bubbleInline": "インラインバブル"
+  },
+  "components": {
+    "toolCall": {
+      "emojiFallbackTitle": "スタンプ",
+      "sendingEmoji": "スタンプを送信中...",
+      "emojiSendFailed": "スタンプの送信に失敗しました",
+      "emojiSent": "スタンプを送信しました",
+      "noDisplayableEmoji": "表示できるスタンプが見つかりません",
+      "preparingOptions": "選択肢を準備中...",
+      "executing": "{{name}} を実行中",
+      "backgroundHint": "待ちたくない場合は、バックグラウンド実行に切り替えられます。",
+      "switchingToBackground": "バックグラウンドに切り替え中...",
+      "runInBackground": "バックグラウンドで実行",
+      "backgroundSubmittedNote": "現在の待機はまもなく終了し、タスクはバックグラウンドで継続します。",
+      "backgroundWaitingNote": "待機中も進捗とステータスはリアルタイムで更新されます。",
+      "completed": "{{name}} 完了",
+      "runningInBackground": "{{name}} バックグラウンド実行中",
+      "argsLabel": "パラメータ",
+      "resultLabel": "結果",
+      "copy": "{{label}}をコピー",
+      "copied": "{{label}}をコピーしました",
+      "copyUnsupported": "現在の環境ではコピーできません"
+    },
+    "speechInput": {
+      "recognizing": "認識中...",
+      "holdTooShort": "長押し時間が短すぎるため送信されませんでした",
+      "serviceNotRunning": "先に音声認識サービスを起動してください",
+      "configReadFailed": "音声認識設定の読み込みに失敗しました",
+      "cloudConfigIncomplete": "クラウド音声認識の設定が不完全です",
+      "micPermissionDenied": "マイクへのアクセスが拒否されました。マイクの使用を許可してください",
+      "micNotFound": "マイクが検出されません",
+      "micBusy": "マイクは他のアプリに使用されています",
+      "startFailed": "音声入力の開始に失敗しました"
+    },
+    "choiceCard": {
+      "multipleHint": "複数選択 — 複数選択できます",
+      "singleHint": "単一選択 — 1つ選択してください",
+      "prevQuestion": "前の質問",
+      "nextQuestion": "次の質問",
+      "submit": "送信を確定"
+    },
+    "messageRenderer": {
+      "imageAlt": "画像"
+    },
+    "input": {
+      "modelSelectPlaceholder": "モデルを選択",
+      "coderWorkspaceRequired": "コードアシスタントは先にプロジェクトフォルダを選択してください",
+      "argumentHintLabel": "パラメータヒント: {{hint}}",
+      "sourceLabel": "ソース: {{source}}",
+      "argumentHintBadge": "パラメータヒント",
+      "tabCompleteHint": "Tab で skill を補完できます",
+      "argumentHintTooltip": "skill 名の後にパラメータを入力してください。",
+      "characterInjected": "キャラクター注入済み",
+      "characterPromptTooltip": "人格を注入。好感度と気分が話し方に影響します",
+      "miniPlaceholder": "何か聞いてみる...",
+      "openingConversation": "会話を開いています",
+      "sendTooltip": "メッセージを送信",
+      "sendAriaLabel": "送信",
+      "shortcutHint": "Enter で送信、Shift+Enter で改行",
+      "stopAriaLabel": "停止",
+      "stopTooltip": "生成を停止",
+      "placeholderAsk": "質問を入力して会話を開始...",
+      "placeholderAnalyze": "文章を分析してもらう",
+      "placeholderTranslate": "この中国語を英語に翻訳して",
+      "placeholderCode": "コード例を書いて",
+      "placeholderChat": "おしゃべりしよう"
+    },
+    "skillPicker": {
+      "selectAriaLabel": "Skill を選択",
+      "tooltip": "Skill を選択するか、`/skill-name` を直接入力",
+      "searchPlaceholder": "skills を検索...",
+      "loading": "skills を読み込み中...",
+      "noMatch": "一致する skill がありません",
+      "heading": "利用可能なスキル",
+      "trust": {
+        "trusted": {
+          "label": "信頼済み",
+          "note": "ビルトインまたはユーザーのローカル skill ディレクトリから。"
+        },
+        "workspace": {
+          "label": "ワークスペース",
+          "note": "現在のリポジトリまたはワークスペースから。現在のプロジェクトコンテキストに合わせて使用してください。"
+        },
+        "plugin": {
+          "label": "プラグイン",
+          "note": "プラグイン拡張から。実行前にプラグインの提供元と想定される動作を確認してください。"
+        },
+        "compatibility": {
+          "label": "互換レイヤー",
+          "note": "旧 toolbox 互換ブリッジから。主に移行の過渡期向けです。"
+        }
+      }
+    },
+    "thinking": {
+      "inProgress": "思考中...",
+      "done": "思考完了"
+    },
+    "webSearch": {
+      "disable": "Web検索をオフ",
+      "enable": "Web検索をオン",
+      "enableTooltip": "Web検索をオン（DuckDuckGo、API Key 不要）"
+    },
+    "tokenUsage": {
+      "input": "入力 {{count}}",
+      "output": "出力 {{count}}",
+      "total": "合計 {{count}}"
+    },
+    "codingWorkspace": {
+      "selectProject": "プロジェクトを選択",
+      "pickDirectory": "プロジェクトフォルダを選択",
+      "clearDirectory": "プロジェクトフォルダをクリア"
+    },
+    "agentSelect": {
+      "placeholder": "モードを選択"
+    },
+    "aiSpeech": {
+      "enabledTooltip": "AI の発話はオンです。クリックでオフ",
+      "disabledTooltip": "AI の発話はオフです。クリックでオン",
+      "disableAriaLabel": "AI の発話をオフ",
+      "enableAriaLabel": "AI の発話をオン"
+    },
+    "speechButton": {
+      "releaseToCancel": "離してキャンセル",
+      "releaseToSend": "離して自動送信、左にスライドでキャンセル",
+      "holdToTalk": "長押しで話す",
+      "releaseToEndAriaLabel": "離して音声入力を終了",
+      "holdToStartAriaLabel": "長押しで音声入力を開始"
+    }
+  }
+}

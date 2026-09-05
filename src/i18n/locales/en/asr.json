@@ -1,0 +1,87 @@
+{
+  "tabs": {
+    "local": "Local recognition",
+    "cloud": "Cloud transcription"
+  },
+  "micPermission": {
+    "banner": "Speech recognition requires microphone access, which is not granted.",
+    "grant": "Grant microphone access",
+    "granted": "Microphone access granted",
+    "denied": "Microphone access denied. Please allow microphone access in system settings"
+  },
+  "scene": {
+    "meeting": {
+      "name": "Meeting",
+      "description": "For Chinese meetings; automatically recognizes Chinese speech"
+    },
+    "english-learning": {
+      "name": "English learning",
+      "description": "For English learning; automatically recognizes English speech"
+    },
+    "english": {
+      "name": "English",
+      "description": "For bilingual Chinese-English use; automatically recognizes mixed Chinese-English speech"
+    },
+    "chinese": {
+      "name": "CN-EN",
+      "description": "For bilingual Chinese-English use; automatically recognizes mixed Chinese-English speech"
+    },
+    "multilingual": {
+      "name": "Simplified & Traditional Chinese",
+      "description": "For multilingual use; supports recognition in multiple languages"
+    }
+  },
+  "advanced": {
+    "toggle": "Customize",
+    "model": "Model",
+    "selectModel": "Select a model",
+    "loading": "Loading...",
+    "streaming": "Streaming",
+    "noModels": "No models available",
+    "recommendedModels": "Recommended models",
+    "otherModels": "Other models",
+    "notInstalled": "(Not installed)",
+    "supportedLanguages": "Supported languages: {{languages}}",
+    "language": "Language",
+    "selectModelFirst": "Select a model first",
+    "selectLanguage": "Select a language",
+    "noLanguagesSpecified": "This model does not specify supported languages",
+    "punctuationModel": "Punctuation model",
+    "sceneRecommended": "Scene recommendation",
+    "noPunctuation": "Don't enable punctuation",
+    "punctuationDisabled": "No punctuation"
+  },
+  "cloud": {
+    "providerAndModel": "Provider & model",
+    "configure": "Configure",
+    "selectModelPlaceholder": "Select a cloud transcription model",
+    "selectModelHint": "Select a model that supports transcription before starting cloud transcription",
+    "capabilityNote": "Only AI providers and models that declare transcription capability are shown"
+  },
+  "action": {
+    "close": "Close",
+    "stopping": "Stopping...",
+    "stop": "Stop recognition",
+    "starting": "Starting...",
+    "start": "Start speech recognition"
+  },
+  "toast": {
+    "modelNotInstalled": "Model not installed. Use one-click install above first",
+    "punctuationNotInstalled": "Punctuation model not installed. Use one-click install above first"
+  },
+  "test": {
+    "title": "Speech recognition test",
+    "currentModel": "Current model: {{model}}",
+    "subtitle": "Speak into the microphone to verify recognition",
+    "openSettings": "Recognition service settings",
+    "serviceNotRunning": "Speech recognition service is not running. Start it on the config page first",
+    "openConfig": "Open config",
+    "listening": "Listening, please start speaking...",
+    "idleHint": "Click \"Start test\" below, then speak into the microphone",
+    "close": "Close",
+    "stop": "Stop",
+    "checking": "Checking...",
+    "startTest": "Start test",
+    "micAccessFailed": "Cannot access the microphone. Check system permissions"
+  }
+}

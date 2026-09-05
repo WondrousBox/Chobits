@@ -1,0 +1,402 @@
+{
+  "actions": {
+    "add": "Add",
+    "apply": "Apply",
+    "cancel": "Cancel",
+    "clear": "Clear",
+    "copy": "Copy",
+    "copied": "Copied",
+    "delete": "Delete",
+    "play": "Play",
+    "refresh": "Refresh",
+    "reset": "Reset",
+    "save": "Save",
+    "saving": "Saving…",
+    "stop": "Stop",
+    "test": "Test"
+  },
+  "form": {
+    "name": "Name",
+    "primaryTrigger": "Primary Trigger",
+    "triggerAliases": "Trigger Aliases",
+    "triggerAliasesPlaceholder": "Separate multiple triggers with commas or newlines",
+    "triggerAliasesPlaceholderWithExample": "Separate multiple triggers with commas or newlines, e.g. character:daily-login, sprite:anim-complete",
+    "priority": "Priority",
+    "width": "Width",
+    "height": "Height"
+  },
+  "displays": {
+    "current": "Current Display",
+    "main": "Main Window Display",
+    "primary": "Primary Display"
+  },
+  "animation": {
+    "categories": {
+      "entrance": "Entrance",
+      "exit": "Exit",
+      "emphasis": "Emphasis"
+    },
+    "presets": {
+      "fly-in": "Fly In",
+      "fade-in": "Fade In",
+      "zoom-in": "Zoom In",
+      "fly-out": "Fly Out",
+      "fade-out": "Fade Out",
+      "zoom-out": "Zoom Out",
+      "pulse": "Pulse",
+      "shake": "Shake"
+    },
+    "directions": {
+      "top": "Top",
+      "top-right": "Top Right",
+      "right": "Right",
+      "bottom-right": "Bottom Right",
+      "bottom": "Bottom",
+      "bottom-left": "Bottom Left",
+      "left": "Left",
+      "top-left": "Top Left"
+    },
+    "toast": {
+      "playStarted": "Window animation started playing",
+      "playFailed": "Failed to play window animation"
+    }
+  },
+  "manager": {
+    "capabilityHint": "While sprite asset management is locked, you can view and test existing animations, but cannot import, delete, or edit animation metadata.",
+    "capabilityLocked": "{{name}} is not unlocked yet",
+    "registeredCount": "Registered animations: {{count}}",
+    "searchPlaceholder": "Search (name / ID / category / tag)",
+    "defaultPlaylistMode": "Default playlist mode",
+    "playlistModes": {
+      "list-loop": "Loop List",
+      "list-once": "Play List Once"
+    },
+    "importVideo": "Import Video",
+    "importing": "Importing…",
+    "expandCategory": "Expand category",
+    "collapseCategory": "Collapse category",
+    "categoryPlaylistMode": "{{name}} playlist mode",
+    "triggerCategory": "Trigger {{name}} event: play animation + show bubble",
+    "testPlay": "Test play: preview this animation on the desktop sprite",
+    "setTrigger": "Set trigger",
+    "editProperties": "Edit this sprite's properties",
+    "previewHover": "Hover to preview",
+    "noResults": "No matching results"
+  },
+  "configEditor": {
+    "title": "Edit Sprite Properties",
+    "capabilityHint": "While sprite asset management is locked, you can view existing animations, but cannot save sprite properties.",
+    "windowPadding": "Window Padding",
+    "loop": {
+      "label": "Loop Playback",
+      "description": "Only changes playback config; the video is not re-trimmed",
+      "options": {
+        "none": "No Loop",
+        "finite": "Loop N Times",
+        "infinite": "Loop Forever"
+      }
+    },
+    "autoIdle": {
+      "label": "Return to Idle After Playing",
+      "description": "When off, the sprite stays at the animation's final state"
+    },
+    "movement": {
+      "label": "Window Motion While Playing",
+      "description": "Only changes window motion config; the video file is not modified",
+      "modeLabel": "Mode",
+      "modes": {
+        "direction": "Directional Move",
+        "walkTo": "Random Walk",
+        "windowAnimation": "Window Animation"
+      },
+      "preset": "Preset",
+      "direction": "Direction",
+      "directions": {
+        "left": "Left",
+        "right": "Right",
+        "up": "Up",
+        "down": "Down",
+        "up-left": "Up-Left",
+        "up-right": "Up-Right",
+        "down-left": "Down-Left",
+        "down-right": "Down-Right",
+        "random": "Random"
+      },
+      "duration": "Duration ms",
+      "speed": "Speed px/s",
+      "triggerLabel": "Trigger",
+      "triggers": {
+        "animation": "While Animation Plays",
+        "behavior": "Behavior Schedule"
+      }
+    },
+    "saveProperties": "Save Properties",
+    "toast": {
+      "saveFailed": "Failed to save sprite properties",
+      "saved": "Sprite properties saved"
+    }
+  },
+  "conditionBuilder": {
+    "title": "Visual Builder",
+    "description": "Nested groups and NOT conditions are now supported; schemas with `in/notIn` or other special forms still fall back to JSON.",
+    "status": {
+      "supported": "Builder Active",
+      "unsupported": "Complex rule, falling back to JSON"
+    },
+    "presetsTitle": "Common Character State Conditions",
+    "presets": {
+      "favor-high": "High Favor",
+      "favor-low": "Low Favor",
+      "mood-joyful": "When Joyful",
+      "bestie-joyful": "Bestie & Joyful",
+      "level-10": "Unlocks at Level 10",
+      "not-sleepy": "When Not Sleepy",
+      "bestie-or-joyful": "Bestie or Joyful"
+    },
+    "clearConditions": "Clear Conditions",
+    "nodeTypes": {
+      "compare": "Condition",
+      "group": "Group",
+      "not": "Negation"
+    },
+    "nodeTypeOptions": {
+      "compare": "Simple Condition",
+      "group": "Nested Group",
+      "not": "NOT Condition"
+    },
+    "removeNode": "Delete condition node",
+    "add": {
+      "compare": "Add Condition",
+      "group": "Add Group",
+      "not": "Add NOT"
+    },
+    "addRoot": {
+      "compare": "Add Root Condition",
+      "group": "Add Root Group",
+      "not": "Add Root NOT"
+    },
+    "groupMatch": "Group Match Mode",
+    "rootMatch": "Root Match Mode",
+    "rootMatchHint": "Applies when there are multiple root conditions; a single root node is automatically collapsed into that condition.",
+    "match": {
+      "all": "Match All (AND)",
+      "any": "Match Any (OR)"
+    },
+    "notDescription": "Negates the child condition — useful for rules like \"not in a certain mood / hasn't reached a stage\".",
+    "unsupportedHint": "The current rule uses a schema the builder doesn't cover yet. You can keep editing in JSON, or use the preset / builder buttons above to overwrite it with a more structured rule.",
+    "compareValuePlaceholder": "Enter comparison value",
+    "fields": {
+      "favor": {
+        "label": "Favor (favor)",
+        "placeholder": "e.g. 80"
+      },
+      "level": {
+        "label": "Level (level)",
+        "placeholder": "e.g. 10"
+      },
+      "mood": {
+        "label": "Mood (mood)"
+      },
+      "favorLevel": {
+        "label": "Favor Stage (favorLevel)"
+      },
+      "achievements": {
+        "label": "Achievements (achievements)",
+        "placeholder": "e.g. first-chat"
+      },
+      "custom": {
+        "label": "Custom Character State Path",
+        "placeholder": "e.g. dimensions.focus",
+        "fieldPathPlaceholder": "Character state path, e.g. dimensions.focus"
+      }
+    },
+    "favorLevels": {
+      "stranger": "Stranger",
+      "acquaintance": "Acquaintance",
+      "friend": "Friend",
+      "close-friend": "Close Friend",
+      "bestie": "Bestie",
+      "soulmate": "Soulmate"
+    },
+    "moods": {
+      "joyful": "Joyful",
+      "content": "Content",
+      "neutral": "Neutral",
+      "bored": "Bored",
+      "sad": "Sad",
+      "sleepy": "Sleepy",
+      "excited": "Excited",
+      "curious": "Curious",
+      "annoyed": "Annoyed"
+    },
+    "advancedJson": "Advanced JSON",
+    "jsonPlaceholder": "Leave empty for no condition. Example: {\n  \"type\": \"all\",\n  \"conditions\": [\n    { \"type\": \"compare\", \"field\": \"favor\", \"operator\": \"gte\", \"value\": 80 },\n    {\n      \"type\": \"not\",\n      \"condition\": { \"type\": \"compare\", \"field\": \"mood\", \"operator\": \"eq\", \"value\": \"sleepy\" }\n    }\n  ]\n}",
+    "jsonHint": "Supports compare / all / any / not; field accepts character state paths like favor, level, mood, achievements, dimensions.focus.",
+    "errors": {
+      "invalid": "Invalid condition rule format; check type / field / operator / value.",
+      "jsonParse": "Failed to parse condition rule JSON: {{message}}",
+      "jsonParseUnknown": "Failed to parse condition rule JSON."
+    }
+  },
+  "metaPopover": {
+    "editTitle": "Edit trigger metadata",
+    "priorityHint": "When multiple animations match the same trigger, the higher value wins.",
+    "resolvedTitle": "Actually Matched",
+    "resolvedEmpty": "Not set"
+  },
+  "triggerPicker": {
+    "title": "Animation Trigger",
+    "uncategorized": "Uncategorized",
+    "builtin": "Built-in",
+    "custom": "Custom",
+    "builtinWithGroup": "Built-in · {{group}}",
+    "customTrigger": "Custom trigger",
+    "clear": "Clear",
+    "apply": "Apply",
+    "searchPlaceholder": "Search built-in triggers...",
+    "noMatch": "No matching built-in triggers",
+    "customTitle": "Custom Trigger",
+    "customHint": "Enter any extension event name",
+    "customPlaceholder": "e.g. character:daily-login"
+  },
+  "positionEditor": {
+    "title": "Target Position Before Playing",
+    "anchors": {
+      "top-left": "Top Left",
+      "top": "Top Center",
+      "top-right": "Top Right",
+      "left": "Middle Left",
+      "center": "Center",
+      "right": "Middle Right",
+      "bottom-left": "Bottom Left",
+      "bottom": "Bottom Center",
+      "bottom-right": "Bottom Right"
+    },
+    "fitModes": {
+      "stretch": "Stretch",
+      "contain": "Contain",
+      "cover": "Cover"
+    },
+    "placementLabels": {
+      "keepCurrent": "Keep Current Position",
+      "manual": "Manual Position",
+      "quick": "Quick Position"
+    },
+    "modes": {
+      "placement": "Quick Position",
+      "point": "Drag Manually"
+    },
+    "windowAnchorTooltip": "Window anchor: {{label}}",
+    "margin": "Margin",
+    "useWorkArea": "Use Work Area"
+  },
+  "windowEditor": {
+    "title": "Window Animation Editor",
+    "subtitle": "Keyframe path, size, and opacity timeline",
+    "targets": {
+      "main": "Main Sprite Window",
+      "spriteBubble": "Top Bubble Window",
+      "spriteEffect": "Sprite Effect Window",
+      "menu": "Sprite Menu Window"
+    },
+    "clampToWorkArea": "Clamp to work area",
+    "keyframeTitle": "Keyframe {{index}}",
+    "totalDuration": "Total duration {{duration}} ms",
+    "advanced": "Advanced Parameters",
+    "windowAnchor": "Window Anchor",
+    "anchorX": "Anchor X",
+    "anchorY": "Anchor Y",
+    "sizeMode": "Size Mode",
+    "sizeModes": {
+      "explicit": {
+        "label": "Edit Width & Height",
+        "description": "Keyframes write the window width and height"
+      },
+      "original": {
+        "label": "Keep Original Size",
+        "description": "Playback inherits the window's current size"
+      }
+    },
+    "originalSizeHint": "When keeping the original size, keyframes don't write width/height, and the canvas only shows the anchor path.",
+    "fields": {
+      "width": "Width",
+      "height": "Height",
+      "opacity": "Opacity",
+      "duration": "Segment duration ms",
+      "margin": "Margin"
+    },
+    "curve": "Curve",
+    "easing": "Easing",
+    "controlPoint": "Control Point {{index}}",
+    "absoluteCoordinates": "Absolute Coordinates",
+    "anchors": {
+      "top-left": "Top Left",
+      "top": "Top Center",
+      "top-right": "Top Right",
+      "left": "Middle Left",
+      "center": "Center",
+      "right": "Middle Right",
+      "bottom-left": "Bottom Left",
+      "bottom": "Bottom Center",
+      "bottom-right": "Bottom Right"
+    },
+    "timeline": {
+      "title": "Window Keyframes",
+      "frameCount": "{{count}} frames",
+      "startPoint": "Start"
+    },
+    "coordinateSpace": {
+      "title": "Screen Adaptation",
+      "enabledDescription": "Adapts to different screens",
+      "disabledDescription": "Uses absolute desktop px",
+      "toggle": "Adapt"
+    },
+    "placement": {
+      "title": "Snap Position",
+      "absolute": "Absolute",
+      "displayBase": "Display Reference",
+      "useWorkArea": "Use work area bounds"
+    },
+    "jsonDialog": {
+      "title": "Window Animation JSON",
+      "description": "Current timeline data; copy it for debugging or reuse."
+    },
+    "toast": {
+      "jsonCopied": "JSON copied",
+      "copyFailed": "Copy failed"
+    }
+  },
+  "windowSettings": {
+    "title": "Window Animation Choreography",
+    "itemDescription": "Edit desktop paths, keyframes, window size, and opacity",
+    "description": "Draw desktop coordinate paths in a standalone editor and configure keyframes, Bézier curves, size changes, and opacity changes for any window.",
+    "defaultAnimation": {
+      "label": "Default Initial Animation",
+      "description": "Opening it generates a default keyframe path; you can then adjust coordinates, size, and opacity"
+    },
+    "presetHint": "Click to play the main window animation immediately",
+    "mainWindowUnavailable": "Main window unavailable"
+  },
+  "settings": {
+    "itemLabel": "Sprite Management",
+    "itemDescription": "Manage desktop sprite animation resources, import and debug actions"
+  },
+  "retrospective": {
+    "title": "Today's Purposes",
+    "empty": "No purposes to review today.",
+    "justNow": "just now",
+    "memoryCandidate": "High value",
+    "status": {
+      "completed": "Completed",
+      "cancelled": "Cancelled",
+      "failed": "Failed",
+      "superseded": "Superseded"
+    }
+  },
+  "status": {
+    "loading": "Loading…"
+  },
+  "message": {
+    "stickerAlt": "Sticker"
+  }
+}

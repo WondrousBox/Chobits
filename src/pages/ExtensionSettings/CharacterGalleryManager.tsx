@@ -1,7 +1,9 @@
 import type { SpriteCapabilityState } from '@packages/sprite-core/capability-registry';
 import type { CharacterGalleryItem, CharacterGalleryItemDraft, CharacterGalleryItemKind, CharacterGalleryReferenceRole, CharacterGalleryViewAngle } from '@packages/sprite-core/character-gallery';
 import type { CharacterPackSource } from '@packages/sprite-core/character-pack-manager';
+import type { TFunction } from 'i18next';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TbChevronLeft, TbChevronRight, TbEdit, TbPencil, TbPhotoPlus, TbRefresh, TbTrash } from 'react-icons/tb';
 import { toast } from 'sonner';
 
@@ -58,37 +60,37 @@ interface GalleryDraftState {
   referenceStrength: string;
 }
 
-const KIND_OPTIONS: Array<{ value: CharacterGalleryItemKind; label: string }> = [
-  { value: 'pose', label: '姿势' },
-  { value: 'action', label: '动作' },
-  { value: 'expression', label: '表情' },
-  { value: 'prop', label: '道具' },
-  { value: 'outfit', label: '服装' },
-  { value: 'reference', label: '参考' },
-  { value: 'background', label: '背景' },
-  { value: 'custom', label: '自定义' }
+const KIND_OPTIONS: Array<{ value: CharacterGalleryItemKind; labelKey: string }> = [
+  { value: 'pose', labelKey: 'kind.pose' },
+  { value: 'action', labelKey: 'kind.action' },
+  { value: 'expression', labelKey: 'kind.expression' },
+  { value: 'prop', labelKey: 'kind.prop' },
+  { value: 'outfit', labelKey: 'kind.outfit' },
+  { value: 'reference', labelKey: 'kind.reference' },
+  { value: 'background', labelKey: 'kind.background' },
+  { value: 'custom', labelKey: 'kind.custom' }
 ];
 
-const VIEW_OPTIONS: Array<{ value: CharacterGalleryViewAngle; label: string }> = [
-  { value: 'front', label: '正面' },
-  { value: 'back', label: '背面' },
-  { value: 'left', label: '左侧' },
-  { value: 'right', label: '右侧' },
-  { value: 'three-quarter-left', label: '左前 3/4' },
-  { value: 'three-quarter-right', label: '右前 3/4' },
-  { value: 'top', label: '俯视' },
-  { value: 'bottom', label: '仰视' },
-  { value: 'custom', label: '自定义角度' }
+const VIEW_OPTIONS: Array<{ value: CharacterGalleryViewAngle; labelKey: string }> = [
+  { value: 'front', labelKey: 'view.front' },
+  { value: 'back', labelKey: 'view.back' },
+  { value: 'left', labelKey: 'view.left' },
+  { value: 'right', labelKey: 'view.right' },
+  { value: 'three-quarter-left', labelKey: 'view.threeQuarterLeft' },
+  { value: 'three-quarter-right', labelKey: 'view.threeQuarterRight' },
+  { value: 'top', labelKey: 'view.top' },
+  { value: 'bottom', labelKey: 'view.bottom' },
+  { value: 'custom', labelKey: 'view.custom' }
 ];
 
-const REFERENCE_ROLE_OPTIONS: Array<{ value: CharacterGalleryReferenceRole; label: string }> = [
-  { value: 'character', label: '角色一致性' },
-  { value: 'pose', label: '姿势参考' },
-  { value: 'style', label: '画风参考' },
-  { value: 'prop', label: '道具参考' },
-  { value: 'background', label: '背景参考' },
-  { value: 'storyboard', label: '分镜参考' },
-  { value: 'custom', label: '自定义' }
+const REFERENCE_ROLE_OPTIONS: Array<{ value: CharacterGalleryReferenceRole; labelKey: string }> = [
+  { value: 'character', labelKey: 'referenceRole.character' },
+  { value: 'pose', labelKey: 'referenceRole.pose' },
+  { value: 'style', labelKey: 'referenceRole.style' },
+  { value: 'prop', labelKey: 'referenceRole.prop' },
+  { value: 'background', labelKey: 'referenceRole.background' },
+  { value: 'storyboard', labelKey: 'referenceRole.storyboard' },
+  { value: 'custom', labelKey: 'referenceRole.custom' }
 ];
 
 function emptyDraft(): GalleryDraftState {
@@ -153,8 +155,9 @@ function toItemDraft(draft: GalleryDraftState): CharacterGalleryItemDraft {
   };
 }
 
-function getKindLabel(kind: CharacterGalleryItemKind): string {
-  return KIND_OPTIONS.find((option) => option.value === kind)?.label ?? kind;
+function getKindLabel(t: TFunction, kind: CharacterGalleryItemKind): string {
+  const option = KIND_OPTIONS.find((entry) => entry.value === kind);
+  return option ? t(option.labelKey) : kind;
 }
 
 function makeFullSrc(item: CharacterGalleryItem): string {
@@ -221,9 +224,10 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
   const [pendingFilePath, setPendingFilePath] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const { t } = useTranslation('character');
   const canWrite = !!state?.pack.isWritable && assetAuthoringCapability?.status !== 'locked';
   const lockedTitle =
-    assetAuthoringCapability?.status === 'locked' ? `${assetAuthoringCapability.name} 尚未解锁` : state?.pack.isWritable === false ? '内置角色包需要另存为本地版本后才能编辑图集' : undefined;
+    assetAuthoringCapability?.status === 'locked' ? t('capability.locked', { name: assetAuthoringCapability.name }) : state?.pack.isWritable === false ? t('gallery.builtinLockedTitle') : undefined;
 
   const refresh = useCallback(async (): Promise<void> => {
     setIsLoading(true);
@@ -232,13 +236,13 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
       setState(result);
     } catch (error) {
       console.warn('[CharacterGalleryManager] list failed', error);
-      toast.error('读取角色图集失败', {
+      toast.error(t('gallery.toast.loadFailed'), {
         description: error instanceof Error ? error.message : String(error)
       });
     } finally {
       setIsLoading(false);
     }
-  }, [packId, source]);
+  }, [packId, source, t]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- 依赖变化时异步刷新图集列表,加载态切换是有意的
@@ -260,13 +264,13 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
       return false;
     }
     if (state?.pack.isWritable === false) {
-      toast.warning('内置角色包不可直接编辑', {
-        description: '请先在角色资料中保存成本地自定义角色包，再维护角色图集。'
+      toast.warning(t('gallery.toast.builtinReadonly'), {
+        description: t('gallery.toast.builtinReadonlyDescription')
       });
       return false;
     }
     return true;
-  }, [assetAuthoringCapability, onCapabilityBlocked, state?.pack.isWritable]);
+  }, [assetAuthoringCapability, onCapabilityBlocked, state?.pack.isWritable, t]);
 
   const openAddDialog = useCallback(async (): Promise<void> => {
     if (!ensureCanWrite()) return;
@@ -326,21 +330,21 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
   const saveDialog = useCallback(async (): Promise<void> => {
     if (!ensureCanWrite() || !dialogMode) return;
     if (!draft.title.trim()) {
-      toast.warning('图集条目需要一个名称');
+      toast.warning(t('gallery.toast.titleRequired'));
       return;
     }
 
     setIsSaving(true);
     try {
       if (dialogMode === 'add') {
-        if (!pendingFilePath) throw new Error('缺少要导入的图片文件');
+        if (!pendingFilePath) throw new Error(t('gallery.toast.missingFile'));
         await window.chobits.character.importCharacterGalleryItem({
           packId,
           source,
           filePath: pendingFilePath,
           draft: toItemDraft(draft)
         });
-        toast.success('图片已加入角色图集');
+        toast.success(t('gallery.toast.added'));
       } else if (selected) {
         const result = await window.chobits.character.updateCharacterGalleryItem({
           packId,
@@ -348,19 +352,19 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
           itemId: selected.id,
           patch: toItemDraft(draft)
         });
-        if (!result?.ok) throw new Error('保存图集条目失败');
-        toast.success('图集条目已保存');
+        if (!result?.ok) throw new Error(t('gallery.toast.saveFailed'));
+        toast.success(t('gallery.toast.saved'));
       }
       await refresh();
       closeDialog();
     } catch (error) {
-      toast.error('保存图集条目失败', {
+      toast.error(t('gallery.toast.saveFailed'), {
         description: error instanceof Error ? error.message : String(error)
       });
     } finally {
       setIsSaving(false);
     }
-  }, [closeDialog, dialogMode, draft, ensureCanWrite, packId, pendingFilePath, refresh, selected, source]);
+  }, [closeDialog, dialogMode, draft, ensureCanWrite, packId, pendingFilePath, refresh, selected, source, t]);
 
   const replaceImage = useCallback(
     async (item: CharacterGalleryItem): Promise<void> => {
@@ -385,14 +389,14 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
         }
       });
       if (!result?.ok) {
-        toast.error('替换图集图片失败');
+        toast.error(t('gallery.toast.replaceFailed'));
         return;
       }
       await refresh();
       setSelected(result.item ?? item);
-      toast.success('图集图片已替换');
+      toast.success(t('gallery.toast.replaced'));
     },
-    [ensureCanWrite, packId, refresh, source]
+    [ensureCanWrite, packId, refresh, source, t]
   );
 
   const removeItem = useCallback(
@@ -405,7 +409,7 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
         deleteFile: true
       });
       if (!result?.ok) {
-        toast.error('删除图集条目失败');
+        toast.error(t('gallery.toast.removeFailed'));
         return false;
       }
       if (selected?.id === item.id) {
@@ -413,38 +417,36 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
         setIsPreviewOpen(false);
       }
       await refresh();
-      toast.success('图集条目已删除');
+      toast.success(t('gallery.toast.removed'));
       return true;
     },
-    [ensureCanWrite, packId, refresh, selected?.id, source]
+    [ensureCanWrite, packId, refresh, selected?.id, source, t]
   );
 
   return (
     <TooltipProvider>
       <div className="space-y-4">
-        <SpriteCapabilityLockedNotice capability={assetAuthoringCapability} hint="角色图集属于角色包资产管理，未解锁时可以查看，但不能导入、编辑、替换或删除图片。" />
+        <SpriteCapabilityLockedNotice capability={assetAuthoringCapability} hint={t('gallery.lockedHint')} />
 
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="text-sm font-medium text-foreground">角色参考图集</div>
-            <div className="text-xs text-muted-foreground">{state ? `${state.pack.name} · ${state.items.length} 张图片` : '读取角色包图集...'}</div>
+            <div className="text-sm font-medium text-foreground">{t('gallery.title')}</div>
+            <div className="text-xs text-muted-foreground">{state ? t('gallery.itemCount', { name: state.pack.name, count: state.items.length }) : t('gallery.loading')}</div>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
-            <Input value={query} onChange={(event) => setQuery(event.target.value)} className="h-8 w-56" placeholder="搜索名称、动作、角度、标签" />
+            <Input value={query} onChange={(event) => setQuery(event.target.value)} className="h-8 w-56" placeholder={t('gallery.searchPlaceholder')} />
             <Button type="button" size="sm" onClick={() => void openAddDialog()} disabled={!canWrite} title={lockedTitle}>
               <TbPhotoPlus />
-              导入图片
+              {t('gallery.action.import')}
             </Button>
-            <IconTooltipButton label="刷新图集" type="button" size="sm" variant="outline" onClick={() => void refresh()} disabled={isLoading}>
+            <IconTooltipButton label={t('gallery.action.refresh')} type="button" size="sm" variant="outline" onClick={() => void refresh()} disabled={isLoading}>
               <TbRefresh />
             </IconTooltipButton>
           </div>
         </div>
 
         {state?.pack.isWritable === false && (
-          <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
-            当前是内置角色包，图集仅可预览。保存为本地自定义角色包后可以导入、替换和编辑图片。
-          </div>
+          <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">{t('gallery.builtinNotice')}</div>
         )}
 
         {filteredItems.length > 0 ? (
@@ -462,14 +464,14 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
                 <div className="flex items-center justify-between gap-2 px-2 py-1.5">
                   <span className="truncate text-xs text-foreground">{item.title}</span>
                   <Badge variant="secondary" className="shrink-0 px-1.5 py-0 text-[10px]">
-                    {getKindLabel(item.kind)}
+                    {getKindLabel(t, item.kind)}
                   </Badge>
                 </div>
               </button>
             ))}
           </div>
         ) : (
-          <div className="rounded-md border border-dashed border-border/60 px-3 py-8 text-center text-xs text-muted-foreground">{isLoading ? '读取中...' : '图集暂无图片，点击「导入图片」添加。'}</div>
+          <div className="rounded-md border border-dashed border-border/60 px-3 py-8 text-center text-xs text-muted-foreground">{isLoading ? t('gallery.loadingItems') : t('gallery.empty')}</div>
         )}
 
         <Dialog open={isPreviewOpen && !!previewItem} onOpenChange={closePreviewDialog}>
@@ -488,10 +490,24 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
                     <img src={makeFullSrc(previewItem)} alt={previewItem.title} className="max-h-[62vh] w-full object-contain lg:max-h-full" draggable={false} />
                     {filteredItems.length > 1 ? (
                       <>
-                        <IconTooltipButton label="上一张" type="button" size="sm" variant="secondary" className="absolute left-4 top-1/2 -translate-y-1/2 shadow" onClick={() => movePreview(-1)}>
+                        <IconTooltipButton
+                          label={t('gallery.action.prev')}
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          className="absolute left-4 top-1/2 -translate-y-1/2 shadow"
+                          onClick={() => movePreview(-1)}
+                        >
                           <TbChevronLeft />
                         </IconTooltipButton>
-                        <IconTooltipButton label="下一张" type="button" size="sm" variant="secondary" className="absolute right-4 top-1/2 -translate-y-1/2 shadow" onClick={() => movePreview(1)}>
+                        <IconTooltipButton
+                          label={t('gallery.action.next')}
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          className="absolute right-4 top-1/2 -translate-y-1/2 shadow"
+                          onClick={() => movePreview(1)}
+                        >
                           <TbChevronRight />
                         </IconTooltipButton>
                       </>
@@ -505,14 +521,14 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
                     </div>
                     {previewItem.description ? <div className="text-sm text-muted-foreground">{previewItem.description}</div> : null}
                     <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className="rounded border px-2 py-1">类型：{getKindLabel(previewItem.kind)}</div>
-                      <div className="rounded border px-2 py-1">角度：{previewItem.semantic?.view ?? '未设置'}</div>
-                      <div className="rounded border px-2 py-1">动作：{previewItem.semantic?.action ?? '未设置'}</div>
-                      <div className="rounded border px-2 py-1">表情：{previewItem.semantic?.emotion ?? '未设置'}</div>
-                      <div className="rounded border px-2 py-1">参考：{previewItem.ai?.referenceRole ?? 'character'}</div>
-                      <div className="rounded border px-2 py-1">强度：{previewItem.ai?.referenceStrength ?? '0.8'}</div>
+                      <div className="rounded border px-2 py-1">{t('gallery.detail.kind', { value: getKindLabel(t, previewItem.kind) })}</div>
+                      <div className="rounded border px-2 py-1">{t('gallery.detail.view', { value: previewItem.semantic?.view ?? t('gallery.notSet') })}</div>
+                      <div className="rounded border px-2 py-1">{t('gallery.detail.action', { value: previewItem.semantic?.action ?? t('gallery.notSet') })}</div>
+                      <div className="rounded border px-2 py-1">{t('gallery.detail.emotion', { value: previewItem.semantic?.emotion ?? t('gallery.notSet') })}</div>
+                      <div className="rounded border px-2 py-1">{t('gallery.detail.reference', { value: previewItem.ai?.referenceRole ?? 'character' })}</div>
+                      <div className="rounded border px-2 py-1">{t('gallery.detail.strength', { value: previewItem.ai?.referenceStrength ?? '0.8' })}</div>
                     </div>
-                    {previewItem.tags?.length ? <div className="text-xs text-muted-foreground">标签：{previewItem.tags.join(', ')}</div> : null}
+                    {previewItem.tags?.length ? <div className="text-xs text-muted-foreground">{t('gallery.detail.tags', { tags: previewItem.tags.join(', ') })}</div> : null}
                     {previewItem.ai?.promptHint ? <div className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">{previewItem.ai.promptHint}</div> : null}
                     <div className="space-y-2 border-t pt-3">
                       <div className="grid grid-cols-[1fr_1fr_auto] gap-2">
@@ -528,13 +544,21 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
                           title={lockedTitle}
                         >
                           <TbPencil />
-                          元数据
+                          {t('gallery.action.editMetadata')}
                         </Button>
                         <Button type="button" size="sm" variant="outline" onClick={() => void replaceImage(previewItem)} disabled={!canWrite} title={lockedTitle}>
                           <TbEdit />
-                          替换
+                          {t('gallery.action.replaceImage')}
                         </Button>
-                        <IconTooltipButton label="删除图片" type="button" size="sm" variant="destructive" onClick={() => void removeItem(previewItem)} disabled={!canWrite} title={lockedTitle}>
+                        <IconTooltipButton
+                          label={t('gallery.action.removeImage')}
+                          type="button"
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => void removeItem(previewItem)}
+                          disabled={!canWrite}
+                          title={lockedTitle}
+                        >
                           <TbTrash />
                         </IconTooltipButton>
                       </div>
@@ -549,16 +573,16 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
         <Dialog open={!!dialogMode} onOpenChange={(open) => (!open ? closeDialog() : undefined)}>
           <DialogContent className="max-h-[88vh] max-w-3xl overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>{dialogMode === 'add' ? '添加图集图片' : '编辑图集图片'}</DialogTitle>
+              <DialogTitle>{dialogMode === 'add' ? t('gallery.dialog.addTitle') : t('gallery.dialog.editTitle')}</DialogTitle>
               <DialogDescription>{pendingFilePath ? fileName(pendingFilePath) : selected?.id}</DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label>名称</Label>
+                <Label>{t('gallery.field.name')}</Label>
                 <Input value={draft.title} onChange={(event) => setDraft((prev) => ({ ...prev, title: event.target.value }))} />
               </div>
               <div className="space-y-2">
-                <Label>类型</Label>
+                <Label>{t('gallery.field.kind')}</Label>
                 <Select value={draft.kind} onValueChange={(value) => setDraft((prev) => ({ ...prev, kind: value as CharacterGalleryItemKind }))}>
                   <SelectTrigger>
                     <SelectValue />
@@ -566,50 +590,50 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
                   <SelectContent>
                     {KIND_OPTIONS.map((option) => (
                       <SelectItem key={option.value} value={option.value}>
-                        {option.label}
+                        {t(option.labelKey)}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>动作</Label>
+                <Label>{t('gallery.field.action')}</Label>
                 <Input value={draft.action} onChange={(event) => setDraft((prev) => ({ ...prev, action: event.target.value }))} placeholder="idle / walk-left / jump / point" />
               </div>
               <div className="space-y-2">
-                <Label>角度</Label>
+                <Label>{t('gallery.field.view')}</Label>
                 <Select value={draft.view || 'none'} onValueChange={(value) => setDraft((prev) => ({ ...prev, view: value === 'none' ? '' : (value as CharacterGalleryViewAngle) }))}>
                   <SelectTrigger>
-                    <SelectValue placeholder="未设置" />
+                    <SelectValue placeholder={t('gallery.notSet')} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">未设置</SelectItem>
+                    <SelectItem value="none">{t('gallery.notSet')}</SelectItem>
                     {VIEW_OPTIONS.map((option) => (
                       <SelectItem key={option.value} value={option.value}>
-                        {option.label}
+                        {t(option.labelKey)}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>表情</Label>
+                <Label>{t('gallery.field.emotion')}</Label>
                 <Input value={draft.emotion} onChange={(event) => setDraft((prev) => ({ ...prev, emotion: event.target.value }))} />
               </div>
               <div className="space-y-2">
-                <Label>道具名</Label>
+                <Label>{t('gallery.field.propName')}</Label>
                 <Input value={draft.propName} onChange={(event) => setDraft((prev) => ({ ...prev, propName: event.target.value }))} />
               </div>
               <div className="space-y-2 md:col-span-2">
-                <Label>描述</Label>
+                <Label>{t('gallery.field.description')}</Label>
                 <Textarea value={draft.description} onChange={(event) => setDraft((prev) => ({ ...prev, description: event.target.value }))} />
               </div>
               <div className="space-y-2 md:col-span-2">
-                <Label>标签</Label>
-                <Input value={draft.tags} onChange={(event) => setDraft((prev) => ({ ...prev, tags: event.target.value }))} placeholder="多个标签用逗号或换行分隔" />
+                <Label>{t('gallery.field.tags')}</Label>
+                <Input value={draft.tags} onChange={(event) => setDraft((prev) => ({ ...prev, tags: event.target.value }))} placeholder={t('gallery.field.tagsPlaceholder')} />
               </div>
               <div className="space-y-2">
-                <Label>AI 参考角色</Label>
+                <Label>{t('gallery.field.referenceRole')}</Label>
                 <Select value={draft.referenceRole} onValueChange={(value) => setDraft((prev) => ({ ...prev, referenceRole: value as CharacterGalleryReferenceRole }))}>
                   <SelectTrigger>
                     <SelectValue />
@@ -617,31 +641,31 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
                   <SelectContent>
                     {REFERENCE_ROLE_OPTIONS.map((option) => (
                       <SelectItem key={option.value} value={option.value}>
-                        {option.label}
+                        {t(option.labelKey)}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>参考强度</Label>
+                <Label>{t('gallery.field.referenceStrength')}</Label>
                 <Input type="number" min={0} max={1} step={0.05} value={draft.referenceStrength} onChange={(event) => setDraft((prev) => ({ ...prev, referenceStrength: event.target.value }))} />
               </div>
               <div className="space-y-2 md:col-span-2">
-                <Label>AI 提示补充</Label>
+                <Label>{t('gallery.field.promptHint')}</Label>
                 <Textarea className="min-h-20" value={draft.promptHint} onChange={(event) => setDraft((prev) => ({ ...prev, promptHint: event.target.value }))} />
               </div>
               <div className="space-y-2 md:col-span-2">
-                <Label>负面提示</Label>
+                <Label>{t('gallery.field.negativePrompt')}</Label>
                 <Textarea className="min-h-20" value={draft.negativePrompt} onChange={(event) => setDraft((prev) => ({ ...prev, negativePrompt: event.target.value }))} />
               </div>
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={closeDialog} disabled={isSaving}>
-                取消
+                {t('common:action.cancel')}
               </Button>
               <Button type="button" onClick={() => void saveDialog()} disabled={isSaving}>
-                {isSaving ? '保存中...' : '保存'}
+                {isSaving ? t('gallery.action.saving') : t('common:action.save')}
               </Button>
             </DialogFooter>
           </DialogContent>

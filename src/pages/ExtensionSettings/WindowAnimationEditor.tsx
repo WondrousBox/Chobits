@@ -1,4 +1,6 @@
+import type { TFunction } from 'i18next';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   TbAlignBoxBottomCenter,
   TbAlignBoxBottomLeft,
@@ -49,34 +51,22 @@ type EditorSizeMode = 'explicit' | 'original';
 
 type DragOperation = { type: 'move'; index: number } | { type: 'resize'; index: number; corner: ResizeCorner };
 
-const TARGET_WINDOWS = [
-  { key: 'main', label: '主精灵窗口' },
-  { key: 'spriteBubble', label: '顶部气泡窗口' },
-  { key: 'spriteEffect', label: '精灵特效窗口' },
-  { key: 'menu', label: '精灵菜单窗口' }
-];
+const TARGET_WINDOWS = [{ key: 'main' }, { key: 'spriteBubble' }, { key: 'spriteEffect' }, { key: 'menu' }];
 
 const EASING_OPTIONS: WindowAnimationEasing[] = ['linear', 'ease-in-out', 'ease-in', 'ease-out', 'ease-in-out-quad', 'ease-in-out-cubic'];
 const CURVE_OPTIONS: WindowAnimationCurve[] = ['line', 'quadratic', 'cubic'];
-const DISPLAY_OPTIONS: Array<{ value: WindowAnimationDisplay; label: string }> = [
-  { value: 'current', label: '当前显示器' },
-  { value: 'main', label: '主窗口显示器' },
-  { value: 'primary', label: '主显示器' }
-];
-const SIZE_MODE_OPTIONS: Array<{ value: EditorSizeMode; label: string; description: string }> = [
-  { value: 'explicit', label: '编辑宽高', description: '关键帧写入窗口宽高' },
-  { value: 'original', label: '保持原始尺寸', description: '播放时继承窗口当前尺寸' }
-];
-const ANCHOR_OPTIONS: Array<{ anchor: WindowAnimationAnchor; label: string; icon: React.ComponentType<{ className?: string }> }> = [
-  { anchor: 'top-left', label: '左上角', icon: TbAlignBoxTopLeft },
-  { anchor: 'top', label: '顶部居中', icon: TbAlignBoxTopCenter },
-  { anchor: 'top-right', label: '右上角', icon: TbAlignBoxTopRight },
-  { anchor: 'left', label: '左侧上下居中', icon: TbAlignBoxLeftMiddle },
-  { anchor: 'center', label: '正中心', icon: TbAlignBoxCenterMiddle },
-  { anchor: 'right', label: '右侧上下居中', icon: TbAlignBoxRightMiddle },
-  { anchor: 'bottom-left', label: '左下角', icon: TbAlignBoxBottomLeft },
-  { anchor: 'bottom', label: '底部居中', icon: TbAlignBoxBottomCenter },
-  { anchor: 'bottom-right', label: '右下角', icon: TbAlignBoxBottomRight }
+const DISPLAY_OPTIONS: Array<{ value: WindowAnimationDisplay }> = [{ value: 'current' }, { value: 'main' }, { value: 'primary' }];
+const SIZE_MODE_OPTIONS: Array<{ value: EditorSizeMode }> = [{ value: 'explicit' }, { value: 'original' }];
+const ANCHOR_OPTIONS: Array<{ anchor: WindowAnimationAnchor; icon: React.ComponentType<{ className?: string }> }> = [
+  { anchor: 'top-left', icon: TbAlignBoxTopLeft },
+  { anchor: 'top', icon: TbAlignBoxTopCenter },
+  { anchor: 'top-right', icon: TbAlignBoxTopRight },
+  { anchor: 'left', icon: TbAlignBoxLeftMiddle },
+  { anchor: 'center', icon: TbAlignBoxCenterMiddle },
+  { anchor: 'right', icon: TbAlignBoxRightMiddle },
+  { anchor: 'bottom-left', icon: TbAlignBoxBottomLeft },
+  { anchor: 'bottom', icon: TbAlignBoxBottomCenter },
+  { anchor: 'bottom-right', icon: TbAlignBoxBottomRight }
 ];
 const CANVAS_WIDTH = 720;
 const CANVAS_HEIGHT = 420;
@@ -316,9 +306,9 @@ function resolvePlacementPreview(frame: EditableKeyframe, placement: WindowAnima
   }
 }
 
-function getPlacementLabel(placement?: WindowAnimationPlacement): string {
-  if (!placement) return '绝对坐标';
-  return ANCHOR_OPTIONS.find((option) => option.anchor === placement.anchor)?.label || placement.anchor;
+function getPlacementLabel(t: TFunction, placement?: WindowAnimationPlacement): string {
+  if (!placement) return t('sprite:windowEditor.absoluteCoordinates');
+  return ANCHOR_OPTIONS.some((option) => option.anchor === placement.anchor) ? t(`sprite:windowEditor.anchors.${placement.anchor}`) : placement.anchor;
 }
 
 function buildPath(frames: EditableKeyframe[]): string {
@@ -343,6 +333,7 @@ function buildPath(frames: EditableKeyframe[]): string {
 }
 
 export default function WindowAnimationEditor(): JSX.Element {
+  const { t } = useTranslation('sprite');
   const [targetWindow, setTargetWindow] = useState('main');
   const [frames, setFrames] = useState<EditableKeyframe[]>(() => createDefaultFrames());
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -485,11 +476,11 @@ export default function WindowAnimationEditor(): JSX.Element {
   const play = useCallback(async () => {
     const result = await window.chobits.window['window:animation:play'](targetWindow, timeline);
     if (result.ok) {
-      toast.success('窗口动画已开始播放');
+      toast.success(t('sprite:animation.toast.playStarted'));
     } else {
-      toast.error('窗口动画播放失败', { description: result.error || 'unknown error' });
+      toast.error(t('sprite:animation.toast.playFailed'), { description: result.error || 'unknown error' });
     }
-  }, [targetWindow, timeline]);
+  }, [t, targetWindow, timeline]);
 
   const stop = useCallback(async () => {
     await window.chobits.window['window:animation:stop'](targetWindow);
@@ -511,12 +502,12 @@ export default function WindowAnimationEditor(): JSX.Element {
     try {
       await navigator.clipboard.writeText(timelineJson);
       setJsonCopied(true);
-      toast.success('JSON 已复制');
+      toast.success(t('sprite:windowEditor.toast.jsonCopied'));
       window.setTimeout(() => setJsonCopied(false), 1800);
     } catch (error) {
-      toast.error('复制失败', { description: error instanceof Error ? error.message : String(error) });
+      toast.error(t('sprite:windowEditor.toast.copyFailed'), { description: error instanceof Error ? error.message : String(error) });
     }
-  }, [timelineJson]);
+  }, [t, timelineJson]);
 
   const usesExplicitSize = sizeMode === 'explicit';
 
@@ -524,8 +515,8 @@ export default function WindowAnimationEditor(): JSX.Element {
     <div className="flex h-full min-h-0 flex-col bg-background text-foreground">
       <header className="flex h-12 shrink-0 items-center justify-between border-b px-4" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
         <div className="min-w-0">
-          <div className="text-sm font-semibold">窗口动画编辑器</div>
-          <div className="text-xs text-muted-foreground">关键帧路径、尺寸和透明度时间轴</div>
+          <div className="text-sm font-semibold">{t('sprite:windowEditor.title')}</div>
+          <div className="text-xs text-muted-foreground">{t('sprite:windowEditor.subtitle')}</div>
         </div>
         <Button
           size="icon"
@@ -548,18 +539,18 @@ export default function WindowAnimationEditor(): JSX.Element {
               <SelectContent>
                 {TARGET_WINDOWS.map((target) => (
                   <SelectItem key={target.key} value={target.key}>
-                    {target.label}
+                    {t(`sprite:windowEditor.targets.${target.key}`)}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
             <Button size="sm" onClick={play}>
               <TbPlayerPlay />
-              播放
+              {t('sprite:actions.play')}
             </Button>
             <Button size="sm" variant="outline" onClick={stop}>
               <TbPlayerStop />
-              停止
+              {t('sprite:actions.stop')}
             </Button>
             <Button size="sm" variant="outline" onClick={() => setIsJsonDialogOpen(true)}>
               <TbJson />
@@ -567,7 +558,7 @@ export default function WindowAnimationEditor(): JSX.Element {
             </Button>
             <label className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
               <input type="checkbox" checked={shouldClampToWorkArea} onChange={(event) => setShouldClampToWorkArea(event.target.checked)} />
-              限制在工作区内
+              {t('sprite:windowEditor.clampToWorkArea')}
             </label>
           </div>
 
@@ -590,7 +581,7 @@ export default function WindowAnimationEditor(): JSX.Element {
               <path d={buildPath(frames)} fill="none" stroke="hsl(var(--primary))" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
               {frames.map((frame, index) => {
                 const point = toCanvasPoint(frame);
-                const markerLabel = frame.placement ? getPlacementLabel(frame.placement) : String(index + 1);
+                const markerLabel = frame.placement ? getPlacementLabel(t, frame.placement) : String(index + 1);
                 const isSelected = index === selectedIndex;
                 const previewWidth = Math.max(20, (frame.width / WORK_AREA.width) * CANVAS_WIDTH);
                 const previewHeight = Math.max(16, (frame.height / WORK_AREA.height) * CANVAS_HEIGHT);
@@ -680,8 +671,8 @@ export default function WindowAnimationEditor(): JSX.Element {
 
         <aside className="flex min-h-0 flex-col gap-3 overflow-y-auto border-l pl-4">
           <div>
-            <div className="text-sm font-semibold">关键帧 {selectedIndex + 1}</div>
-            <div className="text-xs text-muted-foreground">总时长 {totalDuration} ms</div>
+            <div className="text-sm font-semibold">{t('sprite:windowEditor.keyframeTitle', { index: selectedIndex + 1 })}</div>
+            <div className="text-xs text-muted-foreground">{t('sprite:windowEditor.totalDuration', { duration: totalDuration })}</div>
           </div>
 
           <CoordinateSpaceEditor enabled={coordinateSpaceEnabled} onEnabledChange={setCoordinateSpaceEnabled} />
@@ -695,7 +686,7 @@ export default function WindowAnimationEditor(): JSX.Element {
               aria-expanded={isAdvancedOpen}
               onClick={() => setIsAdvancedOpen((open) => !open)}
             >
-              <span>高级参数</span>
+              <span>{t('sprite:windowEditor.advanced')}</span>
               {isAdvancedOpen ? <TbChevronDown className="h-4 w-4" /> : <TbChevronRight className="h-4 w-4" />}
             </button>
 
@@ -703,7 +694,7 @@ export default function WindowAnimationEditor(): JSX.Element {
               <div className="space-y-3 pb-1">
                 <div className="grid grid-cols-2 gap-2">
                   <div className="col-span-2 space-y-1">
-                    <label className="text-xs text-muted-foreground">窗口锚点</label>
+                    <label className="text-xs text-muted-foreground">{t('sprite:windowEditor.windowAnchor')}</label>
                     <Select
                       value={positionAnchor}
                       onValueChange={(value) => {
@@ -716,16 +707,16 @@ export default function WindowAnimationEditor(): JSX.Element {
                       <SelectContent>
                         {ANCHOR_OPTIONS.map((option) => (
                           <SelectItem key={option.anchor} value={option.anchor}>
-                            {option.label}
+                            {t(`sprite:windowEditor.anchors.${option.anchor}`)}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
-                  <Field label="锚点 X" value={selectedFrame.x} onChange={(value) => updateNumeric('x', value)} />
-                  <Field label="锚点 Y" value={selectedFrame.y} onChange={(value) => updateNumeric('y', value)} />
+                  <Field label={t('sprite:windowEditor.anchorX')} value={selectedFrame.x} onChange={(value) => updateNumeric('x', value)} />
+                  <Field label={t('sprite:windowEditor.anchorY')} value={selectedFrame.y} onChange={(value) => updateNumeric('y', value)} />
                   <div className="col-span-2 space-y-1">
-                    <label className="text-xs text-muted-foreground">尺寸模式</label>
+                    <label className="text-xs text-muted-foreground">{t('sprite:windowEditor.sizeMode')}</label>
                     <Select value={sizeMode} onValueChange={(value) => setSizeMode(value as EditorSizeMode)}>
                       <SelectTrigger className="h-8">
                         <SelectValue />
@@ -733,28 +724,33 @@ export default function WindowAnimationEditor(): JSX.Element {
                       <SelectContent>
                         {SIZE_MODE_OPTIONS.map((option) => (
                           <SelectItem key={option.value} value={option.value}>
-                            {option.label}
+                            {t(`sprite:windowEditor.sizeModes.${option.value}.label`)}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                    <div className="text-[11px] text-muted-foreground">{SIZE_MODE_OPTIONS.find((option) => option.value === sizeMode)?.description}</div>
+                    <div className="text-[11px] text-muted-foreground">{t(`sprite:windowEditor.sizeModes.${sizeMode}.description`)}</div>
                   </div>
                   {usesExplicitSize ? (
                     <>
-                      <Field label="宽度" value={selectedFrame.width} onChange={(value) => updateNumeric('width', value)} />
-                      <Field label="高度" value={selectedFrame.height} onChange={(value) => updateNumeric('height', value)} />
+                      <Field label={t('sprite:windowEditor.fields.width')} value={selectedFrame.width} onChange={(value) => updateNumeric('width', value)} />
+                      <Field label={t('sprite:windowEditor.fields.height')} value={selectedFrame.height} onChange={(value) => updateNumeric('height', value)} />
                     </>
                   ) : (
-                    <div className="col-span-2 rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">保持原始尺寸时，关键帧不会写入 width/height，画布仅展示锚点路径。</div>
+                    <div className="col-span-2 rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">{t('sprite:windowEditor.originalSizeHint')}</div>
                   )}
-                  <Field label="透明度" value={selectedFrame.opacity ?? 1} step="0.05" onChange={(value) => updateNumeric('opacity', value)} />
-                  <Field label="段时长 ms" value={selectedIndex === 0 ? 0 : (selectedFrame.duration ?? 600)} disabled={selectedIndex === 0} onChange={(value) => updateNumeric('duration', value)} />
+                  <Field label={t('sprite:windowEditor.fields.opacity')} value={selectedFrame.opacity ?? 1} step="0.05" onChange={(value) => updateNumeric('opacity', value)} />
+                  <Field
+                    label={t('sprite:windowEditor.fields.duration')}
+                    value={selectedIndex === 0 ? 0 : (selectedFrame.duration ?? 600)}
+                    disabled={selectedIndex === 0}
+                    onChange={(value) => updateNumeric('duration', value)}
+                  />
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">曲线</label>
+                    <label className="text-xs text-muted-foreground">{t('sprite:windowEditor.curve')}</label>
                     <Select
                       value={selectedFrame.curve || 'line'}
                       onValueChange={(value) => {
@@ -774,7 +770,7 @@ export default function WindowAnimationEditor(): JSX.Element {
                     </Select>
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">缓动</label>
+                    <label className="text-xs text-muted-foreground">{t('sprite:windowEditor.easing')}</label>
                     <Select
                       value={selectedFrame.easing || 'ease-in-out'}
                       onValueChange={(value) => {
@@ -796,7 +792,7 @@ export default function WindowAnimationEditor(): JSX.Element {
                 </div>
 
                 <ControlPointEditor
-                  title="控制点 1"
+                  title={t('sprite:windowEditor.controlPoint', { index: 1 })}
                   value={selectedFrame.control1}
                   disabled={selectedFrame.curve === 'line'}
                   fallback={{ x: selectedFrame.x - 80, y: selectedFrame.y - 80 }}
@@ -805,7 +801,7 @@ export default function WindowAnimationEditor(): JSX.Element {
                   }}
                 />
                 <ControlPointEditor
-                  title="控制点 2"
+                  title={t('sprite:windowEditor.controlPoint', { index: 2 })}
                   value={selectedFrame.control2}
                   disabled={selectedFrame.curve !== 'cubic'}
                   fallback={{ x: selectedFrame.x + 80, y: selectedFrame.y - 80 }}
@@ -822,20 +818,20 @@ export default function WindowAnimationEditor(): JSX.Element {
       <Dialog open={isJsonDialogOpen} onOpenChange={setIsJsonDialogOpen}>
         <DialogContent className="flex max-h-[82vh] w-[min(920px,calc(100vw-48px))] max-w-4xl flex-col overflow-hidden">
           <DialogHeader>
-            <DialogTitle>窗口动画 JSON</DialogTitle>
-            <DialogDescription>当前时间线数据，可复制用于调试或复用。</DialogDescription>
+            <DialogTitle>{t('sprite:windowEditor.jsonDialog.title')}</DialogTitle>
+            <DialogDescription>{t('sprite:windowEditor.jsonDialog.description')}</DialogDescription>
           </DialogHeader>
           <div className="flex justify-end">
             <Button variant="outline" size="sm" className="h-8 text-xs" onClick={copyTimelineJson}>
               {jsonCopied ? (
                 <>
                   <TbCheck />
-                  已复制
+                  {t('sprite:actions.copied')}
                 </>
               ) : (
                 <>
                   <TbCopy />
-                  复制
+                  {t('sprite:actions.copy')}
                 </>
               )}
             </Button>
@@ -873,21 +869,22 @@ function KeyframeTimeline({
   onRemove: () => void;
   canRemove: boolean;
 }): JSX.Element {
+  const { t } = useTranslation('sprite');
   return (
     <div className="shrink-0 rounded-md border bg-background p-3">
       <div className="mb-2 flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-xs font-medium">窗口关键帧</div>
-          <div className="text-xs text-muted-foreground">{frames.length} 帧</div>
+          <div className="text-xs font-medium">{t('sprite:windowEditor.timeline.title')}</div>
+          <div className="text-xs text-muted-foreground">{t('sprite:windowEditor.timeline.frameCount', { count: frames.length })}</div>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
           <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={onAdd}>
             <TbPlus />
-            添加
+            {t('sprite:actions.add')}
           </Button>
           <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={onRemove} disabled={!canRemove}>
             <TbTrash />
-            删除
+            {t('sprite:actions.delete')}
           </Button>
         </div>
       </div>
@@ -895,7 +892,7 @@ function KeyframeTimeline({
         <div className="flex min-w-max items-center">
           {frames.map((frame, index) => {
             const active = selectedIndex === index;
-            const durationLabel = index === 0 ? '起点' : `${frame.duration ?? 0}ms`;
+            const durationLabel = index === 0 ? t('sprite:windowEditor.timeline.startPoint') : `${frame.duration ?? 0}ms`;
             return (
               <React.Fragment key={index}>
                 <button
@@ -914,9 +911,9 @@ function KeyframeTimeline({
                     ({Math.round(frame.x)}, {Math.round(frame.y)})
                   </div>
                   <div className={cn('truncate', active ? 'text-primary/80' : 'text-muted-foreground')}>
-                    {sizeMode === 'explicit' ? `${Math.round(frame.width)} x ${Math.round(frame.height)}` : '保持原始尺寸'}
+                    {sizeMode === 'explicit' ? `${Math.round(frame.width)} x ${Math.round(frame.height)}` : t('sprite:windowEditor.sizeModes.original.label')}
                   </div>
-                  {frame.placement && <div className="truncate text-[11px] text-primary">{getPlacementLabel(frame.placement)}</div>}
+                  {frame.placement && <div className="truncate text-[11px] text-primary">{getPlacementLabel(t, frame.placement)}</div>}
                 </button>
                 {index < frames.length - 1 && <div className="h-px w-8 shrink-0 bg-border" />}
               </React.Fragment>
@@ -929,16 +926,17 @@ function KeyframeTimeline({
 }
 
 function CoordinateSpaceEditor({ enabled, onEnabledChange }: { enabled: boolean; onEnabledChange: (enabled: boolean) => void }): JSX.Element {
+  const { t } = useTranslation('sprite');
   return (
     <div className="rounded-md border p-3">
       <div className="flex items-center justify-between gap-2">
         <div>
-          <div className="text-xs font-medium">屏幕适配</div>
-          <div className="text-xs text-muted-foreground">{enabled ? '适配不同屏幕' : '使用绝对桌面 px'}</div>
+          <div className="text-xs font-medium">{t('sprite:windowEditor.coordinateSpace.title')}</div>
+          <div className="text-xs text-muted-foreground">{enabled ? t('sprite:windowEditor.coordinateSpace.enabledDescription') : t('sprite:windowEditor.coordinateSpace.disabledDescription')}</div>
         </div>
         <label className="flex items-center gap-2 text-xs text-muted-foreground">
           <input type="checkbox" checked={enabled} onChange={(event) => onEnabledChange(event.target.checked)} />
-          适配
+          {t('sprite:windowEditor.coordinateSpace.toggle')}
         </label>
       </div>
     </div>
@@ -956,17 +954,18 @@ function PlacementEditor({
   onChange: (patch: Partial<WindowAnimationPlacement>) => void;
   onClear: () => void;
 }): JSX.Element {
+  const { t } = useTranslation('sprite');
   const activeAnchor = placement?.anchor;
   const margin = getUniformMargin(placement);
   return (
     <div className="space-y-3 rounded-md border p-3">
       <div className="flex items-center justify-between gap-2">
         <div>
-          <div className="text-xs font-medium">吸附位置</div>
-          <div className="text-xs text-muted-foreground">{getPlacementLabel(placement)}</div>
+          <div className="text-xs font-medium">{t('sprite:windowEditor.placement.title')}</div>
+          <div className="text-xs text-muted-foreground">{getPlacementLabel(t, placement)}</div>
         </div>
         <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={onClear} disabled={!placement}>
-          绝对
+          {t('sprite:windowEditor.placement.absolute')}
         </Button>
       </div>
 
@@ -981,7 +980,7 @@ function PlacementEditor({
                     <Icon />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="left">{option.label}</TooltipContent>
+                <TooltipContent side="left">{t(`sprite:windowEditor.anchors.${option.anchor}`)}</TooltipContent>
               </Tooltip>
             );
           })}
@@ -990,7 +989,7 @@ function PlacementEditor({
 
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">显示器基准</label>
+          <label className="text-xs text-muted-foreground">{t('sprite:windowEditor.placement.displayBase')}</label>
           <Select value={placement?.display || 'current'} disabled={!placement} onValueChange={(value) => onChange({ display: value as WindowAnimationDisplay })}>
             <SelectTrigger className="h-8">
               <SelectValue />
@@ -998,18 +997,18 @@ function PlacementEditor({
             <SelectContent>
               {DISPLAY_OPTIONS.map((option) => (
                 <SelectItem key={option.value} value={option.value}>
-                  {option.label}
+                  {t(`sprite:displays.${option.value}`)}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
-        <Field label="边距" value={margin} disabled={!placement} onChange={(value) => onChange({ margin: Math.max(0, Math.round(toNumber(value, margin))) })} />
+        <Field label={t('sprite:windowEditor.fields.margin')} value={margin} disabled={!placement} onChange={(value) => onChange({ margin: Math.max(0, Math.round(toNumber(value, margin))) })} />
       </div>
 
       <label className={cn('flex items-center gap-2 text-xs text-muted-foreground', !placement && 'opacity-50')}>
         <input type="checkbox" checked={placement?.useWorkArea ?? true} disabled={!placement} onChange={(event) => onChange({ useWorkArea: event.target.checked })} />
-        使用工作区边界
+        {t('sprite:windowEditor.placement.useWorkArea')}
       </label>
     </div>
   );

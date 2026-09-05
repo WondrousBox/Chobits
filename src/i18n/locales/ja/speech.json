@@ -1,0 +1,210 @@
+{
+  "speak": {
+    "item": {
+      "title": "キャラクターの発話",
+      "description": "Edge またはプロバイダーの音声合成を選択します。"
+    },
+    "loading": "読み込み中...",
+    "enableHint": "まず左側でキャラクターの発話を有効にしてください。",
+    "engine": {
+      "label": "発話方式",
+      "placeholder": "発話方式を選択",
+      "aiProvider": "プロバイダー音声"
+    },
+    "voice": {
+      "label": "声色",
+      "placeholder": "声色を選択"
+    },
+    "providerModel": {
+      "label": "プロバイダーとモデル",
+      "placeholder": "音声合成モデルを選択",
+      "configure": "設定"
+    },
+    "preset": {
+      "label": "プロバイダープリセット",
+      "auto": "利用可能なプリセットを自動選択"
+    },
+    "audioFormat": {
+      "label": "音声フォーマット"
+    },
+    "speechLanguage": {
+      "label": "読み上げ言語",
+      "auto": "自動（キャラクターの言語に従う）",
+      "zh": "中国語",
+      "ja": "日本語",
+      "description": "自動の場合はキャラクター定義の言語に従います。テキストの言語と読み上げ言語が一致しない場合は、先に LLM で翻訳してから読み上げます。吹き出しには原文が表示され、会話のリアルタイム読み上げにも適用されます。"
+    },
+    "volume": {
+      "label": "再生音量"
+    },
+    "test": {
+      "testing": "合成中...",
+      "idle": "試聴"
+    },
+    "clearCache": "キャッシュをクリア ({{count}} 件, {{size}})",
+    "testText": "こんにちは、私はあなたのデスクトップスプライトアシスタントです！"
+  },
+  "spontaneous": {
+    "item": {
+      "title": "自発的な発言",
+      "description": "自発的な発言の頻度やスタイルの設定、履歴の確認を行います。"
+    },
+    "loading": "読み込み中...",
+    "header": {
+      "title": "自発的な発言",
+      "description": "スプライトがコンテキストに応じて自発的に一言話し、検索可能な履歴を保持します。"
+    },
+    "tabs": {
+      "settings": "設定",
+      "history": "履歴"
+    },
+    "overview": {
+      "title": "概要",
+      "enabled": {
+        "title": "自発的な発言を有効化",
+        "descriptionOn": "アイドル時、頻度制限の範囲内でスプライトが自発的に一言生成します。",
+        "descriptionOff": "オフにしても履歴は保持されますが、新たな生成は行われません。"
+      },
+      "latestSpoken": {
+        "title": "最後に話した内容",
+        "noText": "テキストなし",
+        "empty": "表示できる自発的な発言の記録はまだありません"
+      }
+    },
+    "frequency": {
+      "title": "頻度制御",
+      "cooldown": {
+        "label": "クールダウン時間",
+        "value": "{{count}} 分",
+        "description": "AI の自発的な発言の最小間隔。"
+      },
+      "dailyLimit": {
+        "label": "1日の上限",
+        "value": "{{count}} 回",
+        "description": "活動が多い場面で頻繁に邪魔をしないようにします。"
+      }
+    },
+    "tone": {
+      "title": "スタイル設定",
+      "label": "好みのトーン",
+      "placeholder": "トーンを選択",
+      "description": "あくまで好みの傾向です。コンテキストが強い場合は、現在の状態を優先します。",
+      "options": {
+        "auto": "自動",
+        "gentle": "穏やか",
+        "playful": "陽気",
+        "calm": "落ち着いた",
+        "firm": "毅然",
+        "curious": "好奇心旺盛",
+        "tender": "思いやり"
+      }
+    },
+    "intents": {
+      "title": "許可するカテゴリ",
+      "hint": "生成できる範囲を失わないよう、少なくとも1つのカテゴリを残してください。",
+      "options": {
+        "encouragement": { "label": "励まし", "description": "励まして前に進む内容に重点" },
+        "reminder": { "label": "リマインダー", "description": "タスク、ペース、注意点をさりげなくリマインド" },
+        "empathy": { "label": "共感", "description": "慰めと寄り添いを重視" },
+        "planning": { "label": "計画", "description": "次のステップや計画の提案に重点" },
+        "reflection": { "label": "内省", "description": "気づきや自己観察に重点" },
+        "philosophy": { "label": "哲学的", "description": "短いひとことの気づきに重点" },
+        "playful": { "label": "面白い", "description": "軽い冗談やユーモアのある表現に重点" }
+      }
+    },
+    "history": {
+      "query": {
+        "title": "検索",
+        "placeholder": "テキスト、理由、アクションを検索...",
+        "statusPlaceholder": "ステータス",
+        "intentPlaceholder": "カテゴリ",
+        "allIntents": "すべてのカテゴリ",
+        "refresh": "更新"
+      },
+      "count": "直近 {{count}} 件の記録を表示中（発言済み、スキップ、失敗のイベントを含む）。",
+      "records": {
+        "title": "記録"
+      },
+      "loading": "履歴を読み込み中...",
+      "empty": "現在のフィルター条件では自発的な発言の記録がありません。",
+      "status": {
+        "all": "すべてのステータス",
+        "spoken": "発言済み",
+        "generated": "生成のみ",
+        "skipped": "スキップ",
+        "failed": "実行失敗"
+      },
+      "intentUncategorized": "未分類",
+      "card": {
+        "noText": "今回は表示できるテキストが生成されませんでした。",
+        "action": "アクション: {{action}}",
+        "fallbackAction": "フォールバックアクション: {{action}}",
+        "reason": "理由: {{reason}}",
+        "usedFallback": "フォールバックアクションを使用",
+        "aiMapped": "アクションは AI/スタイルマッピング由来"
+      },
+      "reasons": {
+        "generation_in_progress": "生成タスクが進行中です",
+        "preferences_disabled": "自発的な発言がオフになっています",
+        "daily_limit_reached": "本日の上限に達しました",
+        "cooldown_active": "クールダウン時間内です",
+        "no_provider_context": "利用可能な AI コンテキストがありません",
+        "duplicate_text": "最近のテキストと重複しています",
+        "intent_overrepresented": "最近同じ種類の発言が多すぎます",
+        "parse_failed": "モデル出力の解析に失敗しました",
+        "intent_filtered": "生成カテゴリが許可範囲外です",
+        "first_activity_timeout": "モデルの最初の応答待ちがタイムアウトしました",
+        "stream_idle_timeout": "モデル出力の中断がタイムアウトしました",
+        "generation_max_timeout": "生成の合計時間がタイムアウトしました",
+        "generation_failed": "生成に失敗しました"
+      }
+    }
+  },
+  "recognition": {
+    "item": {
+      "title": "音声認識サービス",
+      "description": "リアルタイム音声認識で音声をテキストに変換します。"
+    },
+    "lockedHint": "音声認識は成長型の能力です。アンロック後にのみ設定ページを開き、実行中のサービスを起動できます。",
+    "status": {
+      "running": "音声認識サービス実行中",
+      "stopped": "音声認識サービスは起動していません"
+    },
+    "description": {
+      "running": "サービスは実行中です。録音ウィンドウでリアルタイム音声認識を使用できます。録音ウィンドウを閉じてもサービスは停止しません。",
+      "stopped": "起動すると音声認識モデルが読み込まれます。サービスはスイッチまたは右クリックメニューから制御できます。"
+    },
+    "action": {
+      "stop": "サービスを停止",
+      "start": "サービスを起動",
+      "config": "認識設定"
+    }
+  },
+  "chatEntry": {
+    "item": {
+      "title": "ミニチャットボックス"
+    },
+    "description": "有効にすると、デスクトップスプライトをダブルクリックしてスプライトに追従する小さな入力ウィンドウが開き、モデル、マイク、送信エントリのみが表示されます。他の会話オプションは引き続きローカルキャッシュを使用します。",
+    "detail": {
+      "title": "ミニチャットボックス",
+      "descriptionOn": "デスクトップスプライトをダブルクリックすると、スプライトに追従する小さな入力ウィンドウが開きます。",
+      "descriptionOff": "デスクトップスプライトをダブルクリックすると、完全なチャットウィンドウが開きます。"
+    },
+    "setFailed": "ミニ入力ウィンドウの設定に失敗しました"
+  },
+  "capability": {
+    "locked": "{{name}} はまだアンロックされていません",
+    "lockedEnablePrerequisites": "前提機能を有効にする必要があります：{{names}}",
+    "lockedUnlockPrerequisites": "前提機能をアンロックする必要があります：{{names}}",
+    "lockedNotOpen": "この機能は現在のバージョンではまだ利用できません",
+    "lockedGeneric": "この機能はまだアンロックされていません",
+    "unavailableHint": "この機能は現在利用できないため、関連機能は使用できません。",
+    "nameListSeparator": "、",
+    "microphone": "マイク録音",
+    "speechRecognition": "音声認識",
+    "spriteManage": "スプライトの見た目",
+    "customAppearance": "外観のカスタマイズ",
+    "actionChoreography": "アクション演出",
+    "emotionExpression": "感情表現"
+  }
+}

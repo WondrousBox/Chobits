@@ -42,3 +42,11 @@
 
 - 渲染进程全局桥对象统一 `window.chobits`（历史名 `window.YUA` 已废弃）
 - preload 桥接文件统一放 `electron/preload/apis/`，方法用 camelCase 语义命名，类型后缀统一 `BridgeParams` / `BridgeType`
+
+## 国际化（i18n）
+
+- 基于 i18next + react-i18next，初始化与引导逻辑在 `src/i18n/index.ts`（`initI18n` 在 `src/main.tsx` render 前调用，不阻塞渲染）
+- 资源按语言分目录、按 namespace 分文件：`src/i18n/locales/{zh-CN,ja,en}/{common,settings}.json`，静态 import，新增 namespace 时在 `src/i18n/index.ts` 注册
+- namespace 划分：`common` 放跨页面通用文案（如 `common:action.save`），页面/模块各自一个 namespace（如 `settings`）；key 用「模块.语义」嵌套结构，如 `settings:nav.general`、`settings:appearance.theme.label`
+- 支持语言 `zh-CN` / `ja` / `en`（类型 `AppLanguage`），偏好值 `LanguagePreference` 多一个 `'system'` 表示跟随系统，统一定义在 `packages/common/types/preferences.ts`
+- 新代码禁止硬编码用户可见文案，一律走 `t()`；改文案时三种语言资源必须同步补全，缺 key 会回退 zh-CN

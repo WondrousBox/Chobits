@@ -5,6 +5,7 @@
  */
 
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TbBrain, TbCheck, TbChevronDown, TbChevronRight } from 'react-icons/tb';
 
 interface ThinkingActivityProps {
@@ -13,6 +14,7 @@ interface ThinkingActivityProps {
 }
 
 const ThinkingActivity: React.FC<ThinkingActivityProps> = ({ thinking, isThinking }: ThinkingActivityProps) => {
+  const { t } = useTranslation('chat');
   const [isExpanded, setIsExpanded] = useState(false);
 
   if (!thinking && !isThinking) return null;
@@ -28,7 +30,7 @@ const ThinkingActivity: React.FC<ThinkingActivityProps> = ({ thinking, isThinkin
         ) : (
           <TbCheck className="h-3 w-3 text-green-500 shrink-0" />
         )}
-        <span className="text-muted-foreground truncate">{isThinking ? '思考中...' : '已思考'}</span>
+        <span className="text-muted-foreground truncate">{isThinking ? t('components.thinking.inProgress') : t('components.thinking.done')}</span>
         {isExpanded ? <TbChevronDown className="h-3 w-3 ml-auto shrink-0" /> : <TbChevronRight className="h-3 w-3 ml-auto shrink-0" />}
       </button>
       {isExpanded && thinking && (

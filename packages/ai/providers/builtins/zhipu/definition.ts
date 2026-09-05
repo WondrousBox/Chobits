@@ -7,6 +7,29 @@ const zhipuSchema: ProviderConfig = {
   label: '智谱 (GLM)',
   enabled: true,
   icon: 'providers/icons/zhipu-color.svg',
+  locales: {
+    en: {
+      label: 'Zhipu (GLM)',
+      fields: {
+        apiKey: 'API Key',
+        baseUrl: 'Base URL (optional, OpenAI-compatible gateway)'
+      }
+    },
+    'zh-CN': {
+      label: '智谱 (GLM)',
+      fields: {
+        apiKey: 'API Key',
+        baseUrl: 'Base URL (可选，OpenAI兼容网关)'
+      }
+    },
+    ja: {
+      label: 'Zhipu (GLM)',
+      fields: {
+        apiKey: 'API Key',
+        baseUrl: 'Base URL（任意、OpenAI 互換ゲートウェイ）'
+      }
+    }
+  },
   fields: [
     { key: 'apiKey', label: 'API Key', type: 'password', required: true },
     { key: 'baseUrl', label: 'Base URL (可选，OpenAI兼容网关)', type: 'text' }

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TbDatabase, TbDatabaseImport, TbLoader2, TbRefresh, TbRestore, TbTrash } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
@@ -36,6 +37,7 @@ function formatDate(dateStr: string | Date): string {
 }
 
 const DatabaseBackupSettings: React.FC = () => {
+  const { t } = useTranslation('settings');
   const [backups, setBackups] = useState<BackupInfo[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isBackingUp, setIsBackingUp] = useState(false);
@@ -124,7 +126,7 @@ const DatabaseBackupSettings: React.FC = () => {
     try {
       // 打开文件选择对话框
       const result = await window.chobits.file['file:pick-file']({
-        filters: [{ name: 'SQLite 数据库', extensions: ['db', 'sqlite', 'sqlite3'] }]
+        filters: [{ name: t('backup.fileFilter'), extensions: ['db', 'sqlite', 'sqlite3'] }]
       });
 
       if (!result.ok || !result.path) {
@@ -155,10 +157,10 @@ const DatabaseBackupSettings: React.FC = () => {
 
   return (
     <>
-      <SettingGroup title="数据库备份">
+      <SettingGroup title={t('backup.groupTitle')}>
         <SettingItem
-          title="创建备份"
-          description="将当前数据库保存为备份文件，备份存储在数据目录的 backups 文件夹中"
+          title={t('backup.create.label')}
+          description={t('backup.create.description')}
           action={
             <div className="flex items-center gap-2">
               <Button size="sm" variant="outline" onClick={loadBackups} disabled={isLoading}>
@@ -168,12 +170,12 @@ const DatabaseBackupSettings: React.FC = () => {
                 {isImporting ? (
                   <>
                     <TbLoader2 className="animate-spin" />
-                    导入中...
+                    {t('backup.importing')}
                   </>
                 ) : (
                   <>
                     <TbDatabaseImport />
-                    导入
+                    {t('backup.import')}
                   </>
                 )}
               </Button>
@@ -181,12 +183,12 @@ const DatabaseBackupSettings: React.FC = () => {
                 {isBackingUp ? (
                   <>
                     <TbLoader2 className="animate-spin" />
-                    备份中...
+                    {t('backup.backingUp')}
                   </>
                 ) : (
                   <>
                     <TbDatabase />
-                    立即备份
+                    {t('backup.backupNow')}
                   </>
                 )}
               </Button>
@@ -196,7 +198,7 @@ const DatabaseBackupSettings: React.FC = () => {
 
         {backups.length > 0 && (
           <div className="px-4 py-2 border-t border-border">
-            <div className="text-xs text-muted-foreground mb-2">备份列表 ({backups.length})</div>
+            <div className="text-xs text-muted-foreground mb-2">{t('backup.listTitle', { count: backups.length })}</div>
             <div className="space-y-1 max-h-48 overflow-y-auto">
               {backups.map((backup) => (
                 <div key={backup.path} className="flex items-center justify-between p-2 bg-muted/50 rounded text-xs">
@@ -207,10 +209,10 @@ const DatabaseBackupSettings: React.FC = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
-                    <Button size="icon" variant="ghost" className="h-6 w-6" title="恢复此备份" onClick={() => setRestoreTarget(backup)}>
+                    <Button size="icon" variant="ghost" className="h-6 w-6" title={t('backup.restoreTooltip')} onClick={() => setRestoreTarget(backup)}>
                       <TbRestore className="text-muted-foreground hover:text-primary" />
                     </Button>
-                    <Button size="icon" variant="ghost" className="h-6 w-6" title="删除" onClick={() => setDeleteTarget(backup)}>
+                    <Button size="icon" variant="ghost" className="h-6 w-6" title={t('backup.delete')} onClick={() => setDeleteTarget(backup)}>
                       <TbTrash className="text-muted-foreground hover:text-destructive" />
                     </Button>
                   </div>
@@ -225,22 +227,22 @@ const DatabaseBackupSettings: React.FC = () => {
       <Dialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
         <DialogContent className="w-96">
           <DialogHeader>
-            <DialogTitle>确认删除备份</DialogTitle>
-            <DialogDescription>将永久删除此备份文件，此操作不可恢复</DialogDescription>
+            <DialogTitle>{t('backup.deleteDialog.title')}</DialogTitle>
+            <DialogDescription>{t('backup.deleteDialog.description')}</DialogDescription>
           </DialogHeader>
           {deleteTarget && <div className="text-xs text-muted-foreground bg-muted p-2 rounded font-mono">{deleteTarget.fileName}</div>}
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteTarget(null)}>
-              取消
+              {t('common.cancel')}
             </Button>
             <Button variant="destructive" onClick={handleDelete} disabled={isDeleting}>
               {isDeleting ? (
                 <>
                   <TbLoader2 className="animate-spin" />
-                  删除中...
+                  {t('backup.deleteDialog.deleting')}
                 </>
               ) : (
-                '确认删除'
+                t('backup.deleteDialog.confirm')
               )}
             </Button>
           </DialogFooter>
@@ -251,24 +253,24 @@ const DatabaseBackupSettings: React.FC = () => {
       <Dialog open={!!restoreTarget} onOpenChange={() => setRestoreTarget(null)}>
         <DialogContent className="w-96">
           <DialogHeader>
-            <DialogTitle>恢复数据库备份</DialogTitle>
-            <DialogDescription>将用此备份替换当前数据库，当前数据库将被重命名为 .old 文件。恢复后需要重启应用。</DialogDescription>
+            <DialogTitle>{t('backup.restoreDialog.title')}</DialogTitle>
+            <DialogDescription>{t('backup.restoreDialog.description')}</DialogDescription>
           </DialogHeader>
           {restoreTarget && <div className="text-xs text-muted-foreground bg-muted p-2 rounded font-mono">{restoreTarget.fileName}</div>}
           <DialogFooter>
             <Button variant="outline" onClick={() => setRestoreTarget(null)}>
-              取消
+              {t('common.cancel')}
             </Button>
             <Button onClick={handleRestore} disabled={isRestoring}>
               {isRestoring ? (
                 <>
                   <TbLoader2 className="animate-spin" />
-                  恢复中...
+                  {t('backup.restoreDialog.restoring')}
                 </>
               ) : (
                 <>
                   <TbRestore />
-                  确认恢复
+                  {t('backup.restoreDialog.confirm')}
                 </>
               )}
             </Button>
@@ -280,16 +282,16 @@ const DatabaseBackupSettings: React.FC = () => {
       <Dialog open={isRestartDialogOpen} onOpenChange={setIsRestartDialogOpen}>
         <DialogContent className="w-96">
           <DialogHeader>
-            <DialogTitle>恢复完成</DialogTitle>
-            <DialogDescription>数据库已成功恢复。需要重启应用以加载新的数据库。</DialogDescription>
+            <DialogTitle>{t('backup.restartDialog.title')}</DialogTitle>
+            <DialogDescription>{t('backup.restartDialog.description')}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsRestartDialogOpen(false)}>
-              稍后重启
+              {t('backup.restartDialog.later')}
             </Button>
             <Button onClick={handleRestart}>
               <TbRestore />
-              立即重启
+              {t('backup.restartDialog.now')}
             </Button>
           </DialogFooter>
         </DialogContent>

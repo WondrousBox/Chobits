@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TbX } from 'react-icons/tb';
 import { toast } from 'sonner';
 
@@ -8,14 +9,14 @@ import { ensureChatApiConfigGoal, guideChatApiConfigIfNeeded } from '@/lib/chat-
 
 import { useChatSelection } from './context/ChatSelectionContext';
 
-const PLACEHOLDERS = [
-  '输入问题开始对话，可开启联网搜索',
-  '粘贴一段文字，让我帮你提炼要点',
-  '帮我把这段中文翻译成英文',
-  '写一个 TypeScript 函数组件示例',
-  '分析这个网页并输出摘要',
-  '输入 / 开头的指令可快速调用技能'
-];
+const PLACEHOLDER_KEYS = [
+  'panel.placeholders.askQuestion',
+  'panel.placeholders.summarizeText',
+  'panel.placeholders.translateToEnglish',
+  'panel.placeholders.tsComponentExample',
+  'panel.placeholders.analyzeWebpage',
+  'panel.placeholders.skillCommand'
+] as const;
 const MENU_RESERVE_HEIGHT = 360;
 
 type ChatStartParams = Parameters<ChatInputWithServiceProps['onStart']>[0];
@@ -26,6 +27,8 @@ interface ChatPanelPageProps {
 }
 
 const ChatPanelPage: React.FC<ChatPanelPageProps> = ({ mode = 'standard' }) => {
+  const { t } = useTranslation('chat');
+  const placeholders = useMemo(() => PLACEHOLDER_KEYS.map((key) => t(key)), [t]);
   const isMini = mode === 'mini';
   const windowKey = isMini ? 'chatMini' : 'chatPanel';
   const [isOpening, setIsOpening] = useState(true);
@@ -114,7 +117,7 @@ const ChatPanelPage: React.FC<ChatPanelPageProps> = ({ mode = 'standard' }) => {
       const resolvedPreset = await window.chobits.ai.resolveUsablePreset(providerId, preferredPresetId);
       if (!resolvedPreset?.id) {
         await ensureChatApiConfigGoal({ providerId, preferredPresetId, trigger: 'chat-send' });
-        toast.error('当前服务商还没有可用预设，请先到 AI 设置中完成配置');
+        toast.error(t('toast.noUsablePreset'));
         return;
       }
       if (resolvedPreset.id !== preferredPresetId) {
@@ -139,7 +142,7 @@ const ChatPanelPage: React.FC<ChatPanelPageProps> = ({ mode = 'standard' }) => {
       setTimeout(() => close(), 150);
     } catch (e) {
       console.error('[chat] open chat window failed', e);
-      toast.error('打开聊天窗口失败');
+      toast.error(t('toast.openChatWindowFailed'));
     } finally {
       sendingRef.current = false;
       setIsLoading(false);
@@ -297,14 +300,14 @@ const ChatPanelPage: React.FC<ChatPanelPageProps> = ({ mode = 'standard' }) => {
                 <ChatMiniInputWithService
                   autoFocus
                   isLoading={isLoading}
-                  placeholder="问点什么..."
+                  placeholder={t('panel.miniPlaceholder')}
                   onStart={handleSend}
                   onMenuOpenChange={handleMenuOpenChange}
                   onMenuOpenPrepare={handleMenuOpenPrepare}
                 />
               ) : (
                 <ChatInputWithService
-                  placeholders={PLACEHOLDERS}
+                  placeholders={placeholders}
                   autoFocus
                   isLoading={isLoading}
                   menuPlacement="chat-floating"

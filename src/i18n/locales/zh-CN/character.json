@@ -1,0 +1,324 @@
+{
+  "capability": {
+    "locked": "{{name}} 尚未解锁"
+  },
+  "trust": {
+    "level": {
+      "signatureDeclared": "已声明签名",
+      "publisherDeclared": "已声明来源",
+      "undeclared": "未声明来源"
+    },
+    "verification": {
+      "builtinBundled": "应用内置",
+      "signatureVerified": "签名已验证",
+      "signatureMismatch": "签名校验失败",
+      "signatureUntrusted": "签名未受信",
+      "digestVerified": "摘要已校验",
+      "digestMismatch": "摘要不匹配",
+      "declaredUnverified": "未验签"
+    },
+    "signature": {
+      "verified": "签名已验证",
+      "mismatch": "签名校验失败",
+      "untrusted": "签名未受信",
+      "unchecked": "签名未校验",
+      "declared": "签名声明",
+      "declaredValue": "已声明签名值",
+      "algorithm": "算法 {{value}}",
+      "keyId": "Key {{value}}",
+      "digest": "Digest {{value}}"
+    },
+    "digest": {
+      "verified": "摘要已校验",
+      "mismatch": "摘要不匹配",
+      "unchecked": "摘要未校验"
+    },
+    "link": {
+      "homepage": "主页",
+      "repository": "仓库",
+      "support": "支持",
+      "canonical": "Canonical"
+    },
+    "publisher": "发布者: {{name}}",
+    "channel": "渠道: {{name}}"
+  },
+  "metadata": {
+    "formatVersion": "format v{{version}}",
+    "minAppVersion": "App >= {{version}}",
+    "platform": "平台: {{platforms}}",
+    "languages": "语言: {{languages}}",
+    "voice": "语音",
+    "customAnimations": "自定义动画",
+    "model3d": "3D"
+  },
+  "pack": {
+    "source": {
+      "builtin": "内置",
+      "installed": "已安装"
+    },
+    "action": {
+      "create": "创建",
+      "import": "导入",
+      "current": "当前使用",
+      "activate": "切换",
+      "open": "打开",
+      "export": "导出",
+      "edit": "编辑",
+      "remove": "删除"
+    },
+    "listTitle": "已发现角色包",
+    "empty": "当前还没有可用的角色包。",
+    "noPreview": "无预览",
+    "fallbackName": "角色包",
+    "exportDialogTitle": "导出角色包",
+    "actionError": "{{prefix}}：{{message}}",
+    "toast": {
+      "loadFailed": "读取角色包失败",
+      "switched": "已切换到 {{name}}",
+      "activateFailed": "激活角色包失败",
+      "activateFailedWithName": "激活角色包失败: {{name}}",
+      "inspectFailed": "读取角色包信息失败",
+      "importFailed": "导入角色包失败",
+      "importFailedWithPath": "导入角色包失败: {{path}}",
+      "importedAndActivated": "{{name}} 已导入并切换",
+      "imported": "{{name}} 已导入",
+      "exportFailed": "导出角色包失败",
+      "exportFailedWithName": "导出角色包失败: {{name}}",
+      "exported": "{{name}} 已导出为 zip",
+      "removeFailed": "删除角色包失败",
+      "removeFailedWithName": "删除角色包失败: {{name}}",
+      "removedAndSwitched": "已删除 {{name}}，当前切回 {{activeName}}",
+      "removed": "已删除 {{name}}",
+      "draftLoadFailed": "读取角色包草稿失败"
+    },
+    "import": {
+      "titleInstall": "安装角色包",
+      "titleReplace": "替换已安装角色包？",
+      "titleBlocked": "角色包暂不可安装",
+      "descriptionInstall": "即将导入角色包 {{name}}。确认后会写入本地角色包目录。",
+      "descriptionReplace": "检测到同 ID 的已安装角色包：{{name}}。继续后会覆盖已安装内容；如果当前运行时正在使用这个角色包，也会同步刷新。",
+      "descriptionBlocked": "已读取到角色包 {{name}}，但当前运行环境还不满足安装条件。你可以先查看下面的阻塞原因，再决定是否升级应用或调整角色包格式。",
+      "trustTitle": "来源与信任",
+      "trustSummary": "信任摘要：{{summary}}",
+      "signatureDeclaration": "签名声明：{{summary}}",
+      "sourcePath": "来源：{{path}}",
+      "activePack": "当前角色包：{{name}}",
+      "existingConflict": "已安装冲突项：{{name}} ({{source}})",
+      "willReplaceActiveNote": "该角色包当前正在使用，替换后会立即刷新当前 runtime。",
+      "compatibilityTitle": "兼容性检查",
+      "formatVersion": "Pack Format：v{{packVersion}} / 当前支持至 v{{supportedVersion}}",
+      "appVersionWithMin": "应用版本：{{version}} / 角色包要求 >= {{minVersion}}",
+      "appVersionNoMin": "应用版本：{{version}} / 角色包未声明最低版本",
+      "platformDeclared": "平台：{{platform}} / 角色包声明 {{packPlatforms}}",
+      "platformUnrestricted": "平台：{{platform}} / 角色包未限制平台",
+      "supportedLanguages": "支持语言：{{languages}}",
+      "blockedTitle": "当前不可安装",
+      "warningsTitle": "导入警告",
+      "activateAfterInstall": "安装后立即切换",
+      "activateBlockedHint": "当前角色包尚未通过安装校验，暂时不能切换。",
+      "activateReplacedHint": "当前角色包会在替换后保持激活，无需额外切换。",
+      "activateHint": "开启后，安装完成会直接切换到这个角色包。",
+      "confirmInstall": "确认安装",
+      "confirmReplace": "确认替换"
+    },
+    "remove": {
+      "title": "删除角色包",
+      "descriptionActive": "当前正在使用 {{name}}。删除前会先切回其他可用角色包，再移除此安装包。",
+      "description": "将从本地移除 {{name}} 的安装目录。",
+      "confirm": "确认删除"
+    }
+  },
+  "gallery": {
+    "kind": {
+      "pose": "姿势",
+      "action": "动作",
+      "expression": "表情",
+      "prop": "道具",
+      "outfit": "服装",
+      "reference": "参考",
+      "background": "背景",
+      "custom": "自定义"
+    },
+    "view": {
+      "front": "正面",
+      "back": "背面",
+      "left": "左侧",
+      "right": "右侧",
+      "threeQuarterLeft": "左前 3/4",
+      "threeQuarterRight": "右前 3/4",
+      "top": "俯视",
+      "bottom": "仰视",
+      "custom": "自定义角度"
+    },
+    "referenceRole": {
+      "character": "角色一致性",
+      "pose": "姿势参考",
+      "style": "画风参考",
+      "prop": "道具参考",
+      "background": "背景参考",
+      "storyboard": "分镜参考",
+      "custom": "自定义"
+    },
+    "builtinLockedTitle": "内置角色包需要另存为本地版本后才能编辑图集",
+    "lockedHint": "角色图集属于角色包资产管理，未解锁时可以查看，但不能导入、编辑、替换或删除图片。",
+    "title": "角色参考图集",
+    "itemCount": "{{name}} · {{count}} 张图片",
+    "loading": "读取角色包图集...",
+    "loadingItems": "读取中...",
+    "searchPlaceholder": "搜索名称、动作、角度、标签",
+    "builtinNotice": "当前是内置角色包，图集仅可预览。保存为本地自定义角色包后可以导入、替换和编辑图片。",
+    "empty": "图集暂无图片，点击「导入图片」添加。",
+    "notSet": "未设置",
+    "action": {
+      "import": "导入图片",
+      "refresh": "刷新图集",
+      "prev": "上一张",
+      "next": "下一张",
+      "editMetadata": "元数据",
+      "replaceImage": "替换",
+      "removeImage": "删除图片",
+      "saving": "保存中..."
+    },
+    "detail": {
+      "kind": "类型：{{value}}",
+      "view": "角度：{{value}}",
+      "action": "动作：{{value}}",
+      "emotion": "表情：{{value}}",
+      "reference": "参考：{{value}}",
+      "strength": "强度：{{value}}",
+      "tags": "标签：{{tags}}"
+    },
+    "dialog": {
+      "addTitle": "添加图集图片",
+      "editTitle": "编辑图集图片"
+    },
+    "field": {
+      "name": "名称",
+      "kind": "类型",
+      "action": "动作",
+      "view": "角度",
+      "emotion": "表情",
+      "propName": "道具名",
+      "description": "描述",
+      "tags": "标签",
+      "tagsPlaceholder": "多个标签用逗号或换行分隔",
+      "referenceRole": "AI 参考角色",
+      "referenceStrength": "参考强度",
+      "promptHint": "AI 提示补充",
+      "negativePrompt": "负面提示"
+    },
+    "toast": {
+      "loadFailed": "读取角色图集失败",
+      "builtinReadonly": "内置角色包不可直接编辑",
+      "builtinReadonlyDescription": "请先在角色资料中保存成本地自定义角色包，再维护角色图集。",
+      "titleRequired": "图集条目需要一个名称",
+      "missingFile": "缺少要导入的图片文件",
+      "added": "图片已加入角色图集",
+      "saved": "图集条目已保存",
+      "saveFailed": "保存图集条目失败",
+      "replaceFailed": "替换图集图片失败",
+      "replaced": "图集图片已替换",
+      "removeFailed": "删除图集条目失败",
+      "removed": "图集条目已删除"
+    }
+  },
+  "editor": {
+    "field": {
+      "packId": "角色包 ID",
+      "packName": "角色包名称",
+      "version": "版本",
+      "author": "作者",
+      "license": "许可证",
+      "platform": "平台",
+      "packDescription": "角色包描述",
+      "tags": "标签",
+      "characterId": "角色 ID",
+      "characterName": "角色名称",
+      "tagline": "角色标语",
+      "aliases": "别名",
+      "background": "角色背景",
+      "coreTraits": "核心性格",
+      "boundaries": "行为边界",
+      "speechTone": "说话语气",
+      "language": "语言",
+      "firstPerson": "自称",
+      "addressUser": "称呼用户",
+      "quirks": "口癖和表达习惯",
+      "metaDescription": "角色说明",
+      "metaTags": "角色标签"
+    },
+    "speechExamples": "对话示例",
+    "addExample": "添加示例",
+    "exampleSituationPlaceholder": "场景",
+    "exampleResponsePlaceholder": "回应",
+    "messagesTitle": "事件台词",
+    "messagesHint": "每行一条，会随机选一句。可使用 {count}、{progress} 这类占位符。",
+    "progressTitle": "进度播报",
+    "progressHint": "用于下载、导入、转写和工作流等待时的语音播报。",
+    "activateAfterSave": "保存后立即切换",
+    "activateAfterSaveHint": "会刷新当前角色人格、能力状态和动画资源。",
+    "action": {
+      "save": "保存角色包"
+    },
+    "titleEdit": "编辑角色包",
+    "titleCreate": "创建自定义角色包",
+    "descriptionEdit": "保存后会更新本地角色包目录。",
+    "descriptionBuiltinCopy": "内置角色包会保存为本地可编辑版本，动画会使用新的独立动画包。来源：{{name}}",
+    "descriptionBasedOn": "将基于 {{name}} 创建角色，动画会使用新的独立动画包。",
+    "descriptionCreate": "保存后会写入本地角色包目录。",
+    "validation": {
+      "packIdInvalid": "角色包 ID 只能使用小写字母、数字、点、横线或下划线。",
+      "packNameRequired": "角色包名称不能为空。",
+      "versionRequired": "版本不能为空。",
+      "authorRequired": "作者不能为空。",
+      "characterIdInvalid": "角色 ID 只能使用小写字母、数字、点、横线或下划线。",
+      "characterNameRequired": "角色名称不能为空。",
+      "taglineRequired": "角色标语不能为空。",
+      "backgroundRequired": "角色背景不能为空。",
+      "speechToneRequired": "说话语气不能为空。"
+    },
+    "error": {
+      "draftLoadFailed": "读取角色包草稿失败: {{name}}",
+      "idConflict": "已存在同 ID 的本地角色包，请换一个角色包 ID。",
+      "saveFailed": "保存角色包失败"
+    },
+    "defaults": {
+      "customVersionName": "{{name}} 自定义版",
+      "seedName": "我的自定义角色",
+      "packDescription": "本地创建的自定义角色包",
+      "tagline": "我的桌面伙伴",
+      "background": "你是一个居住在用户电脑桌面上的智能精灵，会陪伴用户工作、学习和生活。",
+      "coreTraitWarm": "温暖真诚",
+      "coreTraitResponsible": "认真负责",
+      "coreTraitPersonality": "有一点自己的小个性",
+      "boundaryHonest": "真诚帮助，不表演。",
+      "boundaryNatural": "像人一样自然说话。",
+      "boundarySolve": "遇到问题先尝试解决，实在卡住再询问用户。",
+      "speechTone": "温和、自然、略带活泼",
+      "firstPerson": "我",
+      "addressUser": "你",
+      "quirkTone": "偶尔用轻快的语气回应",
+      "quirkConfirm": "完成任务时会简短确认结果",
+      "exampleGreetingSituation": "打招呼",
+      "exampleGreetingResponse": "嗨，今天想做点什么？",
+      "exampleTaskSituation": "完成任务",
+      "exampleTaskResponse": "搞定啦。",
+      "metaDescription": "本地创建的自定义角色"
+    },
+    "toast": {
+      "saved": "{{name}} 已保存",
+      "savedAndActivated": "{{name}} 已保存并切换"
+    }
+  },
+  "editorWindow": {
+    "fallbackTitle": "角色包编辑",
+    "loading": "正在读取角色包...",
+    "empty": "没有可编辑的角色包。",
+    "tabProfile": "角色资料",
+    "tabGallery": "角色图集",
+    "tabAnimations": "精灵动画",
+    "close": "关闭",
+    "errorNotFound": "未找到要编辑的角色包。",
+    "loadFailed": "读取角色包编辑器失败"
+  }
+}

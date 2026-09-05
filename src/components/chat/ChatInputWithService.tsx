@@ -1,5 +1,6 @@
 import type { SkillInfo } from '@packages/ai/types';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TbRobot } from 'react-icons/tb';
 import { toast } from 'sonner';
 
@@ -46,6 +47,7 @@ export interface ChatInputWithServiceProps extends Omit<UnifiedChatInputProps, '
 }
 
 export default function ChatInputWithService({ onStart, onMenuOpenChange, onMenuOpenPrepare, footerRightExtra, disabled, menuPlacement = 'auto', ...rest }: ChatInputWithServiceProps): JSX.Element {
+  const { t } = useTranslation('chat');
   const {
     agents,
     providerId,
@@ -79,7 +81,7 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, onMenu
   const slashSuggestions = useMemo(() => listSkillSuggestions(draft, skills).slice(0, 8), [draft, skills]);
   const slashMenuActive = skillPickerEnabled && isTypingSlashSkillQuery(draft) && slashSuggestions.length > 0;
   const highlightedSkillInfo = slashSuggestions[highlightedSkillIndex] || slashSuggestions[0];
-  const activeSkillTrust = useMemo(() => (activeSkillInfo ? getSkillTrustPresentation(activeSkillInfo) : undefined), [activeSkillInfo]);
+  const activeSkillTrust = useMemo(() => (activeSkillInfo ? getSkillTrustPresentation(activeSkillInfo, t) : undefined), [activeSkillInfo, t]);
   const floatingMenuProps = menuPlacement === 'chat-floating' ? ({ contentSide: 'bottom' as const, contentAlign: 'start' as const, avoidCollisions: false } as const) : undefined;
   const floatingModelMenuProps =
     menuPlacement === 'chat-floating' ? ({ menuSide: 'bottom' as const, menuAlign: 'start' as const, subMenuSide: 'right' as const, avoidCollisions: false } as const) : undefined;
@@ -152,7 +154,7 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, onMenu
     if (!providerId || !modelId) return;
 
     if (isCoder && !codingWorkspaceRoot) {
-      toast.error('代码助手需要先选择项目目录');
+      toast.error(t('components.input.coderWorkspaceRequired'));
       return;
     }
 
@@ -289,7 +291,7 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, onMenu
             }}
             buttonVariant="ghost"
             buttonSize="sm"
-            placeholder="选择模型"
+            placeholder={t('components.input.modelSelectPlaceholder')}
             autoLoadFirst
             modelTypes={['chat']}
             onOpenChange={onMenuOpenChange}
@@ -338,11 +340,12 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, onMenu
                 <p className="font-medium">{activeSkillInfo.name}</p>
                 <p>{activeSkillInfo.description}</p>
                 {activeSkillInfo.whenToUse && <p className="mt-1 text-xs text-muted-foreground">{activeSkillInfo.whenToUse}</p>}
-                {activeSkillInfo.argumentHint && <p className="mt-1 text-xs text-muted-foreground">参数提示: {activeSkillInfo.argumentHint}</p>}
+                {activeSkillInfo.argumentHint && <p className="mt-1 text-xs text-muted-foreground">{t('components.input.argumentHintLabel', { hint: activeSkillInfo.argumentHint })}</p>}
                 {(activeSkillInfo.sourceLabel || activeSkillInfo.sourceDetail) && (
                   <p className="mt-1 text-xs text-muted-foreground">
-                    来源: {activeSkillInfo.sourceLabel || activeSkillInfo.source}
-                    {activeSkillInfo.sourceDetail ? ` · ${activeSkillInfo.sourceDetail}` : ''}
+                    {t('components.input.sourceLabel', {
+                      source: `${activeSkillInfo.sourceLabel || activeSkillInfo.source}${activeSkillInfo.sourceDetail ? ` · ${activeSkillInfo.sourceDetail}` : ''}`
+                    })}
                   </p>
                 )}
                 {activeSkillTrust?.note && <p className="mt-1 text-xs text-muted-foreground">{activeSkillTrust.note}</p>}
@@ -353,17 +356,17 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, onMenu
             <Tooltip>
               <TooltipTrigger asChild>
                 <div className="hidden max-w-[320px] items-center gap-1 rounded-full border border-dashed px-2 py-1 text-xs text-muted-foreground lg:flex">
-                  <span className="shrink-0">参数提示</span>
+                  <span className="shrink-0">{t('components.input.argumentHintBadge')}</span>
                   <span className="truncate">{activeSkillInfo.argumentHint}</span>
-                  <span className="shrink-0 text-[11px] text-muted-foreground/70">Tab 可补全 skill</span>
+                  <span className="shrink-0 text-[11px] text-muted-foreground/70">{t('components.input.tabCompleteHint')}</span>
                 </div>
               </TooltipTrigger>
               <TooltipContent align="start">
-                <p>继续在 skill 名后输入参数即可。</p>
+                <p>{t('components.input.argumentHintTooltip')}</p>
               </TooltipContent>
             </Tooltip>
           )}
-          <WebSearchToggle isEnabled={webSearchEnabled} onToggle={setWebSearchEnabled} onOpenChange={onMenuOpenChange} {...floatingMenuProps} />
+          <WebSearchToggle isEnabled={webSearchEnabled} onToggle={setWebSearchEnabled} />
           {!isCoder && (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -377,7 +380,7 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, onMenu
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                <p>{characterPromptEnabled ? '角色已注入' : '注入人格，好感度和心情会影响说话风格'}</p>
+                <p>{characterPromptEnabled ? t('components.input.characterInjected') : t('components.input.characterPromptTooltip')}</p>
               </TooltipContent>
             </Tooltip>
           )}

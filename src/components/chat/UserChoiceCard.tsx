@@ -9,6 +9,7 @@
 
 import type { UserChoiceRequest } from '@packages/ai/types';
 import { useCallback, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TbCheck, TbChevronLeft, TbChevronRight } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
@@ -24,6 +25,7 @@ interface UserChoiceCardProps {
 }
 
 export default function UserChoiceCard({ request, onSubmit, submitted, submittedAnswers }: UserChoiceCardProps): JSX.Element {
+  const { t } = useTranslation('chat');
   const { questions, prompt } = request;
   const totalQuestions = questions.length;
 
@@ -128,7 +130,7 @@ export default function UserChoiceCard({ request, onSubmit, submitted, submitted
         </div>
 
         {/* 选项类型提示 */}
-        <div className="text-[10px] text-muted-foreground">{currentQuestion.multiple ? '多选 — 可选择多个' : '单选 — 请选择一个'}</div>
+        <div className="text-[10px] text-muted-foreground">{currentQuestion.multiple ? t('components.choiceCard.multipleHint') : t('components.choiceCard.singleHint')}</div>
 
         {/* 选项列表 */}
         <div className="flex flex-col gap-1.5">
@@ -167,7 +169,7 @@ export default function UserChoiceCard({ request, onSubmit, submitted, submitted
           {!isFirstQuestion && (
             <Button size="sm" variant="ghost" onClick={handlePrev} className="h-7 px-2 text-xs">
               <TbChevronLeft />
-              上一题
+              {t('components.choiceCard.prevQuestion')}
             </Button>
           )}
         </div>
@@ -175,11 +177,11 @@ export default function UserChoiceCard({ request, onSubmit, submitted, submitted
           {isLastQuestion ? (
             <>
               <TbCheck />
-              确认提交
+              {t('components.choiceCard.submit')}
             </>
           ) : (
             <>
-              下一题
+              {t('components.choiceCard.nextQuestion')}
               <TbChevronRight />
             </>
           )}

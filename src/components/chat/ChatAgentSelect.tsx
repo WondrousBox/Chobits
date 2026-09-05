@@ -1,5 +1,6 @@
 import type * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu';
 import type { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TbChevronDown } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
@@ -31,7 +32,7 @@ export default function ChatAgentSelect({
   agents,
   value,
   onValueChange,
-  placeholder = '选择模式',
+  placeholder,
   prefix,
   triggerClassName,
   contentClassName,
@@ -42,8 +43,9 @@ export default function ChatAgentSelect({
   contentAlign = 'start',
   avoidCollisions
 }: ChatAgentSelectProps): JSX.Element {
+  const { t } = useTranslation('chat');
   const selectedAgent = agents.find((agent) => agent.id === value);
-  const label = selectedAgent?.label || placeholder;
+  const label = selectedAgent?.label || placeholder || t('components.agentSelect.placeholder');
 
   return (
     <DropdownMenu onOpenChange={onOpenChange}>

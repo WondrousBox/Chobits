@@ -1,0 +1,203 @@
+{
+  "page": {
+    "loading": "読み込み中...",
+    "tab": {
+      "available": "利用可能なプラグイン",
+      "installed": "インストール済み"
+    },
+    "filter": {
+      "label": "カテゴリ",
+      "clear": "フィルターをクリア"
+    },
+    "storage": {
+      "label": "保存場所",
+      "tooltip": "ダウンロードフォルダーを設定"
+    },
+    "downloadSettings": {
+      "label": "ダウンロード設定",
+      "title": "ダウンロード設定",
+      "description": "ダウンロードのキャンセル、失敗時のクリーンアップ、再開前の検証動作を制御します。",
+      "items": {
+        "deletePartialDownloadOnCancel": {
+          "title": "キャンセル後に一時ファイルを削除",
+          "description": "オフにすると、ダウンロードをキャンセルしても .download ファイルが残り、次回続きからダウンロードできます。"
+        },
+        "deletePartialDownloadOnFailure": {
+          "title": "失敗後に一時ファイルを削除",
+          "description": "オフにすると、ダウンロード失敗時に未完了の一時ファイルが保持されます。"
+        },
+        "deleteDownloadedFileOnFailure": {
+          "title": "失敗後に対象ファイルを削除",
+          "description": "アーカイブ以外のリソースのダウンロードに失敗したとき、対象ファイルを削除するかどうかを制御します。"
+        },
+        "deleteArchiveAfterInstall": {
+          "title": "インストール後にアーカイブを削除",
+          "description": "オンにすると、展開とインストールの完了後に元のアーカイブを削除します。"
+        },
+        "downloaderResumeValidation": {
+          "title": "再開前にリモートリソースを検証",
+          "description": "オンにすると、ダウンロードを再開する前に HEAD リクエストでリソースに変更がないか確認します。"
+        },
+        "downloaderDebug": {
+          "title": "ダウンローダーのデバッグログ",
+          "description": "オンにすると、aim-downloader の内部デバッグログを出力します。"
+        }
+      }
+    },
+    "networkTest": "ネットワークテスト",
+    "empty": {
+      "title": "プラグインがありません",
+      "hiddenByFeatureFlags": "プラグインは非表示になっています。先に「機能管理」で「ローカル AI 推論」を有効にしてください"
+    },
+    "installedBadge": "インストール済み",
+    "modelCount": "{{count}} 個のモデル",
+    "installEngineFirst": "モデルを選択する前にエンジンをインストールしてください",
+    "availableModelCount": "このエンジンには {{count}} 個の利用可能なモデルがあります",
+    "modelListTitle": "モデル一覧 ({{count}})"
+  },
+  "category": {
+    "core": "コアエンジン",
+    "asr": "音声認識",
+    "tts": "音声合成",
+    "stt": "音声テキスト変換",
+    "vad": "音声検出",
+    "voice-clone": "音声クローン",
+    "llm": "大規模言語モデル",
+    "nlp": "自然言語処理",
+    "translation": "翻訳",
+    "punctuation": "句読点復元",
+    "embedding": "テキスト埋め込み",
+    "image-gen": "画像生成",
+    "image-edit": "画像編集",
+    "ocr": "文字認識",
+    "image-recognition": "画像認識",
+    "face": "顔認識",
+    "image-super-res": "画像超解像",
+    "audio-process": "音声処理",
+    "video-gen": "動画生成",
+    "video-edit": "動画編集",
+    "video-analysis": "動画分析",
+    "multimodal": "マルチモーダル",
+    "agent": "AIエージェント",
+    "code": "コード生成",
+    "music": "音楽生成",
+    "three-d": "3D生成",
+    "other": "その他"
+  },
+  "item": {
+    "type": {
+      "engine": "エンジン",
+      "model": "モデル",
+      "plugin": "プラグイン"
+    },
+    "supportedLanguages": "対応言語：",
+    "status": {
+      "queued": "待機中",
+      "downloading": "ダウンロード中",
+      "extracting": "展開中",
+      "verifying": "検証中",
+      "installed": "インストール済み",
+      "failed": "失敗",
+      "cancelled": "キャンセル済み",
+      "removed": "削除済み",
+      "unknown": "不明"
+    },
+    "progress": {
+      "queued": "待機中…",
+      "extracting": "展開中…",
+      "verifying": "検証中…",
+      "failedWithError": "インストールに失敗しました: {{error}}",
+      "failedRetryable": "インストールに失敗しました。再試行できます"
+    },
+    "action": {
+      "cancel": "キャンセル",
+      "retry": "再試行",
+      "install": "インストール",
+      "installing": "インストール中...",
+      "delete": "削除"
+    },
+    "systemPreset": "システムプリセット",
+    "delete": {
+      "title": "{{type}}を削除",
+      "description": "「{{name}}」を削除してもよろしいですか？この操作はインストール記録を削除し、ダウンロード済みのローカルファイルも削除します。再度使用するには再ダウンロードが必要です。"
+    }
+  },
+  "language": {
+    "multi": "多言語",
+    "en": "英語",
+    "zh": "中国語",
+    "ja": "日本語",
+    "ko": "韓国語",
+    "yue": "広東語",
+    "de": "ドイツ語",
+    "es": "スペイン語",
+    "ru": "ロシア語",
+    "fr": "フランス語",
+    "pt": "ポルトガル語",
+    "tr": "トルコ語",
+    "pl": "ポーランド語",
+    "ca": "カタルーニャ語",
+    "nl": "オランダ語",
+    "ar": "アラビア語",
+    "sv": "スウェーデン語",
+    "it": "イタリア語",
+    "id": "インドネシア語",
+    "hi": "ヒンディー語",
+    "fi": "フィンランド語",
+    "vi": "ベトナム語",
+    "he": "ヘブライ語",
+    "uk": "ウクライナ語",
+    "el": "ギリシャ語",
+    "ms": "マレー語",
+    "cs": "チェコ語",
+    "ro": "ルーマニア語",
+    "da": "デンマーク語",
+    "hu": "ハンガリー語",
+    "ta": "タミル語",
+    "no": "ノルウェー語",
+    "th": "タイ語",
+    "ur": "ウルドゥー語",
+    "hr": "クロアチア語",
+    "bg": "ブルガリア語",
+    "lt": "リトアニア語",
+    "la": "ラテン語",
+    "mi": "マオリ語",
+    "ml": "マラヤーラム語",
+    "cy": "ウェールズ語",
+    "sk": "スロバキア語",
+    "te": "テルグ語",
+    "fa": "ペルシャ語",
+    "lv": "ラトビア語",
+    "bn": "ベンガル語",
+    "sr": "セルビア語",
+    "az": "アゼルバイジャン語",
+    "sl": "スロベニア語",
+    "kn": "カンナダ語",
+    "et": "エストニア語",
+    "mk": "マケドニア語",
+    "br": "ブルトン語",
+    "eu": "バスク語",
+    "is": "アイスランド語",
+    "hy": "アルメニア語",
+    "ne": "ネパール語",
+    "mn": "モンゴル語",
+    "bs": "ボスニア語",
+    "kk": "カザフ語",
+    "sq": "アルバニア語",
+    "sw": "スワヒリ語",
+    "gl": "ガリシア語",
+    "mr": "マラーティー語",
+    "pa": "パンジャブ語",
+    "si": "シンハラ語",
+    "km": "クメール語",
+    "sn": "ショナ語",
+    "yo": "ヨルバ語",
+    "so": "ソマリ語",
+    "af": "アフリカーンス語",
+    "oc": "オック語",
+    "ka": "ジョージア語",
+    "be": "ベラルーシ語",
+    "tg": "タジク語",
+    "sd": "シンド語"
+  }
+}

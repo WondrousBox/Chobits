@@ -1,0 +1,208 @@
+{
+  "conversation": {
+    "untitled": "未命名会话",
+    "newChat": "新对话",
+    "recent": "最近会话",
+    "loading": "加载中…",
+    "empty": "暂无会话，点击“新对话”开始",
+    "messagesCount": "{{count}} 条消息",
+    "refreshList": "刷新列表",
+    "collapseHistory": "收起历史",
+    "expandHistory": "展开历史"
+  },
+  "menu": {
+    "share": "分享对话内容",
+    "pin": "固定",
+    "unpin": "取消固定",
+    "rename": "重命名",
+    "delete": "删除"
+  },
+  "toast": {
+    "deleted": "已删除会话",
+    "deleteFailed": "删除失败",
+    "titleCopied": "已复制对话标题",
+    "pinned": "已固定会话",
+    "unpinned": "已取消固定",
+    "noUsablePreset": "当前服务商还没有可用预设，请先到 AI 设置中完成配置",
+    "noChatModel": "当前服务商没有可用的对话模型",
+    "openChatWindowFailed": "打开聊天窗口失败",
+    "debugOverlayEnabled": "调试线框已开启",
+    "debugOverlayDisabled": "调试线框已关闭",
+    "debugOverlayToggleFailed": "切换调试线框失败"
+  },
+  "stream": {
+    "errorInline": "\n[错误] {{message}}",
+    "thinking": "正在思考..."
+  },
+  "emptyStart": {
+    "greeting": "今天有什么能帮到你？"
+  },
+  "usage": {
+    "conversationTotal": "会话累计",
+    "currentRound": "本轮"
+  },
+  "scroll": {
+    "toBottom": "滚动到底部"
+  },
+  "renameDialog": {
+    "title": "重命名对话",
+    "confirm": "确定"
+  },
+  "deleteDialog": {
+    "title": "删除对话",
+    "description": "确定要删除此对话吗？此操作无法撤销。"
+  },
+  "panel": {
+    "placeholders": {
+      "askQuestion": "输入问题开始对话，可开启联网搜索",
+      "summarizeText": "粘贴一段文字，让我帮你提炼要点",
+      "translateToEnglish": "帮我把这段中文翻译成英文",
+      "tsComponentExample": "写一个 TypeScript 函数组件示例",
+      "analyzeWebpage": "分析这个网页并输出摘要",
+      "skillCommand": "输入 / 开头的指令可快速调用技能"
+    },
+    "miniPlaceholder": "问点什么..."
+  },
+  "spriteMenu": {
+    "quit": "退出",
+    "status": "状态",
+    "voiceService": "语音服务",
+    "asrTest": "ASR 测试",
+    "ttsConfig": "TTS 配置",
+    "chat": "聊天",
+    "settings": "设置",
+    "debugTest": "调试测试",
+    "debugOverlay": "调试线框",
+    "debugOverlayOff": "关闭线框",
+    "bubbleTop": "顶部气泡",
+    "bubbleInline": "内嵌气泡"
+  },
+  "components": {
+    "toolCall": {
+      "emojiFallbackTitle": "表情包",
+      "sendingEmoji": "发送表情包...",
+      "emojiSendFailed": "表情包发送失败",
+      "emojiSent": "发送表情包完成",
+      "noDisplayableEmoji": "没有找到可展示的表情包",
+      "preparingOptions": "准备选项...",
+      "executing": "{{name}} 正在执行中",
+      "backgroundHint": "如果你不想继续等待，可以切到后台执行。",
+      "switchingToBackground": "正在切到后台...",
+      "runInBackground": "转为后台执行",
+      "backgroundSubmittedNote": "当前等待即将结束，任务会继续在后台运行。",
+      "backgroundWaitingNote": "继续等待时，进度和状态文本会实时更新。",
+      "completed": "{{name}} 完成",
+      "runningInBackground": "{{name}} 后台执行中",
+      "argsLabel": "参数",
+      "resultLabel": "结果",
+      "copy": "复制{{label}}",
+      "copied": "{{label}}已复制",
+      "copyUnsupported": "当前环境不支持复制"
+    },
+    "speechInput": {
+      "recognizing": "正在识别...",
+      "holdTooShort": "按住时间太短，未发送",
+      "serviceNotRunning": "请先启动语音识别服务",
+      "configReadFailed": "读取语音识别配置失败",
+      "cloudConfigIncomplete": "云端语音识别配置不完整",
+      "micPermissionDenied": "麦克风权限被拒绝，请先允许访问麦克风",
+      "micNotFound": "未检测到麦克风设备",
+      "micBusy": "麦克风被其他程序占用",
+      "startFailed": "启动语音输入失败"
+    },
+    "choiceCard": {
+      "multipleHint": "多选 — 可选择多个",
+      "singleHint": "单选 — 请选择一个",
+      "prevQuestion": "上一题",
+      "nextQuestion": "下一题",
+      "submit": "确认提交"
+    },
+    "messageRenderer": {
+      "imageAlt": "图片"
+    },
+    "input": {
+      "modelSelectPlaceholder": "选择模型",
+      "coderWorkspaceRequired": "代码助手需要先选择项目目录",
+      "argumentHintLabel": "参数提示: {{hint}}",
+      "sourceLabel": "来源: {{source}}",
+      "argumentHintBadge": "参数提示",
+      "tabCompleteHint": "Tab 可补全 skill",
+      "argumentHintTooltip": "继续在 skill 名后输入参数即可。",
+      "characterInjected": "角色已注入",
+      "characterPromptTooltip": "注入人格，好感度和心情会影响说话风格",
+      "miniPlaceholder": "问点什么...",
+      "openingConversation": "正在打开对话",
+      "sendTooltip": "发送消息",
+      "sendAriaLabel": "发送",
+      "shortcutHint": "Enter 发送，Shift+Enter 换行",
+      "stopAriaLabel": "停止",
+      "stopTooltip": "停止生成",
+      "placeholderAsk": "输入问题，开始对话...",
+      "placeholderAnalyze": "让我帮你分析一段文字",
+      "placeholderTranslate": "帮我把这段中文翻译成英文",
+      "placeholderCode": "写一个代码示例",
+      "placeholderChat": "陪我聊聊天"
+    },
+    "skillPicker": {
+      "selectAriaLabel": "选择 Skill",
+      "tooltip": "选择一个 Skill，或直接输入 `/skill-name`",
+      "searchPlaceholder": "搜索 skills...",
+      "loading": "正在加载 skills...",
+      "noMatch": "没有匹配的 skill",
+      "heading": "Available Skills",
+      "trust": {
+        "trusted": {
+          "label": "受信任",
+          "note": "来自内置或用户本地 skill 目录。"
+        },
+        "workspace": {
+          "label": "工作区",
+          "note": "来自当前仓库或工作区，应结合当前项目上下文使用。"
+        },
+        "plugin": {
+          "label": "插件",
+          "note": "来自插件扩展，执行前应确认插件来源与预期动作。"
+        },
+        "compatibility": {
+          "label": "兼容层",
+          "note": "来自旧 toolbox 兼容桥接，主要用于迁移过渡。"
+        }
+      }
+    },
+    "thinking": {
+      "inProgress": "思考中...",
+      "done": "已思考"
+    },
+    "webSearch": {
+      "disable": "关闭联网搜索",
+      "enable": "开启联网搜索",
+      "enableTooltip": "开启联网搜索（DuckDuckGo，无需 API Key）"
+    },
+    "tokenUsage": {
+      "input": "输入 {{count}}",
+      "output": "输出 {{count}}",
+      "total": "总计 {{count}}"
+    },
+    "codingWorkspace": {
+      "selectProject": "选择项目",
+      "pickDirectory": "选择项目目录",
+      "clearDirectory": "清除项目目录"
+    },
+    "agentSelect": {
+      "placeholder": "选择模式"
+    },
+    "aiSpeech": {
+      "enabledTooltip": "AI 说话已开启，点击关闭",
+      "disabledTooltip": "AI 说话已关闭，点击开启",
+      "disableAriaLabel": "关闭 AI 说话",
+      "enableAriaLabel": "开启 AI 说话"
+    },
+    "speechButton": {
+      "releaseToCancel": "松开取消",
+      "releaseToSend": "松开自动发送，左滑取消",
+      "holdToTalk": "按住说话",
+      "releaseToEndAriaLabel": "松开结束语音输入",
+      "holdToStartAriaLabel": "按住开始语音输入"
+    }
+  }
+}

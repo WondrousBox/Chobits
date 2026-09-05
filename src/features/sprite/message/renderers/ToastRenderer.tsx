@@ -10,6 +10,7 @@
 import Messages from '@packages/sprite-core/messages/zh-CN';
 import clsx from 'clsx';
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 
 import type { MessageCategory } from '../../types';
 import type { ToastMessage } from '../types';
@@ -29,6 +30,7 @@ const levelStyles: Record<string, string> = {
 };
 
 export function ToastRenderer({ message, className, placement = 'inline' }: ToastRendererProps): JSX.Element {
+  const { t } = useTranslation('sprite');
   // 计算显示文案
   const displayText = React.useMemo(() => {
     // 优先使用自定义内容
@@ -68,7 +70,7 @@ export function ToastRenderer({ message, className, placement = 'inline' }: Toas
       )}
     >
       {hasText && <span className={clsx(hasImage && 'mb-1 px-2 pt-1 text-left')}>{displayText}</span>}
-      {hasImage && <img src={image!.url} alt={image!.alt || image!.title || displayText || '表情包'} draggable={false} className="block max-h-[200px] max-w-[200px] object-contain" />}
+      {hasImage && <img src={image!.url} alt={image!.alt || image!.title || displayText || t('message.stickerAlt')} draggable={false} className="block max-h-[200px] max-w-[200px] object-contain" />}
     </div>
   );
 }

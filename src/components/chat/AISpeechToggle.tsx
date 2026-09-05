@@ -1,5 +1,6 @@
 import type { SpriteSpeakConfig } from '@packages/sprite-core/speak/types';
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TbVolume, TbVolumeOff } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
@@ -20,6 +21,7 @@ export interface AISpeechToggleProps {
 }
 
 export default function AISpeechToggle({ className, onEnabledChange }: AISpeechToggleProps): JSX.Element | null {
+  const { t } = useTranslation('chat');
   const [config, setConfig] = useState<SpriteSpeakConfig | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -84,7 +86,7 @@ export default function AISpeechToggle({ className, onEnabledChange }: AISpeechT
     }
   };
 
-  const content = isChecked ? 'AI 说话已开启，点击关闭' : 'AI 说话已关闭，点击开启';
+  const content = isChecked ? t('components.aiSpeech.enabledTooltip') : t('components.aiSpeech.disabledTooltip');
 
   return (
     <Tooltip>
@@ -94,7 +96,7 @@ export default function AISpeechToggle({ className, onEnabledChange }: AISpeechT
           size="icon"
           variant={isChecked ? 'default' : 'outline'}
           disabled={isDisabled}
-          aria-label={isChecked ? '关闭 AI 说话' : '开启 AI 说话'}
+          aria-label={isChecked ? t('components.aiSpeech.disableAriaLabel') : t('components.aiSpeech.enableAriaLabel')}
           aria-pressed={isChecked}
           className={cn(
             'h-8 w-8 shrink-0 rounded-full shadow-sm backdrop-blur',

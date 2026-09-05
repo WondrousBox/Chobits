@@ -116,7 +116,7 @@ Renderer（示例约定，实际路径视实现为准）：
 - `label: string`
 - `enabled: boolean`
 - `icon?: string`
-- `locales?: Record<string, { label?: string; fields?: Record<string, string> }>`
+- `locales?: Record<string, { label?: string; fields?: Record<string, string>; options?: Record<string, Record<string, string>> }>`（options 覆盖 select 字段选项文案：fieldKey → optionValue → 显示文案）
 - `fields: Array<{ key; label; type: 'text'|'password'|'select'; required?; options? }>`
 
 ### 3.5 AgentProfile（Pi Profile）

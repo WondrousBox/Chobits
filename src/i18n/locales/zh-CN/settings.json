@@ -1,0 +1,309 @@
+{
+  "title": "设置",
+  "nav": {
+    "preferences": {
+      "label": "偏好设置",
+      "description": "主题外观和文件夹设置"
+    },
+    "ai": {
+      "label": "对话设置",
+      "description": "AI 提供商、API Key、对话参数"
+    },
+    "prompt": {
+      "label": "提示词管理",
+      "description": "提示词管理与设置"
+    },
+    "features": {
+      "label": "功能管理",
+      "description": "开启或关闭可选功能"
+    },
+    "plugins": {
+      "label": "插件管理",
+      "description": "管理本地引擎与模型插件"
+    },
+    "shortcuts": {
+      "label": "快捷键",
+      "description": "全局快捷键设置"
+    },
+    "proxy": {
+      "label": "代理设置",
+      "description": "配置网络代理以访问受限资源"
+    },
+    "extensions": {
+      "label": "机能扩展",
+      "description": "角色包和精灵能力"
+    },
+    "spriteManager": {
+      "label": "精灵管理",
+      "description": "管理桌面精灵动画资源、导入与调试动作"
+    }
+  },
+  "appearance": {
+    "groupTitle": "外观",
+    "theme": {
+      "label": "主题外观",
+      "description": "切换界面颜色模式，或根据系统自动调整",
+      "switching": "切换中...",
+      "options": {
+        "system": "跟随系统",
+        "light": "明亮模式",
+        "dark": "黑暗模式"
+      }
+    }
+  },
+  "language": {
+    "groupTitle": "语言",
+    "label": "界面语言",
+    "description": "切换界面显示语言，或跟随系统设置",
+    "updateFailed": "更新语言设置失败",
+    "options": {
+      "system": "跟随系统",
+      "zh-CN": "简体中文",
+      "ja": "日本語",
+      "en": "English"
+    }
+  },
+  "launch": {
+    "groupTitle": "启动",
+    "launchAtLogin": {
+      "label": "开机自启动",
+      "description": "登录系统后自动启动 Chobits",
+      "updateFailed": "更新开机自启动失败"
+    }
+  },
+  "features": {
+    "groupTitle": "功能开关",
+    "restartHint": "关闭的功能会隐藏对应入口并停用相关后台服务;切换开关后需重启应用才能完全生效。",
+    "items": {
+      "localAI": {
+        "label": "本地 AI 推理",
+        "description": "本地语音识别(sherpa),无需联网但占用更多磁盘与内存"
+      }
+    },
+    "toast": {
+      "updateFailed": "更新功能开关失败"
+    }
+  },
+  "folder": {
+    "groupTitle": "文件夹",
+    "open": "打开",
+    "select": "选择",
+    "moving": "移动中",
+    "moveCompleted": "移动完成",
+    "movingFile": "正在移动: {{file}}",
+    "movingFiles": "正在移动文件...",
+    "dataDir": {
+      "label": "数据目录",
+      "description": "应用数据存储位置"
+    },
+    "logsDir": {
+      "label": "日志目录",
+      "description": "应用日志文件位置"
+    },
+    "downloadDir": {
+      "label": "下载目录",
+      "description": "文件下载保存位置"
+    },
+    "pluginsDir": {
+      "label": "插件资源目录",
+      "description": "插件引擎和模型文件存储位置"
+    }
+  },
+  "preview": {
+    "groupTitle": "预览",
+    "switching": "切换中...",
+    "mode": {
+      "label": "预览模式",
+      "description": "选择资源预览的显示方式"
+    },
+    "options": {
+      "window": "独立窗口",
+      "panel": "右侧面板"
+    }
+  },
+  "prompt": {
+    "searchPlaceholder": "搜索...",
+    "noTemplates": "暂无模板",
+    "noResults": "无匹配结果",
+    "noSelection": "未选择模板",
+    "reset": "重置",
+    "editorPlaceholder": "编辑模板内容...",
+    "selectFirst": "请先选择或创建一个模板",
+    "createTitle": "新建模板",
+    "deleteConfirm": "删除该模板？",
+    "dialog": {
+      "createTitle": "新建模板",
+      "editTitle": "编辑模板",
+      "nameRequired": "名称必填",
+      "nameLabel": "名称",
+      "namePlaceholder": "模板名称",
+      "contentLabel": "内容",
+      "contentPlaceholder": "模板内容"
+    }
+  },
+  "proxy": {
+    "mode": {
+      "groupTitle": "代理模式",
+      "label": "代理类型",
+      "description": "选择网络代理模式",
+      "options": {
+        "none": "禁用",
+        "system": "系统",
+        "custom": "自定义"
+      }
+    },
+    "systemInfo": {
+      "label": "系统代理信息",
+      "notDetected": "未检测到系统代理"
+    },
+    "refresh": "刷新",
+    "custom": {
+      "groupTitle": "自定义代理",
+      "empty": "暂无代理配置",
+      "add": "添加代理",
+      "enabled": "已启用",
+      "enable": "启用"
+    },
+    "test": {
+      "groupTitle": "网络测试",
+      "label": "测试代理连接",
+      "description": "检测当前代理配置是否正常工作",
+      "testing": "测试中...",
+      "button": "测试",
+      "failed": "测试失败",
+      "connected": "连接正常，延迟: {{latency}}ms",
+      "connectFailed": "无法连接到代理服务器"
+    },
+    "toast": {
+      "loadFailed": {
+        "title": "加载失败",
+        "description": "无法加载代理配置"
+      },
+      "setSuccess": {
+        "title": "设置成功",
+        "description": "代理配置已更新"
+      },
+      "setFailed": {
+        "title": "设置失败",
+        "description": "无法更新代理配置"
+      },
+      "addSuccess": {
+        "title": "添加成功",
+        "description": "已添加新的代理配置"
+      },
+      "addFailed": {
+        "title": "添加失败",
+        "description": "无法添加代理配置"
+      },
+      "updateSuccess": {
+        "title": "更新成功",
+        "description": "代理配置已更新"
+      },
+      "updateFailed": {
+        "title": "更新失败",
+        "description": "无法更新代理配置"
+      },
+      "removeSuccess": {
+        "title": "删除成功",
+        "description": "代理配置已删除"
+      },
+      "removeFailed": {
+        "title": "删除失败",
+        "description": "无法删除代理配置"
+      }
+    }
+  },
+  "shortcuts": {
+    "groupTitle": "快捷键配置",
+    "multiHint": "多个快捷键用逗号分隔",
+    "actions": {
+      "toggleChatWindow": "AI 聊天面板切换",
+      "toggleDevtools": "DevTools 切换",
+      "toggleMainWindow": "显示/隐藏主窗口"
+    },
+    "restoreDefaults": "恢复默认",
+    "saving": "保存中...",
+    "save": "保存设置",
+    "toast": {
+      "restored": "已恢复默认快捷键",
+      "restoreFailed": "恢复默认失败",
+      "saved": "快捷键已保存",
+      "saveFailed": "保存失败",
+      "invalidList": "以下快捷键不可用：\n{{failures}}",
+      "invalid": "存在不可用的快捷键，请修改后重试。"
+    }
+  },
+  "backup": {
+    "groupTitle": "数据库备份",
+    "create": {
+      "label": "创建备份",
+      "description": "将当前数据库保存为备份文件，备份存储在数据目录的 backups 文件夹中"
+    },
+    "import": "导入",
+    "importing": "导入中...",
+    "backupNow": "立即备份",
+    "backingUp": "备份中...",
+    "listTitle": "备份列表 ({{count}})",
+    "restoreTooltip": "恢复此备份",
+    "delete": "删除",
+    "fileFilter": "SQLite 数据库",
+    "deleteDialog": {
+      "title": "确认删除备份",
+      "description": "将永久删除此备份文件，此操作不可恢复",
+      "confirm": "确认删除",
+      "deleting": "删除中..."
+    },
+    "restoreDialog": {
+      "title": "恢复数据库备份",
+      "description": "将用此备份替换当前数据库，当前数据库将被重命名为 .old 文件。恢复后需要重启应用。",
+      "confirm": "确认恢复",
+      "restoring": "恢复中..."
+    },
+    "restartDialog": {
+      "title": "恢复完成",
+      "description": "数据库已成功恢复。需要重启应用以加载新的数据库。",
+      "later": "稍后重启",
+      "now": "立即重启"
+    }
+  },
+  "update": {
+    "groupTitle": "更新",
+    "check": {
+      "label": "检查更新",
+      "description": "新版本会在后台自动下载，重启应用后完成安装",
+      "checking": "检查中…",
+      "button": "检查更新"
+    },
+    "toast": {
+      "failed": {
+        "title": "检查更新失败",
+        "description": "请稍后重试，或查看日志了解详情"
+      },
+      "available": {
+        "title": "发现新版本 {{version}}",
+        "description": "正在后台下载，下载完成后重启应用即可安装"
+      },
+      "downloaded": {
+        "title": "新版本 {{version}} 已下载完成",
+        "description": "重启应用后自动安装"
+      },
+      "latest": "当前已是最新版本",
+      "devUnsupported": {
+        "title": "开发版本不支持自动更新",
+        "description": "仅生产构建可检查更新"
+      },
+      "checking": "正在检查更新，请稍后再试"
+    }
+  },
+  "common": {
+    "notSet": "未设置",
+    "loading": "加载中...",
+    "save": "保存",
+    "cancel": "取消",
+    "create": "创建"
+  },
+  "unavailable": {
+    "title": "页面不可用",
+    "description": "该页面在当前上下文中不可用"
+  }
+}

@@ -1,0 +1,402 @@
+{
+  "actions": {
+    "add": "添加",
+    "apply": "应用",
+    "cancel": "取消",
+    "clear": "清空",
+    "copy": "复制",
+    "copied": "已复制",
+    "delete": "删除",
+    "play": "播放",
+    "refresh": "刷新",
+    "reset": "重置",
+    "save": "保存",
+    "saving": "保存中…",
+    "stop": "停止",
+    "test": "测试"
+  },
+  "form": {
+    "name": "名称",
+    "primaryTrigger": "主 Trigger",
+    "triggerAliases": "别名 Trigger",
+    "triggerAliasesPlaceholder": "多个 trigger 用逗号或换行分隔",
+    "triggerAliasesPlaceholderWithExample": "多个 trigger 用逗号或换行分隔，例如 character:daily-login, sprite:anim-complete",
+    "priority": "优先级",
+    "width": "宽度",
+    "height": "高度"
+  },
+  "displays": {
+    "current": "当前显示器",
+    "main": "主窗口显示器",
+    "primary": "主显示器"
+  },
+  "animation": {
+    "categories": {
+      "entrance": "进入",
+      "exit": "退出",
+      "emphasis": "强调"
+    },
+    "presets": {
+      "fly-in": "飞入",
+      "fade-in": "淡入",
+      "zoom-in": "缩放进入",
+      "fly-out": "飞出",
+      "fade-out": "淡出",
+      "zoom-out": "缩放退出",
+      "pulse": "脉冲",
+      "shake": "抖动"
+    },
+    "directions": {
+      "top": "上侧",
+      "top-right": "右上",
+      "right": "右侧",
+      "bottom-right": "右下",
+      "bottom": "下侧",
+      "bottom-left": "左下",
+      "left": "左侧",
+      "top-left": "左上"
+    },
+    "toast": {
+      "playStarted": "窗口动画已开始播放",
+      "playFailed": "窗口动画播放失败"
+    }
+  },
+  "manager": {
+    "capabilityHint": "精灵资源管理尚未解锁时，可以查看和测试现有动画，但不能导入、删除或编辑动画 metadata。",
+    "capabilityLocked": "{{name}} 尚未解锁",
+    "registeredCount": "已注册动画：{{count}}",
+    "searchPlaceholder": "搜索 (名称 / ID / 分类 / 标签)",
+    "defaultPlaylistMode": "默认播放列表模式",
+    "playlistModes": {
+      "list-loop": "列表循环",
+      "list-once": "列表播放"
+    },
+    "importVideo": "导入视频",
+    "importing": "导入中…",
+    "expandCategory": "展开分类",
+    "collapseCategory": "折叠分类",
+    "categoryPlaylistMode": "{{name}} 播放列表模式",
+    "triggerCategory": "触发 {{name}} 事件：播放动画 + 显示气泡",
+    "testPlay": "测试播放：在桌面精灵上预览此动画",
+    "setTrigger": "设置 trigger",
+    "editProperties": "编辑此精灵属性",
+    "previewHover": "鼠标悬停预览",
+    "noResults": "无匹配结果"
+  },
+  "configEditor": {
+    "title": "编辑精灵属性",
+    "capabilityHint": "精灵资源管理尚未解锁时，可以查看现有动画，但不能保存精灵属性。",
+    "windowPadding": "窗口 Padding",
+    "loop": {
+      "label": "循环播放",
+      "description": "只修改播放配置，不重新裁剪视频",
+      "options": {
+        "none": "不循环",
+        "finite": "循环 N 次",
+        "infinite": "无限循环"
+      }
+    },
+    "autoIdle": {
+      "label": "播完回到 Idle",
+      "description": "关闭后会停在动画结尾状态"
+    },
+    "movement": {
+      "label": "播放时窗口动作",
+      "description": "只修改窗口动作配置，不改变视频文件",
+      "modeLabel": "模式",
+      "modes": {
+        "direction": "方向移动",
+        "walkTo": "随机行走",
+        "windowAnimation": "窗口动画"
+      },
+      "preset": "预设",
+      "direction": "方向",
+      "directions": {
+        "left": "向左",
+        "right": "向右",
+        "up": "向上",
+        "down": "向下",
+        "up-left": "左上",
+        "up-right": "右上",
+        "down-left": "左下",
+        "down-right": "右下",
+        "random": "随机"
+      },
+      "duration": "时长 ms",
+      "speed": "速度 px/s",
+      "triggerLabel": "触发",
+      "triggers": {
+        "animation": "动画播放时",
+        "behavior": "行为调度"
+      }
+    },
+    "saveProperties": "保存属性",
+    "toast": {
+      "saveFailed": "保存精灵属性失败",
+      "saved": "精灵属性已保存"
+    }
+  },
+  "conditionBuilder": {
+    "title": "可视化 Builder",
+    "description": "现在已支持 nested group 和 NOT 条件；遇到 `in/notIn` 或更特殊的 schema 时会继续回退到 JSON。",
+    "status": {
+      "supported": "Builder 已接管",
+      "unsupported": "复杂规则，回退 JSON"
+    },
+    "presetsTitle": "常用角色状态条件",
+    "presets": {
+      "favor-high": "高好感",
+      "favor-low": "低好感",
+      "mood-joyful": "开心时",
+      "bestie-joyful": "挚友且开心",
+      "level-10": "10级解锁",
+      "not-sleepy": "非困倦时",
+      "bestie-or-joyful": "挚友或开心"
+    },
+    "clearConditions": "清空条件",
+    "nodeTypes": {
+      "compare": "条件",
+      "group": "分组",
+      "not": "取反"
+    },
+    "nodeTypeOptions": {
+      "compare": "普通条件",
+      "group": "嵌套分组",
+      "not": "NOT 条件"
+    },
+    "removeNode": "删除条件节点",
+    "add": {
+      "compare": "添加条件",
+      "group": "添加分组",
+      "not": "添加 NOT"
+    },
+    "addRoot": {
+      "compare": "添加根条件",
+      "group": "添加根分组",
+      "not": "添加根 NOT"
+    },
+    "groupMatch": "组匹配方式",
+    "rootMatch": "根匹配方式",
+    "rootMatchHint": "多个根条件时生效，单个根节点会自动收敛成对应条件。",
+    "match": {
+      "all": "全部满足（AND）",
+      "any": "任一满足（OR）"
+    },
+    "notDescription": "对子条件取反，适合“不是某种心情 / 不满足某个阶段”之类的规则。",
+    "unsupportedHint": "当前规则包含 Builder 暂未覆盖的 schema。你可以继续在 JSON 中编辑，或者点击上方 preset / builder 按钮覆盖为更结构化的规则。",
+    "compareValuePlaceholder": "输入比较值",
+    "fields": {
+      "favor": {
+        "label": "好感度 favor",
+        "placeholder": "例如 80"
+      },
+      "level": {
+        "label": "等级 level",
+        "placeholder": "例如 10"
+      },
+      "mood": {
+        "label": "心情 mood"
+      },
+      "favorLevel": {
+        "label": "好感阶段 favorLevel"
+      },
+      "achievements": {
+        "label": "成就 achievements",
+        "placeholder": "例如 first-chat"
+      },
+      "custom": {
+        "label": "自定义角色状态路径",
+        "placeholder": "例如 dimensions.focus",
+        "fieldPathPlaceholder": "角色状态路径，例如 dimensions.focus"
+      }
+    },
+    "favorLevels": {
+      "stranger": "陌生人",
+      "acquaintance": "认识",
+      "friend": "朋友",
+      "close-friend": "好友",
+      "bestie": "挚友",
+      "soulmate": "灵魂伴侣"
+    },
+    "moods": {
+      "joyful": "开心 joyful",
+      "content": "满足 content",
+      "neutral": "平静 neutral",
+      "bored": "无聊 bored",
+      "sad": "难过 sad",
+      "sleepy": "困倦 sleepy",
+      "excited": "兴奋 excited",
+      "curious": "好奇 curious",
+      "annoyed": "烦躁 annoyed"
+    },
+    "advancedJson": "高级 JSON",
+    "jsonPlaceholder": "留空表示无条件。示例：{\n  \"type\": \"all\",\n  \"conditions\": [\n    { \"type\": \"compare\", \"field\": \"favor\", \"operator\": \"gte\", \"value\": 80 },\n    {\n      \"type\": \"not\",\n      \"condition\": { \"type\": \"compare\", \"field\": \"mood\", \"operator\": \"eq\", \"value\": \"sleepy\" }\n    }\n  ]\n}",
+    "jsonHint": "支持 compare / all / any / not；field 可写 favor、level、mood、achievements、dimensions.focus 等角色状态路径。",
+    "errors": {
+      "invalid": "条件规则格式无效，请检查 type / field / operator / value。",
+      "jsonParse": "条件规则 JSON 解析失败：{{message}}",
+      "jsonParseUnknown": "条件规则 JSON 解析失败。"
+    }
+  },
+  "metaPopover": {
+    "editTitle": "编辑 trigger 元数据",
+    "priorityHint": "同一 trigger 命中多个动画时，数值越大越优先。",
+    "resolvedTitle": "实际命中",
+    "resolvedEmpty": "未设置"
+  },
+  "triggerPicker": {
+    "title": "动画 Trigger",
+    "uncategorized": "未分类",
+    "builtin": "内置",
+    "custom": "自定义",
+    "builtinWithGroup": "内置 · {{group}}",
+    "customTrigger": "自定义 trigger",
+    "clear": "清空",
+    "apply": "应用",
+    "searchPlaceholder": "搜索内置 trigger...",
+    "noMatch": "没有匹配的内置 trigger",
+    "customTitle": "自定义 Trigger",
+    "customHint": "写入任意扩展事件名",
+    "customPlaceholder": "例如：character:daily-login"
+  },
+  "positionEditor": {
+    "title": "播放前目标位置",
+    "anchors": {
+      "top-left": "左上角",
+      "top": "顶部居中",
+      "top-right": "右上角",
+      "left": "左侧居中",
+      "center": "正中心",
+      "right": "右侧居中",
+      "bottom-left": "左下角",
+      "bottom": "底部居中",
+      "bottom-right": "右下角"
+    },
+    "fitModes": {
+      "stretch": "拉伸适配",
+      "contain": "等比包含",
+      "cover": "等比覆盖"
+    },
+    "placementLabels": {
+      "keepCurrent": "保持当前位置",
+      "manual": "手动位置",
+      "quick": "快捷位置"
+    },
+    "modes": {
+      "placement": "快捷位置",
+      "point": "手动拖拽"
+    },
+    "windowAnchorTooltip": "窗口锚点：{{label}}",
+    "margin": "边距",
+    "useWorkArea": "使用工作区"
+  },
+  "windowEditor": {
+    "title": "窗口动画编辑器",
+    "subtitle": "关键帧路径、尺寸和透明度时间轴",
+    "targets": {
+      "main": "主精灵窗口",
+      "spriteBubble": "顶部气泡窗口",
+      "spriteEffect": "精灵特效窗口",
+      "menu": "精灵菜单窗口"
+    },
+    "clampToWorkArea": "限制在工作区内",
+    "keyframeTitle": "关键帧 {{index}}",
+    "totalDuration": "总时长 {{duration}} ms",
+    "advanced": "高级参数",
+    "windowAnchor": "窗口锚点",
+    "anchorX": "锚点 X",
+    "anchorY": "锚点 Y",
+    "sizeMode": "尺寸模式",
+    "sizeModes": {
+      "explicit": {
+        "label": "编辑宽高",
+        "description": "关键帧写入窗口宽高"
+      },
+      "original": {
+        "label": "保持原始尺寸",
+        "description": "播放时继承窗口当前尺寸"
+      }
+    },
+    "originalSizeHint": "保持原始尺寸时，关键帧不会写入 width/height，画布仅展示锚点路径。",
+    "fields": {
+      "width": "宽度",
+      "height": "高度",
+      "opacity": "透明度",
+      "duration": "段时长 ms",
+      "margin": "边距"
+    },
+    "curve": "曲线",
+    "easing": "缓动",
+    "controlPoint": "控制点 {{index}}",
+    "absoluteCoordinates": "绝对坐标",
+    "anchors": {
+      "top-left": "左上角",
+      "top": "顶部居中",
+      "top-right": "右上角",
+      "left": "左侧上下居中",
+      "center": "正中心",
+      "right": "右侧上下居中",
+      "bottom-left": "左下角",
+      "bottom": "底部居中",
+      "bottom-right": "右下角"
+    },
+    "timeline": {
+      "title": "窗口关键帧",
+      "frameCount": "{{count}} 帧",
+      "startPoint": "起点"
+    },
+    "coordinateSpace": {
+      "title": "屏幕适配",
+      "enabledDescription": "适配不同屏幕",
+      "disabledDescription": "使用绝对桌面 px",
+      "toggle": "适配"
+    },
+    "placement": {
+      "title": "吸附位置",
+      "absolute": "绝对",
+      "displayBase": "显示器基准",
+      "useWorkArea": "使用工作区边界"
+    },
+    "jsonDialog": {
+      "title": "窗口动画 JSON",
+      "description": "当前时间线数据，可复制用于调试或复用。"
+    },
+    "toast": {
+      "jsonCopied": "JSON 已复制",
+      "copyFailed": "复制失败"
+    }
+  },
+  "windowSettings": {
+    "title": "窗口动画编排",
+    "itemDescription": "编辑桌面路径、关键帧、窗口大小和透明度",
+    "description": "通过独立编辑器绘制桌面坐标路径，为任意窗口配置关键帧、贝塞尔曲线、尺寸变化和透明度变化。",
+    "defaultAnimation": {
+      "label": "默认初始化动画",
+      "description": "打开后生成默认关键帧路径，可继续调整坐标、尺寸和透明度"
+    },
+    "presetHint": "点击后立即播放主窗口动画",
+    "mainWindowUnavailable": "主窗口不可用"
+  },
+  "settings": {
+    "itemLabel": "精灵管理",
+    "itemDescription": "管理桌面精灵动画资源、导入与调试动作"
+  },
+  "retrospective": {
+    "title": "今日目的",
+    "empty": "今天还没有需要复盘的目的。",
+    "justNow": "刚刚",
+    "memoryCandidate": "高价值",
+    "status": {
+      "completed": "完成",
+      "cancelled": "取消",
+      "failed": "失败",
+      "superseded": "切换"
+    }
+  },
+  "status": {
+    "loading": "加载中…"
+  },
+  "message": {
+    "stickerAlt": "表情包"
+  }
+}

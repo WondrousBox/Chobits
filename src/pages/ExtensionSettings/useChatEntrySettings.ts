@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-
-export const CHAT_ENTRY_DESCRIPTION = '开启后，双击桌面精灵会打开跟随精灵的小输入窗，只显示模型、麦克风和发送入口。其他对话选项继续沿用本地缓存。';
 
 export function useChatEntrySettings(): {
   description: string;
@@ -10,6 +9,7 @@ export function useChatEntrySettings(): {
   isPending: boolean;
   setEnabled: (enabled: boolean) => Promise<void>;
 } {
+  const { t } = useTranslation('speech');
   const [isEnabled, setIsEnabledValue] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isPending, setIsPending] = useState(false);
@@ -49,22 +49,22 @@ export function useChatEntrySettings(): {
           config: { miniChatWindowEnabled: nextEnabled }
         });
         if (!result.ok || !result.config) {
-          throw new Error(result.error || '设置迷你输入窗失败');
+          throw new Error(result.error || t('chatEntry.setFailed'));
         }
         setIsEnabledValue(Boolean(result.config.miniChatWindowEnabled));
       } catch (error) {
         setIsEnabledValue(previous);
-        toast.error('设置迷你输入窗失败', {
+        toast.error(t('chatEntry.setFailed'), {
           description: error instanceof Error ? error.message : String(error)
         });
       } finally {
         setIsPending(false);
       }
     },
-    [isEnabled, isPending]
+    [isEnabled, isPending, t]
   );
 
-  return { description: CHAT_ENTRY_DESCRIPTION, isEnabled, isLoading, isPending, setEnabled };
+  return { description: t('chatEntry.description'), isEnabled, isLoading, isPending, setEnabled };
 }
 
 export type ChatEntrySettingsState = ReturnType<typeof useChatEntrySettings>;

@@ -1,6 +1,7 @@
 import type { SpriteBubbleMode } from '@packages/sprite-core/types';
 import { Bug, BugOff, MessageSquare, PanelTop } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
 import { useFeatureFlags } from '@/hooks/useFeatureFlags';
@@ -14,6 +15,7 @@ const menuAnchor: { x: number; y: number } = { x: 300, y: 300 };
 const EXIT_ANIMATION_DURATION = 450;
 
 const SpriteMenuPage: React.FC = () => {
+  const { t } = useTranslation('chat');
   // 控制菜单显示状态，初始为 false，等待窗口显示事件后再展开
   const [isOpen, setIsOpen] = useState(false);
   // 是否正在播放关闭动画
@@ -72,25 +74,25 @@ const SpriteMenuPage: React.FC = () => {
     try {
       const applied = await window.chobits.sprite.setDebugOverlay(next);
       setIsDebugOverlayEnabled(applied);
-      toast.success(applied ? '调试线框已开启' : '调试线框已关闭');
+      toast.success(applied ? t('toast.debugOverlayEnabled') : t('toast.debugOverlayDisabled'));
     } catch (error) {
       setIsDebugOverlayEnabled(isDebugOverlayEnabled);
-      toast.error('切换调试线框失败', { description: error instanceof Error ? error.message : String(error) });
+      toast.error(t('toast.debugOverlayToggleFailed'), { description: error instanceof Error ? error.message : String(error) });
     }
-  }, [isDebugOverlayEnabled]);
+  }, [isDebugOverlayEnabled, t]);
 
   const menuItems: RadialMenuItem[] = useMemo(
     () => [
       {
         id: 'quit',
-        label: '退出',
+        label: t('spriteMenu.quit'),
         icon: '❌',
         shortcut: 'q',
         action: () => window.chobits.window['window:command:send']({ type: 'quit-app' })
       },
       {
         id: 'status',
-        label: '状态',
+        label: t('spriteMenu.status'),
         icon: '💬',
         shortcut: 'i',
         action: () => {
@@ -99,13 +101,13 @@ const SpriteMenuPage: React.FC = () => {
       },
       {
         id: 'voice-service',
-        label: '语音服务',
+        label: t('spriteMenu.voiceService'),
         icon: '🎙️',
         shortcut: 'a',
         children: [
           {
             id: 'asr-test',
-            label: 'ASR 测试',
+            label: t('spriteMenu.asrTest'),
             icon: '🎧',
             shortcut: 'r',
             action: async () => {
@@ -125,7 +127,7 @@ const SpriteMenuPage: React.FC = () => {
           },
           {
             id: 'tts-config',
-            label: 'TTS 配置',
+            label: t('spriteMenu.ttsConfig'),
             icon: '🔊',
             shortcut: 'v',
             action: () => {
@@ -140,7 +142,7 @@ const SpriteMenuPage: React.FC = () => {
       },
       {
         id: 'chat',
-        label: '聊天',
+        label: t('spriteMenu.chat'),
         icon: '🗨️',
         shortcut: 'c',
         action: () => {
@@ -155,19 +157,19 @@ const SpriteMenuPage: React.FC = () => {
       },
       {
         id: 'debug-test',
-        label: '调试测试',
+        label: t('spriteMenu.debugTest'),
         icon: <Bug className="h-6 w-6" />,
         children: [
           {
             id: 'debug-overlay',
-            label: isDebugOverlayEnabled ? '关闭线框' : '调试线框',
+            label: isDebugOverlayEnabled ? t('spriteMenu.debugOverlayOff') : t('spriteMenu.debugOverlay'),
             icon: isDebugOverlayEnabled ? <BugOff className="h-6 w-6" /> : <Bug className="h-6 w-6" />,
             shortcut: 'd',
             action: toggleDebugOverlay
           },
           {
             id: 'bubble-mode',
-            label: bubbleMode === 'inline' ? '顶部气泡' : '内嵌气泡',
+            label: bubbleMode === 'inline' ? t('spriteMenu.bubbleTop') : t('spriteMenu.bubbleInline'),
             icon: bubbleMode === 'inline' ? <PanelTop className="h-6 w-6" /> : <MessageSquare className="h-6 w-6" />,
             shortcut: 'b',
             action: () => void setSpriteBubbleMode(bubbleMode === 'inline' ? 'fixed-top' : 'inline')
@@ -176,7 +178,7 @@ const SpriteMenuPage: React.FC = () => {
       },
       {
         id: 'settings',
-        label: '设置',
+        label: t('spriteMenu.settings'),
         icon: '⚙️',
         shortcut: 's',
         action: () => {
@@ -184,7 +186,7 @@ const SpriteMenuPage: React.FC = () => {
         }
       }
     ],
-    [bubbleMode, isDebugOverlayEnabled, isASRRunning, isEnabled, setSpriteBubbleMode, toggleDebugOverlay]
+    [bubbleMode, isDebugOverlayEnabled, isASRRunning, isEnabled, setSpriteBubbleMode, toggleDebugOverlay, t]
   );
 
   // 处理菜单关闭请求（播放退出动画后关闭窗口）

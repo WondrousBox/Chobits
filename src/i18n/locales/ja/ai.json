@@ -1,0 +1,91 @@
+{
+  "provider": {
+    "group": {
+      "selfHosted": "セルフホスト",
+      "cloud": "クラウド"
+    },
+    "configured": "設定済み",
+    "empty": "プロバイダーがありません",
+    "preset": {
+      "edit": "編集",
+      "collapse": "折りたたむ",
+      "test": "テスト",
+      "testSuccess": "テストに成功しました",
+      "testFailed": "テストに失敗しました: {{message}}",
+      "deleteConfirm": "このプリセットを削除しますか？",
+      "create": "プリセットを追加",
+      "createTitle": "プリセットを追加",
+      "editTitle": "プリセットを編集 · {{name}}",
+      "save": "プリセットを保存",
+      "cancelCreate": "追加をキャンセル",
+      "required": "必須"
+    }
+  },
+  "presetForm": {
+    "submit": "保存",
+    "cancel": "キャンセル",
+    "description": "入力して保存するとすぐに反映されます",
+    "delete": "削除",
+    "models": {
+      "title": "利用可能なモデル ({{count}})",
+      "expand": "展開",
+      "collapse": "折りたたむ",
+      "empty": "取得できるモデルリストがまだありません",
+      "free": "無料",
+      "hint": "ここでは閲覧のみです。実際に使うときはチャットでモデルを選択してください。",
+      "types": {
+        "chat": "チャット",
+        "vision": "ビジョン",
+        "image": "画像",
+        "video": "動画",
+        "audio": "音声",
+        "embedding": "埋め込み",
+        "realtime": "リアルタイム",
+        "tool": "ツール"
+      }
+    }
+  },
+  "keys": {
+    "groupTitle": "セキュリティ",
+    "clear": {
+      "label": "すべてのキーを削除",
+      "description": "システムキーチェーンに保存されたすべての API キーを削除します。この操作は元に戻せません",
+      "action": "一括削除",
+      "clearing": "削除中...",
+      "confirmTitle": "削除の確認",
+      "confirmDescription": "システムキーチェーンに保存されているすべての API キーが完全に削除されます",
+      "confirmAction": "削除を実行",
+      "cancel": "キャンセル"
+    }
+  },
+  "networkCheck": {
+    "title": "ネットワーク接続チェック",
+    "description": "プラグインやモデルのダウンロードに必要なサイトへアクセスできるか確認します",
+    "checking": "チェック中...",
+    "accessible": "アクセス可能",
+    "inaccessible": "アクセスできません",
+    "checkFailed": "チェックに失敗しました"
+  },
+  "modelFolder": {
+    "loading": "設定を読み込み中...",
+    "currentLocation": "現在の保存先",
+    "notSet": "未設定",
+    "hint": "プラグインは大きな容量を占有するため、システムドライブ以外への保存をおすすめします。",
+    "selectLocation": "保存先を選択",
+    "changeLocation": "保存先を変更"
+  },
+  "configWindow": {
+    "loading": "読み込み中...",
+    "providerNotFound": "プロバイダーが見つかりません: {{providerId}}",
+    "titlePreset": "🔑 プリセットキー設定",
+    "titleProvider": "🔑 プロバイダー設定",
+    "presetDescription": "現在のプリセットに必要なキーを設定します。これらの設定はこのプリセットでのみ使用されます",
+    "providerDescription": "このサービスへのアクセスに必要なキーを設定します（旧入口との互換）",
+    "presetBadge": "プリセットキー",
+    "noFields": "設定可能なフィールドはありません。",
+    "selectPlaceholder": "{{label}}を選択",
+    "autoSaving": "自動保存中...",
+    "autoSaveFailed": "自動保存に失敗しました",
+    "cancel": "キャンセル"
+  }
+}

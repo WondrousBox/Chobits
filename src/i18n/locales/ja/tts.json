@@ -1,0 +1,47 @@
+{
+  "test": {
+    "title": "TTS 音声合成テスト",
+    "speaker": "話者",
+    "speakerLabel": "話者: ",
+    "speedLabel": "話速: ",
+    "speakerGroup": {
+      "americanFemale": "🇺🇸 アメリカ英語（女性）",
+      "americanMale": "🇺🇸 アメリカ英語（男性）",
+      "britishFemale": "🇬🇧 イギリス英語（女性）",
+      "britishMale": "🇬🇧 イギリス英語（男性）",
+      "chineseFemale": "🇨🇳 中国語（女性）",
+      "chineseMale": "🇨🇳 中国語（男性）"
+    },
+    "speed": "話速: {{speed}}x",
+    "confirmConfig": "設定を確定",
+    "reconfigure": "再設定",
+    "inputText": "テキスト入力",
+    "textPlaceholder": "合成するテキストを貼り付けまたは入力...",
+    "generating": "生成中...",
+    "playing": "再生中...",
+    "generateAndPlay": "生成して再生",
+    "stopPlayback": "再生を停止",
+    "downloadAudio": "音声をダウンロード",
+    "generationComplete": "生成完了",
+    "duration": "長さ: ",
+    "elapsed": "所要時間: ",
+    "rtf": "RTF: ",
+    "errorLabel": "エラー: ",
+    "playbackFailed": "再生に失敗しました",
+    "generateFailed": "生成に失敗しました",
+    "downloadFailed": "ダウンロードに失敗しました"
+  },
+  "config": {
+    "title": "TTS 音声合成設定",
+    "subtitle": "使用する音声合成モデルを選択",
+    "model": "TTS モデル",
+    "loading": "読み込み中...",
+    "selectModel": "モデルを選択",
+    "noModels": "利用可能なモデルがありません",
+    "recommended": "おすすめ",
+    "notInstalled": "(未インストール)",
+    "modelNotInstalled": "モデルがインストールされていません。先にワンクリックインストールを実行してください",
+    "starting": "起動中...",
+    "start": "起動"
+  }
+}

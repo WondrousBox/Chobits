@@ -1,10 +1,12 @@
 import { splitSecretFormValues, stripUnchangedSecretValues } from '@packages/ai/secret-masking';
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TbChevronDown, TbChevronRight, TbPlus } from 'react-icons/tb';
 import { z } from 'zod';
 
 import TintableSvg from '@/components/common/TintableSvg';
 import { Button } from '@/components/ui/button';
+import { getCurrentAppLanguage } from '@/i18n';
 import { resolveProviderIdentity } from '@/lib/ai-provider-identity';
 import { selectChatDefaultsForProvider } from '@/lib/chat-selection-defaults';
 
@@ -52,20 +54,26 @@ export default function AISettings({ initialProviderId, initialPresetId, focusRe
   const [isCreateFormVisible, setIsCreateFormVisible] = useState(false);
   const [createFormKey, setCreateFormKey] = useState(0);
   const [providerFocusRevision, setProviderFocusRevision] = useState(0);
+  const { t } = useTranslation('ai');
 
   const selectedProvider = useMemo(() => resolveProviderIdentity(providers, selectedProviderId || undefined) || null, [providers, selectedProviderId]);
   const providerGroups = useMemo(() => {
     const selfHosted = providers.filter((p) => SELF_HOSTED_PROVIDER_IDS.has(p.id));
     const cloud = providers.filter((p) => !SELF_HOSTED_PROVIDER_IDS.has(p.id));
     return [
-      { label: '自托管', items: selfHosted },
-      { label: '云服务', items: cloud }
+      { label: t('provider.group.selfHosted'), items: selfHosted },
+      { label: t('provider.group.cloud'), items: cloud }
     ].filter((group) => group.items.length > 0);
-  }, [providers]);
-  const currentLang = navigator.language?.toLowerCase?.() || 'en';
+  }, [providers, t]);
+  const currentLang = getCurrentAppLanguage().toLowerCase();
   const pickLocale = (locales?: Record<string, { label?: string; fields?: Record<string, string> }>): { label?: string; fields?: Record<string, string> } | undefined => {
     if (!locales) return undefined;
-    const exact = locales[currentLang] || locales[currentLang.replace(/-.+$/, '')];
+    // locales 键约定为 'zh-CN' / 'en' / 'ja'，与当前语言做大小写不敏感匹配
+    const exactKey = Object.keys(locales).find((key) => {
+      const lowered = key.toLowerCase();
+      return lowered === currentLang || lowered === currentLang.replace(/-.+$/, '');
+    });
+    const exact = exactKey ? locales[exactKey] : undefined;
     const fallback = locales['en'] || Object.values(locales)[0];
     return exact || fallback;
   };
@@ -125,7 +133,7 @@ export default function AISettings({ initialProviderId, initialPresetId, focusRe
       const base = z.string().trim();
       // password 字段已有有效值（掩码展示、未改动）时视为已满足必填
       const isRequired = f.required && !(f.type === 'password' && maskedKeys.has(f.key));
-      shape[f.key] = isRequired ? base.min(1, '必填') : base.optional().transform((v) => v ?? '');
+      shape[f.key] = isRequired ? base.min(1, t('provider.preset.required')) : base.optional().transform((v) => v ?? '');
     });
     return z.object(shape);
   };
@@ -235,14 +243,14 @@ export default function AISettings({ initialProviderId, initialPresetId, focusRe
         ],
         stream: false
       });
-      alert('测试成功');
+      alert(t('provider.preset.testSuccess'));
     } catch (e: any) {
-      alert('测试失败: ' + (e?.message || e));
+      alert(t('provider.preset.testFailed', { message: e?.message || e }));
     }
   };
 
   const handleDeletePreset = async (preset: Preset): Promise<void> => {
-    if (!confirm('删除该预设？')) return;
+    if (!confirm(t('provider.preset.deleteConfirm'))) return;
     await window.chobits.ai.deletePreset(preset.id);
     const list = await window.chobits.ai.listPresets(preset.providerId);
     setPresets(list || []);
@@ -284,7 +292,7 @@ export default function AISettings({ initialProviderId, initialPresetId, focusRe
                           {p.schema?.icon && <TintableSvg src={p.schema?.icon || ''} alt={label} className="w-4 h-4" />}
                           <span>{label}</span>
                         </span>
-                        <span className={`text-xs ${p.configured ? 'text-green-600' : 'text-gray-400'}`}>{p.configured ? '已配置' : ''}</span>
+                        <span className={`text-xs ${p.configured ? 'text-green-600' : 'text-gray-400'}`}>{p.configured ? t('provider.configured') : ''}</span>
                       </div>
                     </Button>
                   );
@@ -327,10 +335,10 @@ export default function AISettings({ initialProviderId, initialPresetId, focusRe
                               }}
                             >
                               {isExpanded ? <TbChevronDown /> : <TbChevronRight />}
-                              {isExpanded ? '收起' : '编辑'}
+                              {isExpanded ? t('provider.preset.collapse') : t('provider.preset.edit')}
                             </Button>
                             <Button size="sm" variant="outline" onClick={() => handleQuickTest(preset)}>
-                              测试
+                              {t('provider.preset.test')}
                             </Button>
                           </div>
                         </div>
@@ -338,14 +346,14 @@ export default function AISettings({ initialProviderId, initialPresetId, focusRe
                         {isExpanded && formState && (
                           <div className="border-t p-3">
                             <PresetFormDialog
-                              title={`编辑预设 · ${preset.name}`}
+                              title={t('provider.preset.editTitle', { name: preset.name })}
                               provider={selectedProvider}
                               models={models[preset.providerId] || []}
                               initialValues={formState.values}
                               maskedSecretKeys={formState.maskedKeys}
                               errors={errors[preset.id] || {}}
-                              submitLabel="保存预设"
-                              cancelLabel="收起"
+                              submitLabel={t('provider.preset.save')}
+                              cancelLabel={t('provider.preset.collapse')}
                               onCancel={() => setExpandedPresetId(null)}
                               onDelete={() => void handleDeletePreset(preset)}
                               onSubmit={(vals) => handleSavePreset(preset, vals)}
@@ -361,21 +369,21 @@ export default function AISettings({ initialProviderId, initialPresetId, focusRe
               {presets.length > 0 && !isCreateFormVisible && (
                 <Button size="sm" variant="outline" className="w-fit" onClick={openCreatePresetForm}>
                   <TbPlus />
-                  新增预设
+                  {t('provider.preset.create')}
                 </Button>
               )}
 
               {shouldShowInlineCreateForm && createFormState && (
                 <PresetFormDialog
                   key={`create-${selectedProvider.id}-${createFormKey}`}
-                  title="新增预设"
+                  title={t('provider.preset.createTitle')}
                   provider={selectedProvider}
                   models={providerModels}
                   initialValues={createFormState.values}
                   maskedSecretKeys={createFormState.maskedKeys}
                   errors={errors.__new__ || {}}
-                  submitLabel="保存预设"
-                  cancelLabel="取消新增"
+                  submitLabel={t('provider.preset.save')}
+                  cancelLabel={t('provider.preset.cancelCreate')}
                   onCancel={
                     presets.length > 0
                       ? () => {
@@ -389,7 +397,7 @@ export default function AISettings({ initialProviderId, initialPresetId, focusRe
               )}
             </div>
           ) : (
-            <div>暂无服务商</div>
+            <div>{t('provider.empty')}</div>
           )}
         </div>
       </div>

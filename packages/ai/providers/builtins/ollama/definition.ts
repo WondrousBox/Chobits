@@ -19,6 +19,12 @@ const ollamaSchema: ProviderConfig = {
       fields: {
         baseUrl: 'Base URL'
       }
+    },
+    ja: {
+      label: 'Ollama（ローカル）',
+      fields: {
+        baseUrl: 'Base URL'
+      }
     }
   },
   fields: [{ key: 'baseUrl', label: 'Base URL', type: 'text' }]

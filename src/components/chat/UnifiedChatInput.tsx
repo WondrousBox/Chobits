@@ -1,6 +1,7 @@
 import { useSize } from 'ahooks';
 import clsx from 'clsx';
 import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TbLoader2, TbSend, TbSquare } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
@@ -60,7 +61,7 @@ export interface UnifiedChatInputHandle {
   setValue: (value: string) => void;
 }
 
-const DEFAULT_PLACEHOLDERS = ['输入问题，开始对话...', '让我帮你分析一段文字', '帮我把这段中文翻译成英文', '写一个代码示例', '陪我聊聊天'];
+const DEFAULT_PLACEHOLDER_KEYS = ['placeholderAsk', 'placeholderAnalyze', 'placeholderTranslate', 'placeholderCode', 'placeholderChat'] as const;
 const SHORTCUT_HINT_MIN_WIDTH = 640;
 
 const UnifiedChatInput = React.forwardRef<UnifiedChatInputHandle, UnifiedChatInputProps>(function UnifiedChatInput(
@@ -71,7 +72,7 @@ const UnifiedChatInput = React.forwardRef<UnifiedChatInputHandle, UnifiedChatInp
     onSend,
     onStop,
     isLoading = false,
-    placeholders = DEFAULT_PLACEHOLDERS,
+    placeholders,
     placeholderInterval = 3000,
     className,
     footerLeft,
@@ -86,6 +87,8 @@ const UnifiedChatInput = React.forwardRef<UnifiedChatInputHandle, UnifiedChatInp
   }: UnifiedChatInputProps,
   ref
 ): JSX.Element {
+  const { t } = useTranslation('chat');
+  const resolvedPlaceholders = useMemo(() => placeholders ?? DEFAULT_PLACEHOLDER_KEYS.map((key) => t(`components.input.${key}`)), [placeholders, t]);
   // 受控/非受控模式
   const isControlled = useMemo(() => value !== undefined, [value]);
   const [inner, setInner] = useState<string>(defaultValue ?? '');
@@ -100,7 +103,7 @@ const UnifiedChatInput = React.forwardRef<UnifiedChatInputHandle, UnifiedChatInp
   );
 
   // 占位文字轮换
-  const [placeholderIndex, setPlaceholderIndex] = useState(() => Math.floor(Math.random() * placeholders.length));
+  const [placeholderIndex, setPlaceholderIndex] = useState(() => Math.floor(Math.random() * resolvedPlaceholders.length));
   const [isPlaceholderVisible, setIsPlaceholderVisible] = useState(true);
 
   useEffect(() => {
@@ -111,15 +114,15 @@ const UnifiedChatInput = React.forwardRef<UnifiedChatInputHandle, UnifiedChatInp
       // 先淡出
       setIsPlaceholderVisible(false);
       setTimeout(() => {
-        setPlaceholderIndex((i) => (i + 1) % placeholders.length);
+        setPlaceholderIndex((i) => (i + 1) % resolvedPlaceholders.length);
         setIsPlaceholderVisible(true);
       }, 150);
     }, placeholderInterval);
 
     return () => clearInterval(interval);
-  }, [text, placeholders.length, placeholderInterval]);
+  }, [text, resolvedPlaceholders.length, placeholderInterval]);
 
-  const currentPlaceholder = placeholders[placeholderIndex % placeholders.length];
+  const currentPlaceholder = resolvedPlaceholders[placeholderIndex % resolvedPlaceholders.length];
 
   // textarea 引用和滚动状态
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -235,7 +238,7 @@ const UnifiedChatInput = React.forwardRef<UnifiedChatInputHandle, UnifiedChatInp
         {footerLeft}
 
         {/* 提示文字 */}
-        <div className="shrink-0 flex-1 text-xs text-muted-foreground no-drag select-none">{shouldShowShortcutHint && <span>Enter 发送，Shift+Enter 换行</span>}</div>
+        <div className="shrink-0 flex-1 text-xs text-muted-foreground no-drag select-none">{shouldShowShortcutHint && <span>{t('components.input.shortcutHint')}</span>}</div>
 
         {/* 右侧额外内容 */}
         {footerRightExtra}
@@ -246,20 +249,20 @@ const UnifiedChatInput = React.forwardRef<UnifiedChatInputHandle, UnifiedChatInp
             {!isLoading ? (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button onClick={doSend} size="icon" disabled={disabled || !hasContent} className="rounded-full" aria-label="发送">
+                  <Button onClick={doSend} size="icon" disabled={disabled || !hasContent} className="rounded-full" aria-label={t('components.input.sendAriaLabel')}>
                     <TbSend />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>发送消息</TooltipContent>
+                <TooltipContent>{t('components.input.sendTooltip')}</TooltipContent>
               </Tooltip>
             ) : (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button onClick={doStop} size="icon" variant="destructive" className="rounded-full" aria-label="停止">
+                  <Button onClick={doStop} size="icon" variant="destructive" className="rounded-full" aria-label={t('components.input.stopAriaLabel')}>
                     {onStop ? <TbSquare /> : <TbLoader2 className="animate-spin" />}
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>停止生成</TooltipContent>
+                <TooltipContent>{t('components.input.stopTooltip')}</TooltipContent>
               </Tooltip>
             )}
           </>

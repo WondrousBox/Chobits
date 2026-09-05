@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TbArrowRight, TbFolder, TbLoader } from 'react-icons/tb';
 
 import { maskPath } from '@/lib/helpers';
@@ -9,6 +10,7 @@ interface SelectModelFolderProps {
 }
 
 const SelectModelFolder: React.FC<SelectModelFolderProps> = ({ onConfigured }) => {
+  const { t } = useTranslation('ai');
   const [pluginsDir, setPluginsDir] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const prevDirRef = useRef<string | undefined>(undefined);
@@ -66,7 +68,7 @@ const SelectModelFolder: React.FC<SelectModelFolderProps> = ({ onConfigured }) =
     return (
       <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
         <TbLoader className="h-4 w-4 mr-2 animate-spin" />
-        读取配置...
+        {t('modelFolder.loading')}
       </div>
     );
   }
@@ -79,9 +81,9 @@ const SelectModelFolder: React.FC<SelectModelFolderProps> = ({ onConfigured }) =
           <TbFolder className="h-4 w-4 text-primary" />
         </div>
         <div className="flex-1 min-w-0 overflow-hidden">
-          <div className="text-xs text-muted-foreground">当前存储位置</div>
+          <div className="text-xs text-muted-foreground">{t('modelFolder.currentLocation')}</div>
           <div className="text-xs font-medium truncate group-hover:text-primary transition-colors" title={pluginsDir}>
-            {pluginsDir ? maskPath(pluginsDir) : '未设置'}
+            {pluginsDir ? maskPath(pluginsDir) : t('modelFolder.notSet')}
           </div>
         </div>
         {pluginsDir && <TbArrowRight className="h-4 w-4 flex-shrink-0 text-muted-foreground group-hover:text-primary transition-colors" />}
@@ -89,9 +91,9 @@ const SelectModelFolder: React.FC<SelectModelFolderProps> = ({ onConfigured }) =
 
       {/* 说明文字 */}
       <p className="text-xs text-muted-foreground leading-relaxed">
-        插件占用较大空间，建议选择非系统盘存储。
+        {t('modelFolder.hint')}
         <span className="text-primary underline cursor-pointer ml-1 whitespace-nowrap" onClick={pickDir}>
-          [{!pluginsDir ? '选择存储位置' : '更改存储位置'}]
+          [{!pluginsDir ? t('modelFolder.selectLocation') : t('modelFolder.changeLocation')}]
         </span>
       </p>
     </div>

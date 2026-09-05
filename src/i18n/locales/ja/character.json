@@ -1,0 +1,324 @@
+{
+  "capability": {
+    "locked": "{{name}} はまだロックされています"
+  },
+  "trust": {
+    "level": {
+      "signatureDeclared": "署名宣言済み",
+      "publisherDeclared": "発行元宣言済み",
+      "undeclared": "発行元未宣言"
+    },
+    "verification": {
+      "builtinBundled": "アプリ内蔵",
+      "signatureVerified": "署名検証済み",
+      "signatureMismatch": "署名検証失敗",
+      "signatureUntrusted": "信頼されていない署名",
+      "digestVerified": "ダイジェスト検証済み",
+      "digestMismatch": "ダイジェスト不一致",
+      "declaredUnverified": "未検証"
+    },
+    "signature": {
+      "verified": "署名検証済み",
+      "mismatch": "署名検証失敗",
+      "untrusted": "信頼されていない署名",
+      "unchecked": "署名未検証",
+      "declared": "署名宣言",
+      "declaredValue": "署名値を宣言済み",
+      "algorithm": "アルゴリズム {{value}}",
+      "keyId": "Key {{value}}",
+      "digest": "Digest {{value}}"
+    },
+    "digest": {
+      "verified": "ダイジェスト検証済み",
+      "mismatch": "ダイジェスト不一致",
+      "unchecked": "ダイジェスト未検証"
+    },
+    "link": {
+      "homepage": "ホームページ",
+      "repository": "リポジトリ",
+      "support": "サポート",
+      "canonical": "Canonical"
+    },
+    "publisher": "発行元: {{name}}",
+    "channel": "チャンネル: {{name}}"
+  },
+  "metadata": {
+    "formatVersion": "format v{{version}}",
+    "minAppVersion": "App >= {{version}}",
+    "platform": "プラットフォーム: {{platforms}}",
+    "languages": "言語: {{languages}}",
+    "voice": "音声",
+    "customAnimations": "カスタムアニメーション",
+    "model3d": "3D"
+  },
+  "pack": {
+    "source": {
+      "builtin": "内蔵",
+      "installed": "インストール済み"
+    },
+    "action": {
+      "create": "作成",
+      "import": "インポート",
+      "current": "現在使用中",
+      "activate": "切り替え",
+      "open": "開く",
+      "export": "エクスポート",
+      "edit": "編集",
+      "remove": "削除"
+    },
+    "listTitle": "検出されたキャラクターパック",
+    "empty": "利用可能なキャラクターパックがまだありません。",
+    "noPreview": "プレビューなし",
+    "fallbackName": "キャラクターパック",
+    "exportDialogTitle": "キャラクターパックをエクスポート",
+    "actionError": "{{prefix}}：{{message}}",
+    "toast": {
+      "loadFailed": "キャラクターパックの読み込みに失敗しました",
+      "switched": "{{name}} に切り替えました",
+      "activateFailed": "キャラクターパックの有効化に失敗しました",
+      "activateFailedWithName": "キャラクターパックの有効化に失敗しました: {{name}}",
+      "inspectFailed": "キャラクターパック情報の読み取りに失敗しました",
+      "importFailed": "キャラクターパックのインポートに失敗しました",
+      "importFailedWithPath": "キャラクターパックのインポートに失敗しました: {{path}}",
+      "importedAndActivated": "{{name}} をインポートして切り替えました",
+      "imported": "{{name}} をインポートしました",
+      "exportFailed": "キャラクターパックのエクスポートに失敗しました",
+      "exportFailedWithName": "キャラクターパックのエクスポートに失敗しました: {{name}}",
+      "exported": "{{name}} を zip としてエクスポートしました",
+      "removeFailed": "キャラクターパックの削除に失敗しました",
+      "removeFailedWithName": "キャラクターパックの削除に失敗しました: {{name}}",
+      "removedAndSwitched": "{{name}} を削除し、{{activeName}} に切り替えました",
+      "removed": "{{name}} を削除しました",
+      "draftLoadFailed": "キャラクターパックの下書きの読み込みに失敗しました"
+    },
+    "import": {
+      "titleInstall": "キャラクターパックをインストール",
+      "titleReplace": "インストール済みのキャラクターパックを置き換えますか？",
+      "titleBlocked": "このキャラクターパックはまだインストールできません",
+      "descriptionInstall": "キャラクターパック {{name}} をインポートします。確認するとローカルのキャラクターパックディレクトリに書き込まれます。",
+      "descriptionReplace": "同じ ID のインストール済みキャラクターパックが見つかりました：{{name}}。続行するとインストール済みの内容が上書きされます。現在のランタイムがこのキャラクターパックを使用している場合、あわせて更新されます。",
+      "descriptionBlocked": "キャラクターパック {{name}} を読み込みましたが、現在の実行環境ではインストール条件を満たしていません。以下のブロック原因を確認し、アプリのアップグレードやキャラクターパック形式の調整を検討してください。",
+      "trustTitle": "提供元と信頼",
+      "trustSummary": "信頼サマリー：{{summary}}",
+      "signatureDeclaration": "署名宣言：{{summary}}",
+      "sourcePath": "ソース：{{path}}",
+      "activePack": "現在のキャラクターパック：{{name}}",
+      "existingConflict": "インストール済みの競合項目：{{name}} ({{source}})",
+      "willReplaceActiveNote": "このキャラクターパックは現在使用中です。置き換え後、現在の runtime はすぐに更新されます。",
+      "compatibilityTitle": "互換性チェック",
+      "formatVersion": "Pack Format：v{{packVersion}} / サポート上限 v{{supportedVersion}}",
+      "appVersionWithMin": "アプリバージョン：{{version}} / キャラクターパックの要求 >= {{minVersion}}",
+      "appVersionNoMin": "アプリバージョン：{{version}} / キャラクターパックは最低バージョンを宣言していません",
+      "platformDeclared": "プラットフォーム：{{platform}} / キャラクターパックの宣言 {{packPlatforms}}",
+      "platformUnrestricted": "プラットフォーム：{{platform}} / キャラクターパックはプラットフォームを制限していません",
+      "supportedLanguages": "対応言語：{{languages}}",
+      "blockedTitle": "現在インストールできません",
+      "warningsTitle": "インポートの警告",
+      "activateAfterInstall": "インストール後すぐに切り替え",
+      "activateBlockedHint": "このキャラクターパックはインストールチェックを通過していないため、まだ切り替えられません。",
+      "activateReplacedHint": "現在のキャラクターパックは置き換え後も有効なままです。追加の切り替えは不要です。",
+      "activateHint": "オンにすると、インストール完了後にこのキャラクターパックへ直接切り替わります。",
+      "confirmInstall": "インストールを確認",
+      "confirmReplace": "置き換えを確認"
+    },
+    "remove": {
+      "title": "キャラクターパックを削除",
+      "descriptionActive": "現在 {{name}} を使用中です。削除前に他の利用可能なキャラクターパックへ切り替えてから、このインストールパッケージを削除します。",
+      "description": "{{name}} のインストールディレクトリをローカルから削除します。",
+      "confirm": "削除を確認"
+    }
+  },
+  "gallery": {
+    "kind": {
+      "pose": "ポーズ",
+      "action": "アクション",
+      "expression": "表情",
+      "prop": "小道具",
+      "outfit": "衣装",
+      "reference": "参考",
+      "background": "背景",
+      "custom": "カスタム"
+    },
+    "view": {
+      "front": "正面",
+      "back": "背面",
+      "left": "左側",
+      "right": "右側",
+      "threeQuarterLeft": "左前 3/4",
+      "threeQuarterRight": "右前 3/4",
+      "top": "俯瞰",
+      "bottom": "見上げ",
+      "custom": "カスタム角度"
+    },
+    "referenceRole": {
+      "character": "キャラクター一貫性",
+      "pose": "ポーズ参考",
+      "style": "画風参考",
+      "prop": "小道具参考",
+      "background": "背景参考",
+      "storyboard": "絵コンテ参考",
+      "custom": "カスタム"
+    },
+    "builtinLockedTitle": "内蔵キャラクターパックはローカル版として保存してからギャラリーを編集できます",
+    "lockedHint": "キャラクターギャラリーはキャラクターパックのアセット管理に属します。ロック解除前は閲覧のみ可能で、画像のインポート・編集・置換・削除はできません。",
+    "title": "キャラクター参考ギャラリー",
+    "itemCount": "{{name}} · {{count}} 枚の画像",
+    "loading": "キャラクターパックのギャラリーを読み込み中...",
+    "loadingItems": "読み込み中...",
+    "searchPlaceholder": "名前、アクション、角度、タグを検索",
+    "builtinNotice": "現在は内蔵キャラクターパックのため、ギャラリーはプレビューのみです。ローカルのカスタムキャラクターパックとして保存すると、画像のインポート・置換・編集ができます。",
+    "empty": "ギャラリーに画像がまだありません。「画像をインポート」をクリックして追加してください。",
+    "notSet": "未設定",
+    "action": {
+      "import": "画像をインポート",
+      "refresh": "ギャラリーを更新",
+      "prev": "前の画像",
+      "next": "次の画像",
+      "editMetadata": "メタデータ",
+      "replaceImage": "置き換え",
+      "removeImage": "画像を削除",
+      "saving": "保存中..."
+    },
+    "detail": {
+      "kind": "タイプ：{{value}}",
+      "view": "角度：{{value}}",
+      "action": "アクション：{{value}}",
+      "emotion": "表情：{{value}}",
+      "reference": "参考：{{value}}",
+      "strength": "強度：{{value}}",
+      "tags": "タグ：{{tags}}"
+    },
+    "dialog": {
+      "addTitle": "ギャラリー画像を追加",
+      "editTitle": "ギャラリー画像を編集"
+    },
+    "field": {
+      "name": "名前",
+      "kind": "タイプ",
+      "action": "アクション",
+      "view": "角度",
+      "emotion": "表情",
+      "propName": "小道具名",
+      "description": "説明",
+      "tags": "タグ",
+      "tagsPlaceholder": "複数のタグはカンマまたは改行で区切ります",
+      "referenceRole": "AI 参照ロール",
+      "referenceStrength": "参照強度",
+      "promptHint": "AI プロンプト補足",
+      "negativePrompt": "ネガティブプロンプト"
+    },
+    "toast": {
+      "loadFailed": "キャラクターギャラリーの読み込みに失敗しました",
+      "builtinReadonly": "内蔵キャラクターパックは直接編集できません",
+      "builtinReadonlyDescription": "先にキャラクター情報でローカルのカスタムキャラクターパックとして保存してから、キャラクターギャラリーを管理してください。",
+      "titleRequired": "ギャラリー項目には名前が必要です",
+      "missingFile": "インポートする画像ファイルがありません",
+      "added": "画像をキャラクターギャラリーに追加しました",
+      "saved": "ギャラリー項目を保存しました",
+      "saveFailed": "ギャラリー項目の保存に失敗しました",
+      "replaceFailed": "ギャラリー画像の置き換えに失敗しました",
+      "replaced": "ギャラリー画像を置き換えました",
+      "removeFailed": "ギャラリー項目の削除に失敗しました",
+      "removed": "ギャラリー項目を削除しました"
+    }
+  },
+  "editor": {
+    "field": {
+      "packId": "キャラクターパック ID",
+      "packName": "キャラクターパック名",
+      "version": "バージョン",
+      "author": "作者",
+      "license": "ライセンス",
+      "platform": "プラットフォーム",
+      "packDescription": "キャラクターパックの説明",
+      "tags": "タグ",
+      "characterId": "キャラクター ID",
+      "characterName": "キャラクター名",
+      "tagline": "キャラクターのキャッチコピー",
+      "aliases": "別名",
+      "background": "キャラクターの背景",
+      "coreTraits": "コア性格",
+      "boundaries": "行動の境界",
+      "speechTone": "話し方",
+      "language": "言語",
+      "firstPerson": "一人称",
+      "addressUser": "ユーザーの呼び方",
+      "quirks": "口癖と表現の癖",
+      "metaDescription": "キャラクター説明",
+      "metaTags": "キャラクタータグ"
+    },
+    "speechExamples": "会話例",
+    "addExample": "例を追加",
+    "exampleSituationPlaceholder": "シーン",
+    "exampleResponsePlaceholder": "返答",
+    "messagesTitle": "イベントセリフ",
+    "messagesHint": "1 行に 1 件、ランダムで 1 文が選ばれます。{count}、{progress} などのプレースホルダーが使えます。",
+    "progressTitle": "進行アナウンス",
+    "progressHint": "ダウンロード、インポート、転写、ワークフローの待機時の音声アナウンスに使用します。",
+    "activateAfterSave": "保存後すぐに切り替え",
+    "activateAfterSaveHint": "現在のキャラクター人格、機能状態、アニメーションリソースが更新されます。",
+    "action": {
+      "save": "キャラクターパックを保存"
+    },
+    "titleEdit": "キャラクターパックを編集",
+    "titleCreate": "カスタムキャラクターパックを作成",
+    "descriptionEdit": "保存するとローカルのキャラクターパックディレクトリが更新されます。",
+    "descriptionBuiltinCopy": "内蔵キャラクターパックはローカルの編集可能なバージョンとして保存され、アニメーションは新しい独立したアニメーションパックを使用します。ソース：{{name}}",
+    "descriptionBasedOn": "{{name}} をベースにキャラクターを作成します。アニメーションは新しい独立したアニメーションパックを使用します。",
+    "descriptionCreate": "保存するとローカルのキャラクターパックディレクトリに書き込まれます。",
+    "validation": {
+      "packIdInvalid": "キャラクターパック ID には小文字の英数字、ドット、ハイフン、アンダースコアのみ使用できます。",
+      "packNameRequired": "キャラクターパック名は必須です。",
+      "versionRequired": "バージョンは必須です。",
+      "authorRequired": "作者は必須です。",
+      "characterIdInvalid": "キャラクター ID には小文字の英数字、ドット、ハイフン、アンダースコアのみ使用できます。",
+      "characterNameRequired": "キャラクター名は必須です。",
+      "taglineRequired": "キャラクターのキャッチコピーは必須です。",
+      "backgroundRequired": "キャラクターの背景は必須です。",
+      "speechToneRequired": "話し方は必須です。"
+    },
+    "error": {
+      "draftLoadFailed": "キャラクターパックの下書きの読み込みに失敗しました: {{name}}",
+      "idConflict": "同じ ID のローカルキャラクターパックが既に存在します。別のキャラクターパック ID を使用してください。",
+      "saveFailed": "キャラクターパックの保存に失敗しました"
+    },
+    "defaults": {
+      "customVersionName": "{{name}} カスタム版",
+      "seedName": "私のカスタムキャラクター",
+      "packDescription": "ローカルで作成したカスタムキャラクターパック",
+      "tagline": "私のデスクトップパートナー",
+      "background": "あなたはユーザーのパソコンのデスクトップに住むスマートな精霊で、ユーザーの仕事、学習、生活に寄り添います。",
+      "coreTraitWarm": "温かく誠実",
+      "coreTraitResponsible": "真面目で責任感がある",
+      "coreTraitPersonality": "少し自分らしい個性がある",
+      "boundaryHonest": "誠実に助け、演技をしない。",
+      "boundaryNatural": "人のように自然に話す。",
+      "boundarySolve": "問題があればまず自分で解決を試み、どうしても詰まったらユーザーに尋ねる。",
+      "speechTone": "穏やかで自然、少し明るい",
+      "firstPerson": "私",
+      "addressUser": "あなた",
+      "quirkTone": "時々軽快な口調で返答する",
+      "quirkConfirm": "タスク完了時に結果を短く確認する",
+      "exampleGreetingSituation": "挨拶",
+      "exampleGreetingResponse": "こんにちは、今日は何をしましょうか？",
+      "exampleTaskSituation": "タスク完了",
+      "exampleTaskResponse": "できました。",
+      "metaDescription": "ローカルで作成したカスタムキャラクター"
+    },
+    "toast": {
+      "saved": "{{name}} を保存しました",
+      "savedAndActivated": "{{name}} を保存して切り替えました"
+    }
+  },
+  "editorWindow": {
+    "fallbackTitle": "キャラクターパック編集",
+    "loading": "キャラクターパックを読み込み中...",
+    "empty": "編集可能なキャラクターパックがありません。",
+    "tabProfile": "キャラクター情報",
+    "tabGallery": "キャラクターギャラリー",
+    "tabAnimations": "スプライトアニメーション",
+    "close": "閉じる",
+    "errorNotFound": "編集するキャラクターパックが見つかりません。",
+    "loadFailed": "キャラクターパックエディターの読み込みに失敗しました"
+  }
+}

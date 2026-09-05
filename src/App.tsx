@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { TbMoodKid, TbSparkles } from 'react-icons/tb';
 import { HashRouter, Route, Routes } from 'react-router-dom';
 
@@ -26,16 +27,18 @@ import TTSPage from './pages/TTSPage/TTSPage';
 // 兜底路由：未知路由（如 localAI 关闭时打开的 asrConfig/asrTest 窗口）渲染错误页，
 // 而不是 Navigate 到 "/" 把 SpriteApp 挂进非主窗口
 function UnavailablePage(): JSX.Element {
+  const { t } = useTranslation('settings');
   return (
     <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-muted-foreground select-none">
-      <span className="text-sm">页面不可用</span>
-      <span className="text-xs">该页面在当前上下文中不可用</span>
+      <span className="text-sm">{t('unavailable.title')}</span>
+      <span className="text-xs">{t('unavailable.description')}</span>
     </div>
   );
 }
 
 function StandardAppRoutes(): JSX.Element {
   const { flags, isLoading } = useFeatureFlags();
+  const { t } = useTranslation('settings');
 
   // 等待旗标加载完成再渲染路由,避免直达被开启功能的路由时因默认值闪烁而回退
   if (isLoading) {
@@ -60,16 +63,16 @@ function StandardAppRoutes(): JSX.Element {
                 extraCategories={[
                   {
                     id: 'extensions',
-                    label: '机能扩展',
+                    label: t('nav.extensions.label'),
                     icon: TbSparkles,
-                    description: '角色包和精灵能力',
+                    description: t('nav.extensions.description'),
                     component: <ExtensionSettings />
                   },
                   {
                     id: 'sprite-manager',
-                    label: '精灵管理',
+                    label: t('nav.spriteManager.label'),
                     icon: TbMoodKid,
-                    description: '管理桌面精灵动画资源、导入与调试动作',
+                    description: t('nav.spriteManager.description'),
                     component: <SpriteSettings />
                   }
                 ]}

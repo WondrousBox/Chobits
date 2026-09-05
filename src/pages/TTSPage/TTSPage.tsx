@@ -1,5 +1,6 @@
 import type { TTSResultPayload } from '@packages/sherpa/ipc-renderer';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TbChevronDown, TbDownload, TbLoader2, TbPlayerPlay, TbPlayerStop, TbVolume, TbX } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
@@ -63,7 +64,18 @@ const KOKORO_SPEAKERS = [
   { id: 52, name: 'zm_yunyang', label: '云扬', group: 'Chinese Male' }
 ];
 
+// 说话人分组名到 i18n key 的映射（分组名为数据字段，保持不变）
+const SPEAKER_GROUP_LABEL_KEYS: Record<string, string> = {
+  'American Female': 'test.speakerGroup.americanFemale',
+  'American Male': 'test.speakerGroup.americanMale',
+  'British Female': 'test.speakerGroup.britishFemale',
+  'British Male': 'test.speakerGroup.britishMale',
+  'Chinese Female': 'test.speakerGroup.chineseFemale',
+  'Chinese Male': 'test.speakerGroup.chineseMale'
+};
+
 const TTSPage: React.FC = () => {
+  const { t } = useTranslation('tts');
   // 配置状态
   const [speakerId, setSpeakerId] = useState(31); // 默认选择中文女声 zf_xiaoyi
   const [speed, setSpeed] = useState(1.0);
@@ -163,7 +175,7 @@ const TTSPage: React.FC = () => {
             setIsPlaying(true);
           } catch (err) {
             console.error('[TTS] 自动播放失败:', err);
-            setError(err instanceof Error ? err.message : '播放失败');
+            setError(err instanceof Error ? err.message : t('test.playbackFailed'));
           }
         }
       }
@@ -175,7 +187,7 @@ const TTSPage: React.FC = () => {
     return () => {
       unsubscribe();
     };
-  }, []);
+  }, [t]);
 
   // 确认配置
   const handleConfirmConfig = useCallback(() => {
@@ -230,15 +242,15 @@ const TTSPage: React.FC = () => {
       });
 
       if (!response.ok) {
-        setError(response.error || '生成失败');
+        setError(response.error || t('test.generateFailed'));
         setIsGenerating(false);
       }
       // 生成成功后会自动播放（在监听器中处理）
     } catch (err) {
-      setError(err instanceof Error ? err.message : '生成失败');
+      setError(err instanceof Error ? err.message : t('test.generateFailed'));
       setIsGenerating(false);
     }
-  }, [text, speakerId, speed, isGenerating]);
+  }, [text, speakerId, speed, isGenerating, t]);
 
   // 停止播放
   const handleStop = useCallback(() => {
@@ -307,9 +319,9 @@ const TTSPage: React.FC = () => {
       setTimeout(() => URL.revokeObjectURL(url), 100);
     } catch (err) {
       console.error('[TTS] 下载失败:', err);
-      setError(err instanceof Error ? err.message : '下载失败');
+      setError(err instanceof Error ? err.message : t('test.downloadFailed'));
     }
-  }, [audioData, currentSpeaker, createWavFile]);
+  }, [audioData, currentSpeaker, createWavFile, t]);
 
   // 关闭页面时释放资源
   const handleClose = useCallback(() => {
@@ -334,7 +346,7 @@ const TTSPage: React.FC = () => {
     <div className="flex flex-col h-full w-full box-border rounded-lg bg-background/95 backdrop-blur drag-region">
       {/* 标题栏 */}
       <div className="flex items-center justify-between p-3 border-b">
-        <h2 className="text-sm font-semibold">TTS 语音合成测试</h2>
+        <h2 className="text-sm font-semibold">{t('test.title')}</h2>
         <Button variant="ghost" size="icon" className="h-6 w-6 no-drag" onClick={handleClose}>
           <TbX />
         </Button>
@@ -349,7 +361,7 @@ const TTSPage: React.FC = () => {
             <div className="space-y-4">
               {/* 说话人选择 */}
               <div className="space-y-2">
-                <Label>说话人</Label>
+                <Label>{t('test.speaker')}</Label>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" className="w-full justify-between no-drag" disabled={isGenerating}>
@@ -361,21 +373,8 @@ const TTSPage: React.FC = () => {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent className="w-[280px] no-drag" align="start">
                     {Object.entries(speakerGroups).map(([groupName, speakers], groupIndex) => {
-                      // 转换为中文显示名称
-                      let displayName = groupName;
-                      if (groupName === 'American Female') {
-                        displayName = '🇺🇸 美式英文女性';
-                      } else if (groupName === 'American Male') {
-                        displayName = '🇺🇸 美式英文男性';
-                      } else if (groupName === 'British Female') {
-                        displayName = '🇬🇧 英式英文女性';
-                      } else if (groupName === 'British Male') {
-                        displayName = '🇬🇧 英式英文男性';
-                      } else if (groupName === 'Chinese Female') {
-                        displayName = '🇨🇳 中文女性';
-                      } else if (groupName === 'Chinese Male') {
-                        displayName = '🇨🇳 中文男性';
-                      }
+                      const labelKey = SPEAKER_GROUP_LABEL_KEYS[groupName];
+                      const displayName = labelKey ? t(labelKey) : groupName;
 
                       return (
                         <React.Fragment key={groupName}>
@@ -402,7 +401,7 @@ const TTSPage: React.FC = () => {
 
               {/* 语速 */}
               <div className="space-y-2">
-                <Label htmlFor="speed">语速: {speed.toFixed(1)}x</Label>
+                <Label htmlFor="speed">{t('test.speed', { speed: speed.toFixed(1) })}</Label>
                 <Slider id="speed" value={[speed]} onValueChange={(v) => setSpeed(v[0])} min={0.5} max={2.0} step={0.1} />
               </div>
 
@@ -410,7 +409,7 @@ const TTSPage: React.FC = () => {
               <div className="pt-2">
                 <Button onClick={handleConfirmConfig} className="w-full">
                   <TbVolume />
-                  确认配置
+                  {t('test.confirmConfig')}
                 </Button>
               </div>
             </div>
@@ -422,28 +421,28 @@ const TTSPage: React.FC = () => {
             <div className="p-3 rounded-lg bg-muted/50 space-y-1 text-sm">
               <div className="flex items-center justify-between">
                 <div>
-                  <span className="text-muted-foreground">说话人: </span>
+                  <span className="text-muted-foreground">{t('test.speakerLabel')}</span>
                   <span className="font-medium">{currentSpeaker.label}</span>
                 </div>
                 <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={handleReconfigure}>
-                  重新配置
+                  {t('test.reconfigure')}
                 </Button>
               </div>
               <div>
-                <span className="text-muted-foreground">语速: </span>
+                <span className="text-muted-foreground">{t('test.speedLabel')}</span>
                 <span className="font-medium">{speed.toFixed(1)}x</span>
               </div>
             </div>
 
             {/* 文本输入 */}
             <div className="space-y-2">
-              <Label htmlFor="text">输入文本</Label>
+              <Label htmlFor="text">{t('test.inputText')}</Label>
               <Textarea
                 ref={textareaRef}
                 id="text"
                 value={text}
                 onChange={(e) => setText(e.target.value)}
-                placeholder="粘贴或输入要合成的文本..."
+                placeholder={t('test.textPlaceholder')}
                 className="min-h-[150px] resize-none"
                 disabled={isGenerating}
               />
@@ -456,27 +455,27 @@ const TTSPage: React.FC = () => {
                   {isGenerating ? (
                     <>
                       <TbLoader2 className="animate-spin" />
-                      生成中...
+                      {t('test.generating')}
                     </>
                   ) : isPlaying ? (
                     <>
                       <TbVolume />
-                      播放中...
+                      {t('test.playing')}
                     </>
                   ) : (
                     <>
                       <TbPlayerPlay />
-                      生成并播放
+                      {t('test.generateAndPlay')}
                     </>
                   )}
                 </Button>
                 {(audioData || isPlaying) && (
                   <>
-                    <Button variant="outline" size="icon" onClick={handleStop} disabled={isGenerating || !isPlaying} title="停止播放">
+                    <Button variant="outline" size="icon" onClick={handleStop} disabled={isGenerating || !isPlaying} title={t('test.stopPlayback')}>
                       <TbPlayerStop />
                     </Button>
                     {audioData && (
-                      <Button variant="outline" size="icon" onClick={handleDownload} disabled={isGenerating} title="下载音频">
+                      <Button variant="outline" size="icon" onClick={handleDownload} disabled={isGenerating} title={t('test.downloadAudio')}>
                         <TbDownload />
                       </Button>
                     )}
@@ -490,15 +489,15 @@ const TTSPage: React.FC = () => {
               <div className="p-3 rounded-lg bg-muted/50 space-y-2 text-sm">
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <TbVolume className="h-4 w-4" />
-                  <span>生成完成</span>
+                  <span>{t('test.generationComplete')}</span>
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-xs">
                   <div>
-                    <span className="text-muted-foreground">时长: </span>
+                    <span className="text-muted-foreground">{t('test.duration')}</span>
                     <span className="font-medium">{result.duration?.toFixed(2)}s</span>
                   </div>
                   <div>
-                    <span className="text-muted-foreground">耗时: </span>
+                    <span className="text-muted-foreground">{t('test.elapsed')}</span>
                     <span className="font-medium">{result.elapsedSeconds?.toFixed(2)}s</span>
                   </div>
                   <div>
@@ -512,7 +511,7 @@ const TTSPage: React.FC = () => {
             {/* 错误显示 */}
             {error && (
               <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
-                <span className="font-medium">错误: </span>
+                <span className="font-medium">{t('test.errorLabel')}</span>
                 {error}
               </div>
             )}

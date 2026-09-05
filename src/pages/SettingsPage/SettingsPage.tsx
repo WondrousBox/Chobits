@@ -1,5 +1,6 @@
 import clsx from 'clsx';
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TbAdjustments, TbCpu, TbKeyboard, TbMessage2, TbNetwork, TbPlug, TbToggleLeft } from 'react-icons/tb';
 
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider } from '@/components/ui/sidebar';
@@ -25,52 +26,6 @@ export interface SettingsCategoryDef {
   component?: React.ReactNode;
 }
 
-// 默认设置分类配置
-const defaultCategories: SettingsCategoryDef[] = [
-  {
-    id: 'preferences',
-    label: '偏好设置',
-    icon: TbAdjustments,
-    description: '主题外观和文件夹设置'
-  },
-  {
-    id: 'ai',
-    label: '对话设置',
-    icon: TbMessage2,
-    description: 'AI 提供商、API Key、对话参数'
-  },
-  {
-    id: 'prompt',
-    label: '提示词管理',
-    icon: TbCpu,
-    description: '提示词管理与设置'
-  },
-  {
-    id: 'features',
-    label: '功能管理',
-    icon: TbToggleLeft,
-    description: '开启或关闭可选功能'
-  },
-  {
-    id: 'plugins',
-    label: '插件管理',
-    icon: TbPlug,
-    description: '管理本地引擎与模型插件'
-  },
-  {
-    id: 'shortcuts',
-    label: '快捷键',
-    icon: TbKeyboard,
-    description: '全局快捷键设置'
-  },
-  {
-    id: 'proxy',
-    label: '代理设置',
-    icon: TbNetwork,
-    description: '配置网络代理以访问受限资源'
-  }
-];
-
 const EMPTY_EXTRA_CATEGORIES: SettingsCategoryDef[] = [];
 
 interface SettingsPageProps {
@@ -80,6 +35,56 @@ interface SettingsPageProps {
 }
 
 export const SettingsPage: React.FC<SettingsPageProps> = ({ extraCategories = EMPTY_EXTRA_CATEGORIES, hideTitleBar = false, defaultCategory }) => {
+  const { t } = useTranslation('settings');
+
+  // 默认设置分类配置
+  const defaultCategories = React.useMemo<SettingsCategoryDef[]>(
+    () => [
+      {
+        id: 'preferences',
+        label: t('nav.preferences.label'),
+        icon: TbAdjustments,
+        description: t('nav.preferences.description')
+      },
+      {
+        id: 'ai',
+        label: t('nav.ai.label'),
+        icon: TbMessage2,
+        description: t('nav.ai.description')
+      },
+      {
+        id: 'prompt',
+        label: t('nav.prompt.label'),
+        icon: TbCpu,
+        description: t('nav.prompt.description')
+      },
+      {
+        id: 'features',
+        label: t('nav.features.label'),
+        icon: TbToggleLeft,
+        description: t('nav.features.description')
+      },
+      {
+        id: 'plugins',
+        label: t('nav.plugins.label'),
+        icon: TbPlug,
+        description: t('nav.plugins.description')
+      },
+      {
+        id: 'shortcuts',
+        label: t('nav.shortcuts.label'),
+        icon: TbKeyboard,
+        description: t('nav.shortcuts.description')
+      },
+      {
+        id: 'proxy',
+        label: t('nav.proxy.label'),
+        icon: TbNetwork,
+        description: t('nav.proxy.description')
+      }
+    ],
+    [t]
+  );
   // 合并分类，将扩展分类放在偏好设置之后 (index 1)
   const allCategories = React.useMemo(() => {
     const cats = [...defaultCategories];
@@ -87,7 +92,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ extraCategories = EM
       cats.splice(1, 0, ...extraCategories);
     }
     return cats;
-  }, [extraCategories]);
+  }, [defaultCategories, extraCategories]);
 
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>(defaultCategory || allCategories[0]?.id || 'preferences');
   const [initialAIProviderId, setInitialAIProviderId] = useState<string | null>(null);
@@ -178,7 +183,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ extraCategories = EM
 
   return (
     <div className="h-full w-full bg-background">
-      {!hideTitleBar && <DraggableTitle title={<span>⚙️ 设置</span>} />}
+      {!hideTitleBar && <DraggableTitle title={<span>⚙️ {t('title')}</span>} />}
       <SidebarProvider className="w-full h-full min-h-[unset]">
         <Sidebar>
           <SidebarContent className="gap-0">

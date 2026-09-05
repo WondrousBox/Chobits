@@ -1,5 +1,6 @@
 import { Check, ChevronsUpDown } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { Badge } from '@/components/ui/badge';
 import { Button, type ButtonProps } from '@/components/ui/button';
@@ -30,17 +31,20 @@ export default function SpriteTriggerPicker({
   buttonClassName,
   buttonSize = 'default',
   buttonVariant = 'outline',
-  customPlaceholder = '例如：character:daily-login',
+  customPlaceholder,
   disabled = false,
-  emptyLabel = '未分类',
+  emptyLabel,
   onChange,
   popoverClassName,
   value = ''
 }: SpriteTriggerPickerProps): JSX.Element {
+  const { t } = useTranslation('sprite');
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [customValue, setCustomValue] = useState('');
-  const presentation = useMemo(() => getSpriteTriggerPresentation(value, emptyLabel), [emptyLabel, value]);
+  const resolvedCustomPlaceholder = customPlaceholder ?? t('sprite:triggerPicker.customPlaceholder');
+  const resolvedEmptyLabel = emptyLabel ?? t('sprite:triggerPicker.uncategorized');
+  const presentation = useMemo(() => getSpriteTriggerPresentation(value, resolvedEmptyLabel), [resolvedEmptyLabel, value]);
 
   const applyValue = (nextValue: SpriteAnimationTrigger | ''): void => {
     onChange(nextValue);
@@ -67,12 +71,16 @@ export default function SpriteTriggerPicker({
         <Button variant={buttonVariant} size={buttonSize} className={cn('min-w-[160px] justify-between gap-3', buttonClassName)} disabled={disabled}>
           <div className="min-w-0 flex-1 text-left">
             <div className="truncate text-xs font-medium">{presentation.label}</div>
-            {presentation.detail && <div className="truncate text-[10px] text-muted-foreground">{presentation.kind === 'builtin' ? `内置 · ${presentation.detail}` : '自定义 trigger'}</div>}
+            {presentation.detail && (
+              <div className="truncate text-[10px] text-muted-foreground">
+                {presentation.kind === 'builtin' ? t('sprite:triggerPicker.builtinWithGroup', { group: presentation.detail }) : t('sprite:triggerPicker.customTrigger')}
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {presentation.kind !== 'empty' && (
               <Badge variant="outline" className="h-5 shrink-0 rounded-full px-1.5 py-0 text-[10px]">
-                {presentation.kind === 'builtin' ? '内置' : '自定义'}
+                {presentation.kind === 'builtin' ? t('sprite:triggerPicker.builtin') : t('sprite:triggerPicker.custom')}
               </Badge>
             )}
             <ChevronsUpDown className="shrink-0 opacity-60" />
@@ -81,18 +89,18 @@ export default function SpriteTriggerPicker({
       </PopoverTrigger>
       <PopoverContent align="start" className={cn('w-[360px] p-0', popoverClassName)} onOpenAutoFocus={(event) => event.preventDefault()}>
         <div className="flex items-center justify-between border-b px-3 py-2">
-          <div className="text-xs font-medium">动画 Trigger</div>
+          <div className="text-xs font-medium">{t('sprite:triggerPicker.title')}</div>
           {allowClear && (
             <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => applyValue('')}>
-              清空
+              {t('sprite:triggerPicker.clear')}
             </Button>
           )}
         </div>
 
         <Command shouldFilter>
-          <CommandInput className="h-8 border-0" placeholder="搜索内置 trigger..." value={query} onValueChange={setQuery} />
+          <CommandInput className="h-8 border-0" placeholder={t('sprite:triggerPicker.searchPlaceholder')} value={query} onValueChange={setQuery} />
           <CommandList className="max-h-[280px]">
-            <CommandEmpty>没有匹配的内置 trigger</CommandEmpty>
+            <CommandEmpty>{t('sprite:triggerPicker.noMatch')}</CommandEmpty>
             {SPRITE_TRIGGER_GROUP_OPTIONS.map((option) => (
               <CommandGroup key={option.group} heading={option.group}>
                 {option.items.map((trigger) => (
@@ -100,7 +108,7 @@ export default function SpriteTriggerPicker({
                     <Check className={cn('h-4 w-4', presentation.value === trigger ? 'opacity-100' : 'opacity-0')} />
                     <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
                       <span className="truncate">{trigger}</span>
-                      <span className="text-[10px] text-muted-foreground">内置</span>
+                      <span className="text-[10px] text-muted-foreground">{t('sprite:triggerPicker.builtin')}</span>
                     </div>
                   </CommandItem>
                 ))}
@@ -111,8 +119,8 @@ export default function SpriteTriggerPicker({
 
         <div className="border-t px-3 py-3">
           <div className="mb-2 flex items-center justify-between">
-            <div className="text-xs font-medium">自定义 Trigger</div>
-            <div className="text-[10px] text-muted-foreground">写入任意扩展事件名</div>
+            <div className="text-xs font-medium">{t('sprite:triggerPicker.customTitle')}</div>
+            <div className="text-[10px] text-muted-foreground">{t('sprite:triggerPicker.customHint')}</div>
           </div>
           <div className="flex gap-2">
             <Input
@@ -124,11 +132,11 @@ export default function SpriteTriggerPicker({
                   applyCustomValue();
                 }
               }}
-              placeholder={customPlaceholder}
+              placeholder={resolvedCustomPlaceholder}
               className="h-8"
             />
             <Button size="sm" className="shrink-0" onClick={applyCustomValue} disabled={!normalizeSpriteTriggerInput(customValue)}>
-              应用
+              {t('sprite:triggerPicker.apply')}
             </Button>
           </div>
         </div>

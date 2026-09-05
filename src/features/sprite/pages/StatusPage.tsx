@@ -1,5 +1,6 @@
 import type { SpritePurposeDailyRetrospective } from '@packages/sprite-core/purpose';
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TbX } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
@@ -12,6 +13,7 @@ type CharacterHeaderProfile = {
 };
 
 export const StatusPage: React.FC = () => {
+  const { t } = useTranslation('sprite');
   const [profile, setProfile] = useState<CharacterHeaderProfile | null>(null);
   const [purposeRetrospective, setPurposeRetrospective] = useState<SpritePurposeDailyRetrospective | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -57,7 +59,7 @@ export const StatusPage: React.FC = () => {
     };
   }, []);
 
-  if (isLoading) return <div className="p-6 text-muted-foreground">加载中...</div>;
+  if (isLoading) return <div className="p-6 text-muted-foreground">{t('status.loading')}</div>;
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden rounded-xl bg-background">

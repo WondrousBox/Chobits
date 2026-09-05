@@ -7,10 +7,12 @@ export interface SpriteAnimationConditionBuilderFieldOption {
   field: string;
   key: string;
   kind: SpriteAnimationConditionBuilderFieldKind;
-  label: string;
   operators: SpriteAnimationConditionBuilderOperator[];
-  placeholder?: string;
-  valueOptions?: Array<{ label: string; value: string }>;
+  /** i18n key（相对 sprite:conditionBuilder 命名空间），由渲染层 t() 翻译 */
+  placeholderKey?: string;
+  valueOptions?: Array<{ value: string }>;
+  /** valueOptions 文案的 i18n key 前缀（相对 sprite:conditionBuilder 命名空间） */
+  valueOptionsKey?: string;
 }
 
 export interface SpriteAnimationConditionBuilderCompareNode {
@@ -42,28 +44,20 @@ export interface SpriteAnimationConditionPreset {
   condition: SpriteAnimationCondition;
   description: string;
   id: string;
-  label: string;
 }
 
-const FAVOR_LEVEL_OPTIONS = [
-  { label: '陌生人', value: 'stranger' },
-  { label: '认识', value: 'acquaintance' },
-  { label: '朋友', value: 'friend' },
-  { label: '好友', value: 'close-friend' },
-  { label: '挚友', value: 'bestie' },
-  { label: '灵魂伴侣', value: 'soulmate' }
-];
+const FAVOR_LEVEL_OPTIONS: Array<{ value: string }> = [{ value: 'stranger' }, { value: 'acquaintance' }, { value: 'friend' }, { value: 'close-friend' }, { value: 'bestie' }, { value: 'soulmate' }];
 
-const MOOD_OPTIONS: Array<{ label: string; value: string }> = [
-  { label: '开心 joyful', value: 'joyful' },
-  { label: '满足 content', value: 'content' },
-  { label: '平静 neutral', value: 'neutral' },
-  { label: '无聊 bored', value: 'bored' },
-  { label: '难过 sad', value: 'sad' },
-  { label: '困倦 sleepy', value: 'sleepy' },
-  { label: '兴奋 excited', value: 'excited' },
-  { label: '好奇 curious', value: 'curious' },
-  { label: '烦躁 annoyed', value: 'annoyed' }
+const MOOD_OPTIONS: Array<{ value: string }> = [
+  { value: 'joyful' },
+  { value: 'content' },
+  { value: 'neutral' },
+  { value: 'bored' },
+  { value: 'sad' },
+  { value: 'sleepy' },
+  { value: 'excited' },
+  { value: 'curious' },
+  { value: 'annoyed' }
 ];
 
 export const SPRITE_ANIMATION_CONDITION_FIELD_OPTIONS: SpriteAnimationConditionBuilderFieldOption[] = [
@@ -71,74 +65,66 @@ export const SPRITE_ANIMATION_CONDITION_FIELD_OPTIONS: SpriteAnimationConditionB
     key: 'favor',
     field: 'favor',
     kind: 'number',
-    label: '好感度 favor',
     operators: ['eq', 'neq', 'gt', 'gte', 'lt', 'lte'],
-    placeholder: '例如 80'
+    placeholderKey: 'fields.favor.placeholder'
   },
   {
     key: 'level',
     field: 'level',
     kind: 'number',
-    label: '等级 level',
     operators: ['eq', 'neq', 'gt', 'gte', 'lt', 'lte'],
-    placeholder: '例如 10'
+    placeholderKey: 'fields.level.placeholder'
   },
   {
     key: 'mood',
     field: 'mood',
     kind: 'enum',
-    label: '心情 mood',
     operators: ['eq', 'neq'],
-    valueOptions: MOOD_OPTIONS
+    valueOptions: MOOD_OPTIONS,
+    valueOptionsKey: 'moods'
   },
   {
     key: 'favorLevel',
     field: 'favorLevel',
     kind: 'enum',
-    label: '好感阶段 favorLevel',
     operators: ['eq', 'neq'],
-    valueOptions: FAVOR_LEVEL_OPTIONS
+    valueOptions: FAVOR_LEVEL_OPTIONS,
+    valueOptionsKey: 'favorLevels'
   },
   {
     key: 'achievements',
     field: 'achievements',
     kind: 'string',
-    label: '成就 achievements',
     operators: ['includes', 'notIncludes'],
-    placeholder: '例如 first-chat'
+    placeholderKey: 'fields.achievements.placeholder'
   },
   {
     key: 'custom',
     field: '',
     kind: 'string',
-    label: '自定义角色状态路径',
     operators: ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'includes', 'notIncludes'],
-    placeholder: '例如 dimensions.focus'
+    placeholderKey: 'fields.custom.placeholder'
   }
 ];
 
 export const SPRITE_ANIMATION_CONDITION_PRESETS: SpriteAnimationConditionPreset[] = [
   {
     id: 'favor-high',
-    label: '高好感',
     description: 'favor >= 80',
     condition: { type: 'compare', field: 'favor', operator: 'gte', value: 80 }
   },
   {
     id: 'favor-low',
-    label: '低好感',
     description: 'favor < 20',
     condition: { type: 'compare', field: 'favor', operator: 'lt', value: 20 }
   },
   {
     id: 'mood-joyful',
-    label: '开心时',
     description: 'mood == joyful',
     condition: { type: 'compare', field: 'mood', operator: 'eq', value: 'joyful' }
   },
   {
     id: 'bestie-joyful',
-    label: '挚友且开心',
     description: 'favor >= 80 && mood == joyful',
     condition: {
       type: 'all',
@@ -150,13 +136,11 @@ export const SPRITE_ANIMATION_CONDITION_PRESETS: SpriteAnimationConditionPreset[
   },
   {
     id: 'level-10',
-    label: '10级解锁',
     description: 'level >= 10',
     condition: { type: 'compare', field: 'level', operator: 'gte', value: 10 }
   },
   {
     id: 'not-sleepy',
-    label: '非困倦时',
     description: 'NOT mood == sleepy',
     condition: {
       type: 'not',
@@ -165,7 +149,6 @@ export const SPRITE_ANIMATION_CONDITION_PRESETS: SpriteAnimationConditionPreset[
   },
   {
     id: 'bestie-or-joyful',
-    label: '挚友或开心',
     description: 'favor >= 80 || mood == joyful',
     condition: {
       type: 'any',
@@ -183,7 +166,7 @@ function isBuilderOperator(value: SpriteAnimationConditionOperator): value is Sp
 
 function createDefaultRuleValue(field: string): string {
   const option = getSpriteAnimationConditionFieldOption(field);
-  return option.kind === 'enum' ? (option.valueOptions?.[0]?.value ?? '') : option.placeholder === '例如 first-chat' ? 'first-chat' : option.kind === 'number' ? '80' : '';
+  return option.kind === 'enum' ? (option.valueOptions?.[0]?.value ?? '') : option.key === 'achievements' ? 'first-chat' : option.kind === 'number' ? '80' : '';
 }
 
 export function createEmptySpriteAnimationConditionBuilderCompareNode(): SpriteAnimationConditionBuilderCompareNode {

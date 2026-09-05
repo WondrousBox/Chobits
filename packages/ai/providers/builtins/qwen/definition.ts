@@ -7,6 +7,29 @@ const qwenSchema: ProviderConfig = {
   label: '通义千问 (Qwen)',
   enabled: true,
   icon: 'providers/icons/qwen-color.svg',
+  locales: {
+    en: {
+      label: 'Qwen',
+      fields: {
+        apiKey: 'API Key',
+        baseUrl: 'Base URL (optional, OpenAI-compatible gateway)'
+      }
+    },
+    'zh-CN': {
+      label: '通义千问 (Qwen)',
+      fields: {
+        apiKey: 'API Key',
+        baseUrl: 'Base URL (可选，OpenAI兼容网关)'
+      }
+    },
+    ja: {
+      label: 'Qwen',
+      fields: {
+        apiKey: 'API Key',
+        baseUrl: 'Base URL（任意、OpenAI 互換ゲートウェイ）'
+      }
+    }
+  },
   fields: [
     { key: 'apiKey', label: 'API Key', type: 'password', required: true },
     { key: 'baseUrl', label: 'Base URL (可选，OpenAI兼容网关)', type: 'text' }

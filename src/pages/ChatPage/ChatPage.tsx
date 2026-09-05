@@ -6,6 +6,7 @@ import { extractThinkingTextFromMetadata } from '@packages/ai/thinking-content';
 import type { TokenUsage } from '@packages/ai/types';
 import * as ScrollAreaPrimitive from '@radix-ui/react-scroll-area';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TbArrowDown, TbChevronRight, TbDots, TbEdit, TbHistory, TbLoader2, TbPin, TbPlus, TbRefresh, TbShare, TbTrash } from 'react-icons/tb';
 import { toast } from 'sonner';
 
@@ -85,6 +86,7 @@ function getChatWindowPayloadKey(payload: ChatWindowPayload): string {
 }
 
 export default function ChatPage(): JSX.Element {
+  const { t } = useTranslation('chat');
   const payloadWindowKey = 'chat';
   const realtimeSpeech = useRealtimeChatSpeech('mainChat');
   const cancelRealtimeSpeech = realtimeSpeech.cancel;
@@ -285,7 +287,7 @@ export default function ChatPage(): JSX.Element {
   // Apply rename
   const applyRename = async (): Promise<void> => {
     if (!renamingConvId) return;
-    await window.chobits.ai.renameConversation(renamingConvId, newTitle.trim() || '未命名会话');
+    await window.chobits.ai.renameConversation(renamingConvId, newTitle.trim() || t('conversation.untitled'));
     setIsRenameDialogOpen(false);
     await loadConversations();
   };
@@ -305,10 +307,10 @@ export default function ChatPage(): JSX.Element {
       await window.chobits.ai.hardDeleteConversation(id);
       setConversations((prev) => prev.filter((c) => c.id !== id));
       if (prevSelected === id) newConversation();
-      toast.success('已删除会话');
+      toast.success(t('toast.deleted'));
     } catch (e: any) {
       console.error(e);
-      toast.error('删除失败');
+      toast.error(t('toast.deleteFailed'));
     } finally {
       setIsDeleteDialogOpen(false);
       setDeletingConvId(null);
@@ -483,14 +485,14 @@ export default function ChatPage(): JSX.Element {
     if (!resolvedPreset?.id) {
       setPendingConversationTitle(null);
       await ensureChatApiConfigGoal({ providerId: selectedProviderId, preferredPresetId, trigger: 'chat-send' });
-      toast.error('当前服务商还没有可用预设，请先到 AI 设置中完成配置');
+      toast.error(t('toast.noUsablePreset'));
       return;
     }
 
     const selectedModelId = params.modelId || modelId || (await resolveInitialChatModelId(resolvedPreset.providerId || selectedProviderId, resolvedPreset.id));
     if (!selectedModelId) {
       setPendingConversationTitle(null);
-      toast.error('当前服务商没有可用的对话模型');
+      toast.error(t('toast.noChatModel'));
       return;
     }
 
@@ -686,7 +688,7 @@ export default function ChatPage(): JSX.Element {
             if (idx < 0 || idx >= prev.length) return prev;
             const copy = prev.slice();
             const m = copy[idx];
-            copy[idx] = appendTextPart(m, `\n[错误] ${ev.data?.message || ''}`);
+            copy[idx] = appendTextPart(m, t('stream.errorInline', { message: ev.data?.message || '' }));
             return copy;
           });
           setIsLoading(false);
@@ -773,7 +775,7 @@ export default function ChatPage(): JSX.Element {
         title={
           <div className="flex items-center gap-2 w-full">
             <span>🗨️</span>
-            <div className="text-left truncate flex-1">{currentConversation?.title || pendingConversationTitle || '未命名会话'}</div>
+            <div className="text-left truncate flex-1">{currentConversation?.title || pendingConversationTitle || t('conversation.untitled')}</div>
           </div>
         }
       />
@@ -784,20 +786,20 @@ export default function ChatPage(): JSX.Element {
         {isHistoryVisible && (
           <div className="w-64 border-r shrink-0 flex flex-col bg-muted">
             <div className="p-2 flex items-center gap-1 shrink-0">
-              <Button size="icon" variant="outline" className="w-8 h-8 rounded-full" onClick={loadConversations} title="刷新列表">
+              <Button size="icon" variant="outline" className="w-8 h-8 rounded-full" onClick={loadConversations} title={t('conversation.refreshList')}>
                 <TbRefresh />
               </Button>
               <Button size="sm" className="rounded-full flex-1" onClick={newConversation}>
                 <TbPlus />
-                新对话
+                {t('conversation.newChat')}
               </Button>
             </div>
             <div className="px-2 pb-2 text-xs text-muted-foreground flex items-center justify-between shrink-0">
-              <span>最近会话</span>
+              <span>{t('conversation.recent')}</span>
             </div>
             <div className="flex-1 overflow-auto min-h-0">
-              {loadingConversations && <div className="p-2 text-xs text-muted-foreground">加载中…</div>}
-              {!loadingConversations && conversations.length === 0 && <div className="p-2 text-xs text-muted-foreground">暂无会话，点击“新对话”开始</div>}
+              {loadingConversations && <div className="p-2 text-xs text-muted-foreground">{t('conversation.loading')}</div>}
+              {!loadingConversations && conversations.length === 0 && <div className="p-2 text-xs text-muted-foreground">{t('conversation.empty')}</div>}
               <div className="flex flex-col">
                 {conversations.map((c) => {
                   const isGenerating = generatingTitleIds.has(c.id);
@@ -808,9 +810,10 @@ export default function ChatPage(): JSX.Element {
                       onClick={() => selectConversation(c.id)}
                     >
                       <div className="flex-1 min-w-0">
-                        {isGenerating ? <div className="h-4 rounded shimmer-title" /> : <div className="truncate text-sm">{c.title || '未命名会话'}</div>}
+                        {isGenerating ? <div className="h-4 rounded shimmer-title" /> : <div className="truncate text-sm">{c.title || t('conversation.untitled')}</div>}
                         <div className={`text-xs ${selectedConvId === c.id ? 'text-primary-foreground/70' : 'text-muted-foreground'}`} title={formatDateTime(c.lastMessageAt)}>
-                          {c.messagesCount ?? 0} 条消息{c.lastMessageAt ? ` • ${formatRelativeTime(c.lastMessageAt)}` : ''}
+                          {t('conversation.messagesCount', { count: c.messagesCount ?? 0 })}
+                          {c.lastMessageAt ? ` • ${formatRelativeTime(c.lastMessageAt)}` : ''}
                         </div>
                       </div>
                       <DropdownMenu>
@@ -824,23 +827,23 @@ export default function ChatPage(): JSX.Element {
                             onClick={(e) => {
                               e.stopPropagation();
                               // Copy conversation to clipboard
-                              const text = `${c.title || '未命名会话'}`;
+                              const text = `${c.title || t('conversation.untitled')}`;
                               navigator.clipboard.writeText(text);
-                              toast.success('已复制对话标题');
+                              toast.success(t('toast.titleCopied'));
                             }}
                           >
                             <TbShare className="w-4 h-4 mr-2" />
-                            分享对话内容
+                            {t('menu.share')}
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={(e) => {
                               e.stopPropagation();
                               // Toggle pin (placeholder)
-                              toast.info(c.pinned ? '已取消固定' : '已固定会话');
+                              toast.info(c.pinned ? t('toast.unpinned') : t('toast.pinned'));
                             }}
                           >
                             <TbPin className="w-4 h-4 mr-2" />
-                            {c.pinned ? '取消固定' : '固定'}
+                            {c.pinned ? t('menu.unpin') : t('menu.pin')}
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={(e) => {
@@ -849,7 +852,7 @@ export default function ChatPage(): JSX.Element {
                             }}
                           >
                             <TbEdit className="w-4 h-4 mr-2" />
-                            重命名
+                            {t('menu.rename')}
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             className="text-destructive focus:text-destructive"
@@ -859,7 +862,7 @@ export default function ChatPage(): JSX.Element {
                             }}
                           >
                             <TbTrash className="w-4 h-4 mr-2" />
-                            删除
+                            {t('menu.delete')}
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -875,13 +878,19 @@ export default function ChatPage(): JSX.Element {
         <div className="flex-1 min-w-0 flex flex-col overflow-hidden relative">
           {/* 展开/收起历史按钮 */}
           <div className="absolute top-2 left-2 z-10">
-            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setIsHistoryVisible(!isHistoryVisible)} title={isHistoryVisible ? '收起历史' : '展开历史'}>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-8 w-8"
+              onClick={() => setIsHistoryVisible(!isHistoryVisible)}
+              title={isHistoryVisible ? t('conversation.collapseHistory') : t('conversation.expandHistory')}
+            >
               {isHistoryVisible ? <TbChevronRight /> : <TbHistory />}
             </Button>
           </div>
           {shouldShowEmptyStart && (
             <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
-              <div className="text-center text-lg mb-4">今天有什么能帮到你？</div>
+              <div className="text-center text-lg mb-4">{t('emptyStart.greeting')}</div>
               <ChatInputWithService isLoading={isLoading} onStart={start} onStop={stop} />
             </div>
           )}
@@ -895,7 +904,7 @@ export default function ChatPage(): JSX.Element {
                   <div className="flex flex-col gap-2">
                     {conversationUsage && (
                       <div className="flex justify-center pt-2">
-                        <ChatTokenUsage usage={conversationUsage} label="会话累计" variant="conversation" />
+                        <ChatTokenUsage usage={conversationUsage} label={t('usage.conversationTotal')} variant="conversation" />
                       </div>
                     )}
                     {messages.map((m, i) => (
@@ -910,10 +919,10 @@ export default function ChatPage(): JSX.Element {
                           {m.role === 'assistant' ? (
                             <>
                               <ChatMessageTimeline message={m} onUserChoiceSubmit={handleUserChoiceSubmit} />
-                              {m.usage && <ChatTokenUsage usage={m.usage} label="本轮" className="mt-2" />}
+                              {m.usage && <ChatTokenUsage usage={m.usage} label={t('usage.currentRound')} className="mt-2" />}
                               {!hasTimelineContent(m) && isLoading && i === messages.length - 1 && (
                                 <span className="inline-flex items-center gap-2 text-muted-foreground">
-                                  <TbLoader2 className="h-4 w-4 animate-spin" /> 正在思考...
+                                  <TbLoader2 className="h-4 w-4 animate-spin" /> {t('stream.thinking')}
                                 </span>
                               )}
                             </>
@@ -923,7 +932,7 @@ export default function ChatPage(): JSX.Element {
                             m.content ||
                             (isLoading && i === messages.length - 1 ? (
                               <span className="inline-flex items-center gap-2 text-muted-foreground">
-                                <TbLoader2 className="h-4 w-4 animate-spin" /> 正在思考...
+                                <TbLoader2 className="h-4 w-4 animate-spin" /> {t('stream.thinking')}
                               </span>
                             ) : (
                               ''
@@ -944,7 +953,7 @@ export default function ChatPage(): JSX.Element {
                 <button
                   className="absolute bottom-24 right-6 z-20 flex items-center justify-center w-9 h-9 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 transition-opacity"
                   onClick={() => scrollToBottom(true)}
-                  title="滚动到底部"
+                  title={t('scroll.toBottom')}
                 >
                   <TbArrowDown className="w-5 h-5" />
                 </button>
@@ -961,7 +970,7 @@ export default function ChatPage(): JSX.Element {
       <Dialog open={isRenameDialogOpen} onOpenChange={setIsRenameDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>重命名对话</DialogTitle>
+            <DialogTitle>{t('renameDialog.title')}</DialogTitle>
           </DialogHeader>
           <Input
             value={newTitle}
@@ -973,9 +982,9 @@ export default function ChatPage(): JSX.Element {
           />
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsRenameDialogOpen(false)}>
-              取消
+              {t('common:action.cancel')}
             </Button>
-            <Button onClick={applyRename}>确定</Button>
+            <Button onClick={applyRename}>{t('renameDialog.confirm')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -984,13 +993,13 @@ export default function ChatPage(): JSX.Element {
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>删除对话</AlertDialogTitle>
-            <AlertDialogDescription>确定要删除此对话吗？此操作无法撤销。</AlertDialogDescription>
+            <AlertDialogTitle>{t('deleteDialog.title')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('deleteDialog.description')}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogCancel>{t('common:action.cancel')}</AlertDialogCancel>
             <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={confirmDeleteConversation}>
-              删除
+              {t('menu.delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

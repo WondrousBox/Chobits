@@ -1,5 +1,6 @@
 import type { SpriteCapabilitySnapshot, SpriteCapabilityState } from '@packages/sprite-core/capability-registry';
 import { DEFAULT_SPRITE_CAPABILITY_DEFINITIONS } from '@packages/sprite-core/capability-registry';
+import type { TFunction } from 'i18next';
 
 const capabilityNameMap = new Map(DEFAULT_SPRITE_CAPABILITY_DEFINITIONS.map((definition) => [definition.id, definition.name]));
 
@@ -13,24 +14,33 @@ export function getSpriteCapabilityState(snapshot: SpriteCapabilitySnapshot | nu
   return snapshot?.capabilities[capabilityId] ?? null;
 }
 
-export function getSpriteCapabilityLockedReason(capability?: SpriteCapabilityState | null): string {
+/**
+ * 生成能力锁定原因文案。传入 t 时按界面语言输出（speech:capability.*），
+ * 否则回退内置中文（供测试与非渲染场景使用）。
+ */
+export function getSpriteCapabilityLockedReason(capability?: SpriteCapabilityState | null, t?: TFunction): string {
   if (!capability || capability.status !== 'locked') return '';
 
+  const resolveNames = (ids: string[]): string => {
+    const separator = t ? t('speech:capability.nameListSeparator') : '、';
+    return ids.map((id) => (t ? t(`speech:capability.${id}`, { defaultValue: capabilityNameMap.get(id) ?? id }) : (capabilityNameMap.get(id) ?? id))).join(separator);
+  };
+
   if (capability.inactivePrerequisites.length > 0) {
-    const prerequisiteNames = capability.inactivePrerequisites.map((id) => capabilityNameMap.get(id) ?? id);
-    return `需要先启用前置能力：${prerequisiteNames.join('、')}`;
+    const names = resolveNames(capability.inactivePrerequisites);
+    return t ? t('speech:capability.lockedEnablePrerequisites', { names }) : `需要先启用前置能力：${names}`;
   }
 
   if (capability.missingPrerequisites.length > 0) {
-    const prerequisiteNames = capability.missingPrerequisites.map((id) => capabilityNameMap.get(id) ?? id);
-    return `需要先解锁前置能力：${prerequisiteNames.join('、')}`;
+    const names = resolveNames(capability.missingPrerequisites);
+    return t ? t('speech:capability.lockedUnlockPrerequisites', { names }) : `需要先解锁前置能力：${names}`;
   }
 
   if (capability.missingFeatureFlags.length > 0) {
-    return '当前版本尚未开放此能力';
+    return t ? t('speech:capability.lockedNotOpen') : '当前版本尚未开放此能力';
   }
 
-  return '当前尚未解锁此能力';
+  return t ? t('speech:capability.lockedGeneric') : '当前尚未解锁此能力';
 }
 
 export function ensureSpriteCapabilityAccessible(

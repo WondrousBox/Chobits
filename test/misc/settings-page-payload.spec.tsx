@@ -19,6 +19,9 @@ describe('SettingsPage payload handling', () => {
     const { act } = await import('react');
     const { createRoot } = await import('react-dom/client');
     const { default: SettingsPage } = await import('../../src/pages/SettingsPage/SettingsPage');
+    // i18n 默认按系统语言初始化，测试环境（Node navigator）为英文，这里固定为中文以匹配断言文案
+    const { default: i18n } = await import('../../src/i18n');
+    await i18n.changeLanguage('zh-CN');
 
     const env = installMiniDom();
     (env.window as any).innerWidth = 1200;

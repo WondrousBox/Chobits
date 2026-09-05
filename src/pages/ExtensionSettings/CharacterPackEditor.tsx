@@ -10,6 +10,7 @@ import {
   type CharacterProgressMessageKey
 } from '@packages/sprite-core/messages/default-character';
 import { type Dispatch, type ReactNode, type SetStateAction, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TbPlus, TbTrash } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
@@ -28,6 +29,7 @@ interface CharacterPackEditorContentProps {
 }
 
 export function CharacterPackEditorContent({ editor, setEditor, className, extra }: CharacterPackEditorContentProps): JSX.Element {
+  const { t } = useTranslation('character');
   const updateEditorPack = useCallback(
     (patch: Partial<CharacterPackEditorDraft['pack']>): void => {
       setEditor((current) =>
@@ -167,65 +169,65 @@ export function CharacterPackEditorContent({ editor, setEditor, className, extra
       <div className="space-y-5">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div className="space-y-2">
-            <Label>角色包 ID</Label>
+            <Label>{t('editor.field.packId')}</Label>
             <Input value={editor.draft.pack.id} onChange={(event) => updateEditorPack({ id: slugifyCharacterPackId(event.target.value) })} disabled={editor.saveMode === 'edit'} />
           </div>
           <div className="space-y-2">
-            <Label>角色包名称</Label>
+            <Label>{t('editor.field.packName')}</Label>
             <Input value={editor.draft.pack.name} onChange={(event) => updateEditorPack({ name: event.target.value })} />
           </div>
           <div className="space-y-2">
-            <Label>版本</Label>
+            <Label>{t('editor.field.version')}</Label>
             <Input value={editor.draft.pack.version} onChange={(event) => updateEditorPack({ version: event.target.value })} />
           </div>
           <div className="space-y-2">
-            <Label>作者</Label>
+            <Label>{t('editor.field.author')}</Label>
             <Input value={editor.draft.pack.author} onChange={(event) => updateEditorPack({ author: event.target.value })} />
           </div>
           <div className="space-y-2">
-            <Label>许可证</Label>
+            <Label>{t('editor.field.license')}</Label>
             <Input value={editor.draft.pack.license} onChange={(event) => updateEditorPack({ license: event.target.value })} />
           </div>
           <div className="space-y-2">
-            <Label>平台</Label>
+            <Label>{t('editor.field.platform')}</Label>
             <Input value={editor.draft.pack.platform.join(', ')} onChange={(event) => updateEditorPack({ platform: splitEditorLines(event.target.value.replace(/[,，]/g, '\n')) })} />
           </div>
           <div className="space-y-2 md:col-span-2">
-            <Label>角色包描述</Label>
+            <Label>{t('editor.field.packDescription')}</Label>
             <Textarea className="min-h-20" value={editor.draft.pack.description} onChange={(event) => updateEditorPack({ description: event.target.value })} />
           </div>
           <div className="space-y-2 md:col-span-2">
-            <Label>标签</Label>
+            <Label>{t('editor.field.tags')}</Label>
             <Input value={editor.draft.pack.tags.join(', ')} onChange={(event) => updateEditorPack({ tags: splitEditorLines(event.target.value.replace(/[,，]/g, '\n')) })} />
           </div>
         </div>
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div className="space-y-2">
-            <Label>角色 ID</Label>
+            <Label>{t('editor.field.characterId')}</Label>
             <Input value={editor.draft.character.id} onChange={(event) => updateEditorCharacter({ id: slugifyCharacterPackId(event.target.value) })} />
           </div>
           <div className="space-y-2">
-            <Label>角色名称</Label>
+            <Label>{t('editor.field.characterName')}</Label>
             <Input value={editor.draft.character.name} onChange={(event) => updateEditorCharacter({ name: event.target.value })} />
           </div>
           <div className="space-y-2">
-            <Label>角色标语</Label>
+            <Label>{t('editor.field.tagline')}</Label>
             <Input value={editor.draft.character.tagline} onChange={(event) => updateEditorCharacter({ tagline: event.target.value })} />
           </div>
           <div className="space-y-2">
-            <Label>别名</Label>
+            <Label>{t('editor.field.aliases')}</Label>
             <Input value={editor.draft.character.nameAliases.join(', ')} onChange={(event) => updateEditorCharacter({ nameAliases: splitEditorLines(event.target.value.replace(/[,，]/g, '\n')) })} />
           </div>
           <div className="space-y-2 md:col-span-2">
-            <Label>角色背景</Label>
+            <Label>{t('editor.field.background')}</Label>
             <Textarea className="min-h-24" value={editor.draft.character.background} onChange={(event) => updateEditorCharacter({ background: event.target.value })} />
           </div>
         </div>
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div className="space-y-2">
-            <Label>核心性格</Label>
+            <Label>{t('editor.field.coreTraits')}</Label>
             <Textarea
               className="min-h-32"
               value={joinEditorLines(editor.draft.character.coreTraits)}
@@ -233,7 +235,7 @@ export function CharacterPackEditorContent({ editor, setEditor, className, extra
             />
           </div>
           <div className="space-y-2">
-            <Label>行为边界</Label>
+            <Label>{t('editor.field.boundaries')}</Label>
             <Textarea
               className="min-h-32"
               value={joinEditorLines(editor.draft.character.boundaries)}
@@ -244,40 +246,40 @@ export function CharacterPackEditorContent({ editor, setEditor, className, extra
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div className="space-y-2">
-            <Label>说话语气</Label>
+            <Label>{t('editor.field.speechTone')}</Label>
             <Input value={editor.draft.character.speechTone} onChange={(event) => updateEditorCharacter({ speechTone: event.target.value })} />
           </div>
           <div className="space-y-2">
-            <Label>语言</Label>
+            <Label>{t('editor.field.language')}</Label>
             <Input value={editor.draft.character.language} onChange={(event) => updateEditorCharacter({ language: event.target.value })} />
           </div>
           <div className="space-y-2">
-            <Label>自称</Label>
+            <Label>{t('editor.field.firstPerson')}</Label>
             <Input value={editor.draft.character.firstPerson} onChange={(event) => updateEditorCharacter({ firstPerson: event.target.value })} />
           </div>
           <div className="space-y-2">
-            <Label>称呼用户</Label>
+            <Label>{t('editor.field.addressUser')}</Label>
             <Input value={editor.draft.character.addressUser} onChange={(event) => updateEditorCharacter({ addressUser: event.target.value })} />
           </div>
           <div className="space-y-2 md:col-span-2">
-            <Label>口癖和表达习惯</Label>
+            <Label>{t('editor.field.quirks')}</Label>
             <Textarea className="min-h-24" value={joinEditorLines(editor.draft.character.quirks)} onChange={(event) => updateEditorCharacter({ quirks: splitEditorLines(event.target.value) })} />
           </div>
         </div>
 
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <Label>对话示例</Label>
+            <Label>{t('editor.speechExamples')}</Label>
             <Button type="button" size="sm" variant="outline" onClick={addEditorExample}>
               <TbPlus />
-              添加示例
+              {t('editor.addExample')}
             </Button>
           </div>
           <div className="space-y-2">
             {editor.draft.character.speechExamples.map((example, index) => (
               <div key={index} className="grid grid-cols-1 gap-2 rounded-md border border-border/60 p-2 md:grid-cols-[1fr_2fr_auto]">
-                <Input placeholder="场景" value={example.situation} onChange={(event) => updateEditorExample(index, { situation: event.target.value })} />
-                <Input placeholder="回应" value={example.response} onChange={(event) => updateEditorExample(index, { response: event.target.value })} />
+                <Input placeholder={t('editor.exampleSituationPlaceholder')} value={example.situation} onChange={(event) => updateEditorExample(index, { situation: event.target.value })} />
+                <Input placeholder={t('editor.exampleResponsePlaceholder')} value={example.response} onChange={(event) => updateEditorExample(index, { response: event.target.value })} />
                 <Button type="button" size="sm" variant="outline" onClick={() => removeEditorExample(index)}>
                   <TbTrash />
                 </Button>
@@ -288,10 +290,8 @@ export function CharacterPackEditorContent({ editor, setEditor, className, extra
 
         <div className="space-y-3">
           <div className="space-y-1">
-            <Label>事件台词</Label>
-            <div className="text-xs text-muted-foreground">
-              每行一条，会随机选一句。可使用 {'{count}'}、{'{progress}'} 这类占位符。
-            </div>
+            <Label>{t('editor.messagesTitle')}</Label>
+            <div className="text-xs text-muted-foreground">{t('editor.messagesHint')}</div>
           </div>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {CHARACTER_MESSAGE_SPECS.map((spec) => renderMessageTextarea(spec.field, spec.label, (spec as CharacterMessageSpec).placeholder))}
@@ -300,8 +300,8 @@ export function CharacterPackEditorContent({ editor, setEditor, className, extra
 
         <div className="space-y-3">
           <div className="space-y-1">
-            <Label>进度播报</Label>
-            <div className="text-xs text-muted-foreground">用于下载、导入、转写和工作流等待时的语音播报。</div>
+            <Label>{t('editor.progressTitle')}</Label>
+            <div className="text-xs text-muted-foreground">{t('editor.progressHint')}</div>
           </div>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {CHARACTER_PROGRESS_KIND_LABEL_SPECS.map((spec) => (
@@ -321,19 +321,19 @@ export function CharacterPackEditorContent({ editor, setEditor, className, extra
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div className="space-y-2">
-            <Label>角色说明</Label>
+            <Label>{t('editor.field.metaDescription')}</Label>
             <Textarea className="min-h-24" value={editor.draft.character.metaDescription} onChange={(event) => updateEditorCharacter({ metaDescription: event.target.value })} />
           </div>
           <div className="space-y-2">
-            <Label>角色标签</Label>
+            <Label>{t('editor.field.metaTags')}</Label>
             <Textarea className="min-h-24" value={joinEditorLines(editor.draft.character.metaTags)} onChange={(event) => updateEditorCharacter({ metaTags: splitEditorLines(event.target.value) })} />
           </div>
         </div>
 
         <div className="flex items-center justify-between rounded-md border border-border/60 p-3">
           <div className="space-y-1">
-            <div className="text-sm font-medium text-foreground">保存后立即切换</div>
-            <div className="text-xs text-muted-foreground">会刷新当前角色人格、能力状态和动画资源。</div>
+            <div className="text-sm font-medium text-foreground">{t('editor.activateAfterSave')}</div>
+            <div className="text-xs text-muted-foreground">{t('editor.activateAfterSaveHint')}</div>
           </div>
           <Switch checked={editor.activateAfterSave} onCheckedChange={(checked) => setEditor((current) => (current ? { ...current, activateAfterSave: checked } : current))} />
         </div>

@@ -7,6 +7,7 @@ import { getProviderVoiceCatalog } from '@packages/ai/providers/voice-catalogs';
 import type { ProviderPresetRecord } from '@packages/ai/types';
 import type { SpriteSpeakAIProviderConfig } from '@packages/sprite-core/speak/types';
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TbSettings, TbTrash, TbVolume } from 'react-icons/tb';
 
 import { ProviderModelSelect } from '@/components/common/ProviderModelSelect';
@@ -79,28 +80,32 @@ export const SpeakItem: React.FC<{
   state: SpeakSettingsState;
   selected: boolean;
   onSelect: () => void;
-}> = ({ state, selected, onSelect }) => (
-  <div onClick={onSelect} className={cn('flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors hover:bg-accent/50', selected && 'bg-accent ring-1 ring-primary/30')}>
-    <div
-      className={cn(
-        'flex h-10 w-10 items-center justify-center rounded-full shrink-0 transition-colors',
-        (state.config?.enabled ?? false) ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
-      )}
-    >
-      <TbVolume className="h-5 w-5" />
+}> = ({ state, selected, onSelect }) => {
+  const { t } = useTranslation('speech');
+  return (
+    <div onClick={onSelect} className={cn('flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors hover:bg-accent/50', selected && 'bg-accent ring-1 ring-primary/30')}>
+      <div
+        className={cn(
+          'flex h-10 w-10 items-center justify-center rounded-full shrink-0 transition-colors',
+          (state.config?.enabled ?? false) ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
+        )}
+      >
+        <TbVolume className="h-5 w-5" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-medium text-foreground">{t('speak.item.title')}</div>
+        <div className="text-xs text-muted-foreground line-clamp-1">{t('speak.item.description')}</div>
+      </div>
+      <div onClick={(e) => e.stopPropagation()}>
+        <Switch checked={state.config?.enabled ?? false} onCheckedChange={(checked) => state.updateConfig({ enabled: checked })} disabled={state.isLoading} />
+      </div>
     </div>
-    <div className="flex-1 min-w-0">
-      <div className="text-sm font-medium text-foreground">角色说话</div>
-      <div className="text-xs text-muted-foreground line-clamp-1">选择 Edge 或服务商语音合成。</div>
-    </div>
-    <div onClick={(e) => e.stopPropagation()}>
-      <Switch checked={state.config?.enabled ?? false} onCheckedChange={(checked) => state.updateConfig({ enabled: checked })} disabled={state.isLoading} />
-    </div>
-  </div>
-);
+  );
+};
 
 /* ─── Right-panel detail ─── */
 export const SpeakDetailContent: React.FC<{ state: SpeakSettingsState }> = ({ state }) => {
+  const { t } = useTranslation('speech');
   const { config, isLoading, isTesting, cacheStats, updateConfig, handleTest, handleClearCache } = state;
   const aiProvider = useMemo(() => mergeAIProviderConfig(config?.aiProvider), [config?.aiProvider]);
   const voiceCatalog = useMemo(() => getProviderVoiceCatalog(aiProvider.providerId), [aiProvider.providerId]);
@@ -127,11 +132,11 @@ export const SpeakDetailContent: React.FC<{ state: SpeakSettingsState }> = ({ st
   }, [aiProvider.providerId, config]);
 
   if (isLoading || !config) {
-    return <div className="text-sm text-muted-foreground">加载中...</div>;
+    return <div className="text-sm text-muted-foreground">{t('speak.loading')}</div>;
   }
 
   if (!config.enabled) {
-    return <p className="text-sm text-muted-foreground py-4">请先在左侧开启角色说话。</p>;
+    return <p className="text-sm text-muted-foreground py-4">{t('speak.enableHint')}</p>;
   }
 
   const updateAiProvider = (patch: Partial<SpriteSpeakAIProviderConfig>) => {
@@ -149,24 +154,24 @@ export const SpeakDetailContent: React.FC<{ state: SpeakSettingsState }> = ({ st
   return (
     <div className="space-y-5">
       <div className="space-y-2">
-        <label className="text-sm font-medium text-foreground">说话方式</label>
+        <label className="text-sm font-medium text-foreground">{t('speak.engine.label')}</label>
         <Select value={isAiProvider ? 'ai-provider' : 'edge'} onValueChange={(value) => updateConfig({ engine: value === 'ai-provider' ? 'ai-provider' : 'edge' })}>
           <SelectTrigger className="w-full">
-            <SelectValue placeholder="选择说话方式" />
+            <SelectValue placeholder={t('speak.engine.placeholder')} />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="edge">Edge TTS</SelectItem>
-            <SelectItem value="ai-provider">服务商语音</SelectItem>
+            <SelectItem value="ai-provider">{t('speak.engine.aiProvider')}</SelectItem>
           </SelectContent>
         </Select>
       </div>
 
       {!isAiProvider ? (
         <div className="space-y-2">
-          <label className="text-sm font-medium text-foreground">音色</label>
+          <label className="text-sm font-medium text-foreground">{t('speak.voice.label')}</label>
           <Select value={config.voiceName} onValueChange={(value) => updateConfig({ voiceName: value })}>
             <SelectTrigger className="w-full">
-              <SelectValue placeholder="选择音色" />
+              <SelectValue placeholder={t('speak.voice.placeholder')} />
             </SelectTrigger>
             <SelectContent>
               {EDGE_VOICES.map((voice) => (
@@ -181,7 +186,7 @@ export const SpeakDetailContent: React.FC<{ state: SpeakSettingsState }> = ({ st
       ) : (
         <div className="space-y-5">
           <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">服务商与模型</label>
+            <label className="text-sm font-medium text-foreground">{t('speak.providerModel.label')}</label>
             <div className="flex items-center gap-2">
               <ProviderModelSelect
                 providerId={aiProvider.providerId}
@@ -189,7 +194,7 @@ export const SpeakDetailContent: React.FC<{ state: SpeakSettingsState }> = ({ st
                 modelId={aiProvider.model}
                 modelTypes={['tts']}
                 providerFilter={(provider) => provider.capabilities?.speechSynthesis === true}
-                placeholder="选择语音合成模型"
+                placeholder={t('speak.providerModel.placeholder')}
                 className="w-full rounded-md"
                 onChange={(providerId, model) =>
                   updateAiProvider({
@@ -201,19 +206,19 @@ export const SpeakDetailContent: React.FC<{ state: SpeakSettingsState }> = ({ st
               />
               <Button variant="outline" size="sm" className="shrink-0" onClick={() => window.chobits.window['window:open']('settings' as any, { category: 'ai', aiProviderId: aiProvider.providerId })}>
                 <TbSettings />
-                配置
+                {t('speak.providerModel.configure')}
               </Button>
             </div>
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">服务商预设</label>
+            <label className="text-sm font-medium text-foreground">{t('speak.preset.label')}</label>
             <Select value={aiProvider.providerPresetId || '__auto__'} onValueChange={(value) => updateAiProvider({ providerPresetId: value === '__auto__' ? undefined : value })}>
               <SelectTrigger className="w-full">
-                <SelectValue placeholder="自动选择可用预设" />
+                <SelectValue placeholder={t('speak.preset.auto')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="__auto__">自动选择可用预设</SelectItem>
+                <SelectItem value="__auto__">{t('speak.preset.auto')}</SelectItem>
                 {presets.map((preset) => (
                   <SelectItem key={preset.id} value={preset.id}>
                     {preset.name || preset.id}
@@ -225,11 +230,11 @@ export const SpeakDetailContent: React.FC<{ state: SpeakSettingsState }> = ({ st
 
           <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">音色</label>
+              <label className="text-sm font-medium text-foreground">{t('speak.voice.label')}</label>
               <ProviderVoiceSelect value={aiProvider.voiceId} groups={voiceCatalog?.groups || []} onChange={(value) => updateAiProvider({ voiceId: value, voice: value })} />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">音频格式</label>
+              <label className="text-sm font-medium text-foreground">{t('speak.audioFormat.label')}</label>
               <Select value={aiProvider.audioSetting?.format || 'mp3'} onValueChange={(value) => updateAiProvider({ audioSetting: { format: value } })}>
                 <SelectTrigger className="w-full">
                   <SelectValue />
@@ -245,18 +250,18 @@ export const SpeakDetailContent: React.FC<{ state: SpeakSettingsState }> = ({ st
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">朗读语言</label>
+            <label className="text-sm font-medium text-foreground">{t('speak.speechLanguage.label')}</label>
             <Select value={aiProvider.speechLanguage || 'auto'} onValueChange={(value) => updateAiProvider({ speechLanguage: value as SpriteSpeakAIProviderConfig['speechLanguage'] })}>
               <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="auto">自动（跟随角色语言）</SelectItem>
-                <SelectItem value="zh">中文</SelectItem>
-                <SelectItem value="ja">日文</SelectItem>
+                <SelectItem value="auto">{t('speak.speechLanguage.auto')}</SelectItem>
+                <SelectItem value="zh">{t('speak.speechLanguage.zh')}</SelectItem>
+                <SelectItem value="ja">{t('speak.speechLanguage.ja')}</SelectItem>
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">自动时跟随角色定义的语言；文本语言与朗读语言不一致时先用 LLM 翻译再朗读，气泡仍显示原文；对话实时朗读同样生效。</p>
+            <p className="text-xs text-muted-foreground">{t('speak.speechLanguage.description')}</p>
           </div>
         </div>
       )}
@@ -264,7 +269,7 @@ export const SpeakDetailContent: React.FC<{ state: SpeakSettingsState }> = ({ st
       {/* 音量 */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <label className="text-sm font-medium text-foreground">播放音量</label>
+          <label className="text-sm font-medium text-foreground">{t('speak.volume.label')}</label>
           <span className="text-xs text-muted-foreground">{Math.round(config.volume * 100)}%</span>
         </div>
         <Slider value={[config.volume]} min={0} max={1} step={0.05} onValueChange={([value]) => updateConfig({ volume: value })} />
@@ -274,13 +279,13 @@ export const SpeakDetailContent: React.FC<{ state: SpeakSettingsState }> = ({ st
       <div className="flex flex-wrap items-center gap-3 pt-2">
         <Button variant="outline" size="sm" onClick={handleTest} disabled={isTesting}>
           <TbVolume />
-          {isTesting ? '合成中...' : '试听'}
+          {isTesting ? t('speak.test.testing') : t('speak.test.idle')}
         </Button>
 
         {cacheStats && cacheStats.totalEntries > 0 && (
           <Button variant="ghost" size="sm" onClick={handleClearCache} className="text-muted-foreground">
             <TbTrash />
-            清空缓存 ({cacheStats.totalEntries} 条, {formatSize(cacheStats.totalSizeBytes)})
+            {t('speak.clearCache', { count: cacheStats.totalEntries, size: formatSize(cacheStats.totalSizeBytes) })}
           </Button>
         )}
       </div>

@@ -1,0 +1,58 @@
+{
+  "action": {
+    "save": "Save",
+    "cancel": "Cancel"
+  },
+  "providerModelSelect": {
+    "placeholder": "Select provider · model",
+    "searchPlaceholder": "Search providers or models...",
+    "noMatchingModels": "No matching models found",
+    "loading": "Loading...",
+    "free": "Free",
+    "noModels": "No models",
+    "modelType": {
+      "chat": "Chat",
+      "vision": "Vision",
+      "image": "Image",
+      "text2music": "Music",
+      "tts": "Speech",
+      "stt": "Transcription",
+      "video": "Video",
+      "audio": "Audio",
+      "embedding": "Embedding",
+      "realtime": "Realtime",
+      "tool": "Tool"
+    }
+  },
+  "voiceSelect": {
+    "placeholder": "Select voice",
+    "searchPlaceholder": "Search voice name or voiceId...",
+    "emptyVoices": "This provider has no built-in voice list. Please enter a voiceId manually.",
+    "noMatch": "No matching voices"
+  },
+  "errorBoundary": {
+    "title": "Something went wrong",
+    "unknownError": "Unknown error",
+    "errorInfo": "Error:",
+    "stackInfo": "Stack:",
+    "componentStack": "Component stack:",
+    "copied": "Copied",
+    "copy": "Copy",
+    "copyErrorInfo": "Copy error info",
+    "expandDetails": "Show details",
+    "collapseDetails": "Hide details",
+    "expand": "Details",
+    "collapse": "Hide",
+    "retry": "Retry"
+  },
+  "modelInstall": {
+    "downloading": "Downloading {{name}}",
+    "failed": "Model installation failed",
+    "failedWithError": "Model installation failed: {{error}}",
+    "notInstalled": "Model {{names}} is not installed",
+    "notInstalledWithSize": "Model {{names}} is not installed (approx. {{size}} total)",
+    "retry": "Retry",
+    "installAll": "Install All",
+    "errorFallback": "Installation failed"
+  }
+}

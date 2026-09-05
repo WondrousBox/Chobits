@@ -8,6 +8,7 @@ import type {
   SpriteWindowAnimationPresetId
 } from '@packages/sprite-core/types';
 import React, { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TbPencil, TbPlayerPlay, TbTrash, TbX } from 'react-icons/tb';
 import { toast } from 'sonner';
 
@@ -70,6 +71,7 @@ function SpriteAnimationConfigEditor({
   onClose: () => void;
   onSaved: () => Promise<void> | void;
 }): JSX.Element {
+  const { t } = useTranslation('sprite');
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [title, setTitle] = useState(animation.meta.title || animation.meta.id);
@@ -85,13 +87,16 @@ function SpriteAnimationConfigEditor({
   const [autoIdle, setAutoIdle] = useState(animation.autoIdle ?? true);
   const [movement, setMovement] = useState<SpriteMovementConfig>(animation.movement ?? { enabled: false, mode: 'direction', direction: 'random', speed: 60 });
   const canAuthorAnimations = assetAuthoringCapability?.status !== 'locked';
-  const parsedCondition = parseSpriteAnimationConditionInput(conditionInput);
-  const metaDraft = createSpriteAnimationMetaDraft({
-    conditionInput,
-    primaryTrigger,
-    triggerAliasesInput,
-    priority: priorityInput
-  });
+  const parsedCondition = parseSpriteAnimationConditionInput(conditionInput, t);
+  const metaDraft = createSpriteAnimationMetaDraft(
+    {
+      conditionInput,
+      primaryTrigger,
+      triggerAliasesInput,
+      priority: priorityInput
+    },
+    t
+  );
   const width = getPositiveNumber(widthInput, animation.width ?? 180);
   const height = getPositiveNumber(heightInput, animation.height ?? 240);
   const padding = getNonNegativeNumber(paddingInput, animation.padding ?? 100);
@@ -126,16 +131,16 @@ function SpriteAnimationConfigEditor({
         }
       });
       if (!result?.ok) {
-        const message = '保存精灵属性失败';
+        const message = t('sprite:configEditor.toast.saveFailed');
         setSaveError(message);
         toast.error(message);
         return;
       }
       await onSaved();
       onClose();
-      toast.success('精灵属性已保存');
+      toast.success(t('sprite:configEditor.toast.saved'));
     } catch (error) {
-      const message = '保存精灵属性失败';
+      const message = t('sprite:configEditor.toast.saveFailed');
       setSaveError(error instanceof Error ? error.message : message);
       toast.error(message, { description: error instanceof Error ? error.message : String(error) });
     } finally {
@@ -146,13 +151,13 @@ function SpriteAnimationConfigEditor({
   return (
     <div className="h-[100vh] w-[100vw] max-w-[unset] overflow-none fixed top-0 left-0 z-[40] bg-background">
       <div className="p-2 box-border flex justify-between items-center">
-        编辑精灵属性
+        {t('sprite:configEditor.title')}
         <Button size="icon" variant="ghost" onClick={onClose}>
           <TbX />
         </Button>
       </div>
       <div className="overflow-y-auto p-4 space-y-4" style={{ height: 'calc(100% - 52px)' }}>
-        <SpriteCapabilityLockedNotice capability={assetAuthoringCapability} hint="精灵资源管理尚未解锁时，可以查看现有动画，但不能保存精灵属性。" />
+        <SpriteCapabilityLockedNotice capability={assetAuthoringCapability} hint={t('sprite:configEditor.capabilityHint')} />
         <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
           <div className="space-y-2">
             <div className="rounded-md border p-2">
@@ -179,30 +184,30 @@ function SpriteAnimationConfigEditor({
           <div className="space-y-4">
             <div className="grid gap-3 md:grid-cols-[1fr_240px]">
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">名称</Label>
+                <Label className="text-xs text-muted-foreground">{t('sprite:form.name')}</Label>
                 <Input value={title} onChange={(event) => setTitle(event.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">主 Trigger</Label>
-                <SpriteTriggerPicker value={primaryTrigger} onChange={setPrimaryTrigger} buttonClassName="w-full" emptyLabel="未分类" />
+                <Label className="text-xs text-muted-foreground">{t('sprite:form.primaryTrigger')}</Label>
+                <SpriteTriggerPicker value={primaryTrigger} onChange={setPrimaryTrigger} buttonClassName="w-full" emptyLabel={t('sprite:triggerPicker.uncategorized')} />
               </div>
             </div>
 
             <div className="grid gap-3 md:grid-cols-4">
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">宽度</Label>
+                <Label className="text-xs text-muted-foreground">{t('sprite:form.width')}</Label>
                 <Input type="number" value={widthInput} onChange={(event) => setWidthInput(event.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">高度</Label>
+                <Label className="text-xs text-muted-foreground">{t('sprite:form.height')}</Label>
                 <Input type="number" value={heightInput} onChange={(event) => setHeightInput(event.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">窗口 Padding</Label>
+                <Label className="text-xs text-muted-foreground">{t('sprite:configEditor.windowPadding')}</Label>
                 <Input type="number" value={paddingInput} onChange={(event) => setPaddingInput(event.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">优先级</Label>
+                <Label className="text-xs text-muted-foreground">{t('sprite:form.priority')}</Label>
                 <Input type="number" value={priorityInput} onChange={(event) => setPriorityInput(event.target.value)} placeholder="0" />
               </div>
             </div>
@@ -210,8 +215,8 @@ function SpriteAnimationConfigEditor({
             <div className="grid gap-3 md:grid-cols-2">
               <div className="flex items-center justify-between rounded-md border px-3 py-2">
                 <div>
-                  <div className="text-sm font-medium">循环播放</div>
-                  <div className="text-xs text-muted-foreground">只修改播放配置，不重新裁剪视频</div>
+                  <div className="text-sm font-medium">{t('sprite:configEditor.loop.label')}</div>
+                  <div className="text-xs text-muted-foreground">{t('sprite:configEditor.loop.description')}</div>
                 </div>
                 <div className="grid min-w-[220px] gap-2 sm:grid-cols-[1fr_88px]">
                   <Select value={loopMode} onValueChange={(value) => setLoopMode(value as SpriteLoopMode)}>
@@ -219,9 +224,9 @@ function SpriteAnimationConfigEditor({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">不循环</SelectItem>
-                      <SelectItem value="finite">循环 N 次</SelectItem>
-                      <SelectItem value="infinite">无限循环</SelectItem>
+                      <SelectItem value="none">{t('sprite:configEditor.loop.options.none')}</SelectItem>
+                      <SelectItem value="finite">{t('sprite:configEditor.loop.options.finite')}</SelectItem>
+                      <SelectItem value="infinite">{t('sprite:configEditor.loop.options.infinite')}</SelectItem>
                     </SelectContent>
                   </Select>
                   <Input type="number" min={1} step={1} value={loopCountInput} onChange={(event) => setLoopCountInput(event.target.value)} disabled={loopMode !== 'finite'} />
@@ -229,8 +234,8 @@ function SpriteAnimationConfigEditor({
               </div>
               <div className="flex items-center justify-between rounded-md border px-3 py-2">
                 <div>
-                  <div className="text-sm font-medium">播完回到 Idle</div>
-                  <div className="text-xs text-muted-foreground">关闭后会停在动画结尾状态</div>
+                  <div className="text-sm font-medium">{t('sprite:configEditor.autoIdle.label')}</div>
+                  <div className="text-xs text-muted-foreground">{t('sprite:configEditor.autoIdle.description')}</div>
                 </div>
                 <Switch checked={autoIdle} onCheckedChange={setAutoIdle} />
               </div>
@@ -239,15 +244,15 @@ function SpriteAnimationConfigEditor({
             <div className="space-y-2 rounded-md border px-3 py-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-sm font-medium">播放时窗口动作</div>
-                  <div className="text-xs text-muted-foreground">只修改窗口动作配置，不改变视频文件</div>
+                  <div className="text-sm font-medium">{t('sprite:configEditor.movement.label')}</div>
+                  <div className="text-xs text-muted-foreground">{t('sprite:configEditor.movement.description')}</div>
                 </div>
                 <Switch checked={movement.enabled} onCheckedChange={(checked) => setMovement((prev) => ({ ...prev, enabled: checked }))} />
               </div>
               {movement.enabled && (
                 <div className="grid gap-3 md:grid-cols-4">
                   <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground">模式</Label>
+                    <Label className="text-xs text-muted-foreground">{t('sprite:configEditor.movement.modeLabel')}</Label>
                     <Select
                       value={movementMode}
                       onValueChange={(value) =>
@@ -262,9 +267,9 @@ function SpriteAnimationConfigEditor({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="direction">方向移动</SelectItem>
-                        <SelectItem value="walkTo">随机行走</SelectItem>
-                        <SelectItem value="windowAnimation">窗口动画</SelectItem>
+                        <SelectItem value="direction">{t('sprite:configEditor.movement.modes.direction')}</SelectItem>
+                        <SelectItem value="walkTo">{t('sprite:configEditor.movement.modes.walkTo')}</SelectItem>
+                        <SelectItem value="windowAnimation">{t('sprite:configEditor.movement.modes.windowAnimation')}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -272,7 +277,7 @@ function SpriteAnimationConfigEditor({
                     <div className="space-y-3 md:col-span-3">
                       <div className="grid gap-3 md:grid-cols-3">
                         <div className="space-y-1.5">
-                          <Label className="text-xs text-muted-foreground">预设</Label>
+                          <Label className="text-xs text-muted-foreground">{t('sprite:configEditor.movement.preset')}</Label>
                           <Select value={windowAnimationPresetId} onValueChange={(value) => setMovement((prev) => ({ ...prev, windowAnimationPresetId: value as SpriteWindowAnimationPresetId }))}>
                             <SelectTrigger>
                               <SelectValue />
@@ -280,7 +285,7 @@ function SpriteAnimationConfigEditor({
                             <SelectContent>
                               {WINDOW_ANIMATION_PRESETS.map((preset) => (
                                 <SelectItem key={preset.id} value={preset.id}>
-                                  {preset.label}
+                                  {t(`sprite:animation.presets.${preset.id}`)}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -288,7 +293,7 @@ function SpriteAnimationConfigEditor({
                         </div>
                         {windowAnimationSupportsDirection && (
                           <div className="space-y-1.5">
-                            <Label className="text-xs text-muted-foreground">方向</Label>
+                            <Label className="text-xs text-muted-foreground">{t('sprite:configEditor.movement.direction')}</Label>
                             <Select
                               value={movement.windowAnimationDirection ?? DEFAULT_WINDOW_ANIMATION_DIRECTION}
                               onValueChange={(value) => setMovement((prev) => ({ ...prev, windowAnimationDirection: value as SpriteWindowAnimationDirection }))}
@@ -299,7 +304,7 @@ function SpriteAnimationConfigEditor({
                               <SelectContent>
                                 {WINDOW_ANIMATION_PRESET_DIRECTIONS.map((direction) => (
                                   <SelectItem key={direction.value} value={direction.value}>
-                                    {direction.label}
+                                    {t(`sprite:animation.directions.${direction.value}`)}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
@@ -307,7 +312,7 @@ function SpriteAnimationConfigEditor({
                           </div>
                         )}
                         <div className="space-y-1.5">
-                          <Label className="text-xs text-muted-foreground">时长 ms</Label>
+                          <Label className="text-xs text-muted-foreground">{t('sprite:configEditor.movement.duration')}</Label>
                           <Input
                             type="number"
                             min={0}
@@ -325,37 +330,37 @@ function SpriteAnimationConfigEditor({
                   ) : (
                     <>
                       <div className="space-y-1.5">
-                        <Label className="text-xs text-muted-foreground">方向</Label>
+                        <Label className="text-xs text-muted-foreground">{t('sprite:configEditor.movement.direction')}</Label>
                         <Select value={movement.direction ?? 'random'} onValueChange={(value) => setMovement((prev) => ({ ...prev, direction: value as SpriteMovementDirection }))}>
                           <SelectTrigger>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="left">向左</SelectItem>
-                            <SelectItem value="right">向右</SelectItem>
-                            <SelectItem value="up">向上</SelectItem>
-                            <SelectItem value="down">向下</SelectItem>
-                            <SelectItem value="up-left">左上</SelectItem>
-                            <SelectItem value="up-right">右上</SelectItem>
-                            <SelectItem value="down-left">左下</SelectItem>
-                            <SelectItem value="down-right">右下</SelectItem>
-                            <SelectItem value="random">随机</SelectItem>
+                            <SelectItem value="left">{t('sprite:configEditor.movement.directions.left')}</SelectItem>
+                            <SelectItem value="right">{t('sprite:configEditor.movement.directions.right')}</SelectItem>
+                            <SelectItem value="up">{t('sprite:configEditor.movement.directions.up')}</SelectItem>
+                            <SelectItem value="down">{t('sprite:configEditor.movement.directions.down')}</SelectItem>
+                            <SelectItem value="up-left">{t('sprite:configEditor.movement.directions.up-left')}</SelectItem>
+                            <SelectItem value="up-right">{t('sprite:configEditor.movement.directions.up-right')}</SelectItem>
+                            <SelectItem value="down-left">{t('sprite:configEditor.movement.directions.down-left')}</SelectItem>
+                            <SelectItem value="down-right">{t('sprite:configEditor.movement.directions.down-right')}</SelectItem>
+                            <SelectItem value="random">{t('sprite:configEditor.movement.directions.random')}</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
                       <div className="space-y-1.5">
-                        <Label className="text-xs text-muted-foreground">速度 px/s</Label>
+                        <Label className="text-xs text-muted-foreground">{t('sprite:configEditor.movement.speed')}</Label>
                         <Input type="number" value={movement.speed ?? 60} onChange={(event) => setMovement((prev) => ({ ...prev, speed: getPositiveNumber(event.target.value, 60) }))} />
                       </div>
                       <div className="space-y-1.5">
-                        <Label className="text-xs text-muted-foreground">触发</Label>
+                        <Label className="text-xs text-muted-foreground">{t('sprite:configEditor.movement.triggerLabel')}</Label>
                         <Select value={movement.trigger ?? 'animation'} onValueChange={(value) => setMovement((prev) => ({ ...prev, trigger: value as SpriteMovementTrigger }))}>
                           <SelectTrigger>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="animation">动画播放时</SelectItem>
-                            <SelectItem value="behavior">行为调度</SelectItem>
+                            <SelectItem value="animation">{t('sprite:configEditor.movement.triggers.animation')}</SelectItem>
+                            <SelectItem value="behavior">{t('sprite:configEditor.movement.triggers.behavior')}</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -366,8 +371,8 @@ function SpriteAnimationConfigEditor({
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">别名 Trigger</Label>
-              <Input value={triggerAliasesInput} onChange={(event) => setTriggerAliasesInput(event.target.value)} placeholder="多个 trigger 用逗号或换行分隔" />
+              <Label className="text-xs text-muted-foreground">{t('sprite:form.triggerAliases')}</Label>
+              <Input value={triggerAliasesInput} onChange={(event) => setTriggerAliasesInput(event.target.value)} placeholder={t('sprite:form.triggerAliasesPlaceholder')} />
             </div>
 
             <SpriteAnimationConditionBuilder conditionInput={conditionInput} onChange={setConditionInput} />
@@ -376,10 +381,10 @@ function SpriteAnimationConfigEditor({
 
             <div className="flex items-center justify-end gap-2 border-t pt-4">
               <Button variant="ghost" onClick={onClose} disabled={isSaving}>
-                取消
+                {t('sprite:actions.cancel')}
               </Button>
               <Button onClick={() => void handleSave()} disabled={!canAuthorAnimations || isSaving || !!parsedCondition.error}>
-                {isSaving ? '保存中…' : '保存属性'}
+                {isSaving ? t('sprite:actions.saving') : t('sprite:configEditor.saveProperties')}
               </Button>
             </div>
           </div>
@@ -389,14 +394,12 @@ function SpriteAnimationConfigEditor({
   );
 }
 
-const PLAYLIST_MODE_OPTIONS: Array<{ value: SpriteAnimationPlaylistMode; label: string }> = [
-  { value: 'list-loop', label: '列表循环' },
-  { value: 'list-once', label: '列表播放' }
-];
+const PLAYLIST_MODE_OPTIONS: SpriteAnimationPlaylistMode[] = ['list-loop', 'list-once'];
 
 // 小型预览组件：只有在 hover 时才真正挂载 <video>，离开时卸载，避免同时占用大量资源
 // 精灵预览：静止首帧，hover 播放循环
 function SpritePreview({ src, type, width, height }: { src: string; type: string; width: number; height: number }): JSX.Element {
+  const { t } = useTranslation('sprite');
   const videoRef = React.useRef<HTMLVideoElement | null>(null);
 
   // 初始：停在首帧
@@ -439,7 +442,7 @@ function SpritePreview({ src, type, width, height }: { src: string; type: string
       style={{ width, height }}
       onMouseEnter={handleEnter}
       onMouseLeave={handleLeave}
-      aria-label="鼠标悬停预览"
+      aria-label={t('sprite:manager.previewHover')}
     >
       <video
         ref={videoRef}
@@ -466,6 +469,7 @@ export function SpriteAnimationManager({
   assetAuthoringCapability?: SpriteCapabilityState | null;
   onCapabilityBlocked?: (capability: SpriteCapabilityState) => void;
 }): JSX.Element {
+  const { t } = useTranslation('sprite');
   const [list, setList] = useState<SpriteAnimation[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [addingMap, setAddingMap] = useState<Record<string, boolean>>({}); // 某分类中的添加状态
@@ -482,7 +486,7 @@ export function SpriteAnimationManager({
   // 默认的内置分类：使用全部预设事件类型（不包含 custom）
   const BUILTIN = React.useMemo(() => SPRITE_EVENT_TYPES.filter((c) => c !== 'custom'), []);
   const canAuthorAnimations = assetAuthoringCapability?.status !== 'locked';
-  const authoringLockedTitle = assetAuthoringCapability?.status === 'locked' ? `${assetAuthoringCapability.name} 尚未解锁` : undefined;
+  const authoringLockedTitle = assetAuthoringCapability?.status === 'locked' ? t('sprite:manager.capabilityLocked', { name: assetAuthoringCapability.name }) : undefined;
 
   const ensureCanAuthorAnimations = useCallback((): boolean => ensureSpriteCapabilityAccessible(assetAuthoringCapability, onCapabilityBlocked), [assetAuthoringCapability, onCapabilityBlocked]);
 
@@ -657,7 +661,7 @@ export function SpriteAnimationManager({
         it.meta.title.toLowerCase().includes(q) ||
         it.meta.id.toLowerCase().includes(q) ||
         getSpriteAnimationTriggers(it.meta).some((trigger) => trigger.toLowerCase().includes(q)) ||
-        it.meta.tags?.some((t) => t.toLowerCase().includes(q))
+        it.meta.tags?.some((tag) => tag.toLowerCase().includes(q))
       );
     });
   }, [list, query]);
@@ -676,30 +680,30 @@ export function SpriteAnimationManager({
 
   return (
     <div className={className}>
-      <SpriteCapabilityLockedNotice capability={assetAuthoringCapability} hint="精灵资源管理尚未解锁时，可以查看和测试现有动画，但不能导入、删除或编辑动画 metadata。" className="mx-2 mb-4" />
+      <SpriteCapabilityLockedNotice capability={assetAuthoringCapability} hint={t('sprite:manager.capabilityHint')} className="mx-2 mb-4" />
 
       <div className="flex justify-between items-center px-2 mb-4">
-        <div className="text-sm text-muted-foreground">已注册动画：{list.length}</div>
+        <div className="text-sm text-muted-foreground">{t('sprite:manager.registeredCount', { count: list.length })}</div>
         <div className="flex flex-wrap gap-2 items-center justify-end">
-          <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索 (名称 / ID / 分类 / 标签)" className="h-8 w-48" />
-          <SpriteTriggerPicker value={globalCat} onChange={setGlobalCat} buttonSize="sm" buttonClassName="w-[220px]" emptyLabel="未分类" />
+          <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('sprite:manager.searchPlaceholder')} className="h-8 w-48" />
+          <SpriteTriggerPicker value={globalCat} onChange={setGlobalCat} buttonSize="sm" buttonClassName="w-[220px]" emptyLabel={t('sprite:triggerPicker.uncategorized')} />
           <Select value={defaultAnimationPlaylistMode} onValueChange={(value) => void updateAnimationPlaylistMode(value as SpriteAnimationPlaylistMode)}>
-            <SelectTrigger className="h-8 w-[132px]" title="默认播放列表模式">
+            <SelectTrigger className="h-8 w-[132px]" title={t('sprite:manager.defaultPlaylistMode')}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {PLAYLIST_MODE_OPTIONS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
+                <SelectItem key={option} value={option}>
+                  {t(`sprite:manager.playlistModes.${option}`)}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
           <Button size="sm" onClick={() => handleImport(globalCat || undefined)} disabled={!canAuthorAnimations || !!addingMap[globalCat || '']} title={authoringLockedTitle}>
-            {addingMap[globalCat || ''] ? '导入中…' : '导入视频'}
+            {addingMap[globalCat || ''] ? t('sprite:manager.importing') : t('sprite:manager.importVideo')}
           </Button>
           <Button size="sm" variant="outline" onClick={refresh} disabled={isLoading}>
-            刷新
+            {t('sprite:actions.refresh')}
           </Button>
         </div>
       </div>
@@ -720,31 +724,37 @@ export function SpriteAnimationManager({
             <div key={cat} className="mb-4 last:mb-0 border border-border/40 rounded-md">
               <div className="flex items-center justify-between px-2 py-1 bg-muted/40 rounded-t-md">
                 <div className="flex items-center gap-2">
-                  <Button size={'icon'} className="w-8 h-8" onClick={() => toggleCollapse(cat)} aria-label={collapsed[cat] ? '展开分类' : '折叠分类'} variant={'outline'}>
+                  <Button
+                    size={'icon'}
+                    className="w-8 h-8"
+                    onClick={() => toggleCollapse(cat)}
+                    aria-label={collapsed[cat] ? t('sprite:manager.expandCategory') : t('sprite:manager.collapseCategory')}
+                    variant={'outline'}
+                  >
                     {collapsed[cat] ? '+' : '-'}
                   </Button>
-                  <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{cat === 'uncategorized' ? '未分类' : cat}</div>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{cat === 'uncategorized' ? t('sprite:triggerPicker.uncategorized') : cat}</div>
                   <div className="text-[10px] text-muted-foreground/70">({grouped[cat]?.length || 0})</div>
                 </div>
                 <div className="flex items-center gap-2">
                   {cat !== 'uncategorized' && (
                     <Select value={getCategoryPlaylistMode(cat)} onValueChange={(value) => void updateAnimationPlaylistMode(value as SpriteAnimationPlaylistMode, cat as SpriteAnimationTrigger)}>
-                      <SelectTrigger className="h-8 w-[120px]" title={`${cat} 播放列表模式`}>
+                      <SelectTrigger className="h-8 w-[120px]" title={t('sprite:manager.categoryPlaylistMode', { name: cat })}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
                         {PLAYLIST_MODE_OPTIONS.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
+                          <SelectItem key={option} value={option}>
+                            {t(`sprite:manager.playlistModes.${option}`)}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   )}
                   {cat !== 'uncategorized' && (
-                    <Button size="sm" variant="ghost" onClick={() => window.chobits.sprite.trigger(cat)} title={`触发 ${cat} 事件：播放动画 + 显示气泡`}>
+                    <Button size="sm" variant="ghost" onClick={() => window.chobits.sprite.trigger(cat)} title={t('sprite:manager.triggerCategory', { name: cat })}>
                       <TbPlayerPlay />
-                      测试
+                      {t('sprite:actions.test')}
                     </Button>
                   )}
                   <Button
@@ -754,7 +764,7 @@ export function SpriteAnimationManager({
                     disabled={!canAuthorAnimations || addingMap[cat]}
                     title={authoringLockedTitle}
                   >
-                    {addingMap[cat] ? '导入中…' : '添加'}
+                    {addingMap[cat] ? t('sprite:manager.importing') : t('sprite:actions.add')}
                   </Button>
                 </div>
               </div>
@@ -782,7 +792,7 @@ export function SpriteAnimationManager({
                                 className="w-8 h-8"
                                 onClick={() => handleTestPlay(item)}
                                 disabled={testingId === item.meta.id}
-                                title="测试播放：在桌面精灵上预览此动画"
+                                title={t('sprite:manager.testPlay')}
                               >
                                 <TbPlayerPlay />
                               </Button>
@@ -794,7 +804,7 @@ export function SpriteAnimationManager({
                                 disabled={!canAuthorAnimations}
                                 buttonSize="sm"
                                 buttonClassName="h-8 min-w-[150px] bg-background/90"
-                                emptyLabel="设置 trigger"
+                                emptyLabel={t('sprite:manager.setTrigger')}
                                 popoverClassName="w-[340px]"
                               />
                               <SpriteAnimationMetaPopover
@@ -812,7 +822,7 @@ export function SpriteAnimationManager({
                                   className="w-8 h-8"
                                   onClick={() => void handleEditSprite(item)}
                                   disabled={!canAuthorAnimations}
-                                  title={canAuthorAnimations ? '编辑此精灵属性' : authoringLockedTitle}
+                                  title={canAuthorAnimations ? t('sprite:manager.editProperties') : authoringLockedTitle}
                                 >
                                   <TbPencil />
                                 </Button>
@@ -849,7 +859,7 @@ export function SpriteAnimationManager({
                       variant="ghost"
                       title={authoringLockedTitle}
                     >
-                      + 添加
+                      + {t('sprite:actions.add')}
                     </Button>
                   </div>
                 </div>
@@ -857,7 +867,7 @@ export function SpriteAnimationManager({
             </div>
           ))
         ) : (
-          <div className="text-center text-xs text-muted-foreground py-8">无匹配结果</div>
+          <div className="text-center text-xs text-muted-foreground py-8">{t('sprite:manager.noResults')}</div>
         )}
       </div>
     </div>

@@ -1,4 +1,6 @@
+import type { TFunction } from 'i18next';
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TbChevronDown, TbCpu } from 'react-icons/tb';
 
 import TintableSvg from '@/components/common/TintableSvg';
@@ -91,35 +93,26 @@ export interface ProviderModelSelectProps {
   providerFilter?: (provider: ProviderRow) => boolean;
 }
 
+// 类型显示名称对应的 i18n key（zh/ja/en 见 common.json providerModelSelect.modelType）
+const MODEL_TYPE_I18N_KEYS: Record<string, string> = {
+  chat: 'chat',
+  vision: 'vision',
+  image: 'image',
+  text2music: 'text2music',
+  tts: 'tts',
+  stt: 'stt',
+  video: 'video',
+  audio: 'audio',
+  embedding: 'embedding',
+  realtime: 'realtime',
+  tool: 'tool',
+  tooling: 'tool'
+};
+
 // 类型显示名称
-const typeDisplay = (t?: string): string => {
-  switch ((t || '').toLowerCase()) {
-    case 'chat':
-      return '对话';
-    case 'vision':
-      return '视觉';
-    case 'image':
-      return '图像';
-    case 'text2music':
-      return '音乐';
-    case 'tts':
-      return '语音';
-    case 'stt':
-      return '转写';
-    case 'video':
-      return '视频';
-    case 'audio':
-      return '音频';
-    case 'embedding':
-      return '向量';
-    case 'realtime':
-      return '实时';
-    case 'tool':
-    case 'tooling':
-      return '工具';
-    default:
-      return t || '';
-  }
+const typeDisplay = (type: string | undefined, t: TFunction): string => {
+  const key = MODEL_TYPE_I18N_KEYS[(type || '').toLowerCase()];
+  return key ? t(`providerModelSelect.modelType.${key}`) : type || '';
 };
 
 // 类型颜色样式
@@ -220,7 +213,7 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
       presetId,
       modelId,
       onChange,
-      placeholder = '选择服务商 · 模型',
+      placeholder,
       buttonVariant = 'outline',
       buttonSize = 'sm',
       triggerMode = 'default',
@@ -241,6 +234,8 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
     },
     ref
   ) => {
+    const { t } = useTranslation('common');
+    const resolvedPlaceholder = placeholder ?? t('providerModelSelect.placeholder');
     const [providers, setProviders] = useState<ProviderRow[]>([]);
     const [modelsMap, setModelsMap] = useState<Record<string, ModelRow[]>>({});
     const [loadingModels, setLoadingModels] = useState<Record<string, boolean>>({});
@@ -475,7 +470,7 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
     // 显示标签
     const displayLabel = useMemo(() => {
       if (!resolvedProviderId || !modelId) {
-        return <span className="truncate text-left text-xs text-muted-foreground">{placeholder}</span>;
+        return <span className="truncate text-left text-xs text-muted-foreground">{resolvedPlaceholder}</span>;
       }
       const modelLabel = currentModel?.label || currentModel?.id || modelId;
       const providerIcon = currentProvider?.schema?.icon;
@@ -492,12 +487,12 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
       // 如果没有图标，显示服务商名称和模型名称
       const providerLabel = currentProvider?.label || resolvedProviderId;
       return <span className="truncate text-left text-xs">{`${providerLabel} · ${modelLabel}`}</span>;
-    }, [resolvedProviderId, modelId, currentProvider, currentModel, placeholder, providerId]);
+    }, [resolvedProviderId, modelId, currentProvider, currentModel, resolvedPlaceholder, providerId]);
 
     const currentProviderLabel = currentProvider?.label || resolvedProviderId || providerId || '';
     const currentModelLabel = currentModel?.label || currentModel?.id || modelId || '';
-    const triggerTooltip = currentProviderLabel && currentModelLabel ? `${currentModelLabel}` : placeholder;
-    const triggerIcon = currentProvider?.schema?.icon ? <TintableSvg src={currentProvider.schema.icon} className="size-4 shrink-0" alt={currentProviderLabel || placeholder} /> : <TbCpu />;
+    const triggerTooltip = currentProviderLabel && currentModelLabel ? `${currentModelLabel}` : resolvedPlaceholder;
+    const triggerIcon = currentProvider?.schema?.icon ? <TintableSvg src={currentProvider.schema.icon} className="size-4 shrink-0" alt={currentProviderLabel || resolvedPlaceholder} /> : <TbCpu />;
     const triggerButton = (
       <Button
         variant={buttonVariant}
@@ -548,7 +543,7 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="搜索服务商或模型..."
+              placeholder={t('providerModelSelect.searchPlaceholder')}
               className="h-8 text-xs"
               onClick={(e) => e.stopPropagation()}
               onKeyDown={(e) => e.stopPropagation()}
@@ -559,7 +554,7 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
           {searchQuery.trim() ? (
             <div className="max-h-60 overflow-auto">
               {searchResults.length === 0 ? (
-                <div className="px-2 py-1.5 text-xs text-muted-foreground">未找到匹配的模型</div>
+                <div className="px-2 py-1.5 text-xs text-muted-foreground">{t('providerModelSelect.noMatchingModels')}</div>
               ) : (
                 searchResults.map(({ provider, model }) => (
                   <DropdownMenuItem key={`${provider.id}:${model.id}`} onSelect={() => handleProviderModelSelect(provider.id, model.id)}>
@@ -567,7 +562,7 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
                       {provider?.schema?.icon && <TintableSvg src={provider.schema.icon} className="w-4 h-4 flex-shrink-0" alt={provider.label} />}
                       <span className="truncate flex-1">{model.label || model.id}</span>
                       {model.type && modelTypes && modelTypes.length > 1 && (
-                        <span className={`text-[10px] px-1 rounded border flex-shrink-0 ${typeColorClasses(model.type)}`}>{typeDisplay(model.type)}</span>
+                        <span className={`text-[10px] px-1 rounded border flex-shrink-0 ${typeColorClasses(model.type)}`}>{typeDisplay(model.type, t)}</span>
                       )}
                     </span>
                   </DropdownMenuItem>
@@ -601,7 +596,7 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
                     className={shouldShowModelDetails ? 'no-drag pointer-events-auto min-w-[320px] max-h-60 overflow-y-auto' : 'no-drag pointer-events-auto max-h-60 overflow-y-auto'}
                   >
                     {isLoading ? (
-                      <div className="px-2 py-1.5 text-xs text-muted-foreground">加载中...</div>
+                      <div className="px-2 py-1.5 text-xs text-muted-foreground">{t('providerModelSelect.loading')}</div>
                     ) : providerModels.length > 0 ? (
                       providerModels.map((model) => (
                         <DropdownMenuItem key={model.id} onSelect={() => handleProviderModelSelect(provider.id, model.id)} className={shouldShowModelDetails ? 'flex-col items-start py-2' : ''}>
@@ -610,9 +605,9 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
                               {/* 第一行：模型名称和标签 */}
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span className="font-medium text-sm">{model.label || model.id}</span>
-                                {isFree(model) && <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-700 border border-green-200">免费</span>}
+                                {isFree(model) && <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-700 border border-green-200">{t('providerModelSelect.free')}</span>}
                                 {model.type && modelTypes && modelTypes.length > 1 && (
-                                  <span className={`text-[10px] px-1.5 py-0.5 rounded border ${typeColorClasses(model.type)}`}>{typeDisplay(model.type)}</span>
+                                  <span className={`text-[10px] px-1.5 py-0.5 rounded border ${typeColorClasses(model.type)}`}>{typeDisplay(model.type, t)}</span>
                                 )}
                                 {renderContextPill(model)}
                               </div>
@@ -639,14 +634,14 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
                             <span className="flex items-center gap-2 flex-1">
                               <span className="truncate flex-1">{model.label || model.id}</span>
                               {model.type && modelTypes && modelTypes.length > 1 && (
-                                <span className={`text-[10px] px-1.5 py-0.5 rounded border flex-shrink-0 ${typeColorClasses(model.type)}`}>{typeDisplay(model.type)}</span>
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded border flex-shrink-0 ${typeColorClasses(model.type)}`}>{typeDisplay(model.type, t)}</span>
                               )}
                             </span>
                           )}
                         </DropdownMenuItem>
                       ))
                     ) : (
-                      <div className="px-2 py-1.5 text-xs text-muted-foreground">暂无模型</div>
+                      <div className="px-2 py-1.5 text-xs text-muted-foreground">{t('providerModelSelect.noModels')}</div>
                     )}
                   </DropdownMenuSubContent>
                 </DropdownMenuSub>

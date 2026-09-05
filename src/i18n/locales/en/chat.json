@@ -1,0 +1,208 @@
+{
+  "conversation": {
+    "untitled": "Untitled conversation",
+    "newChat": "New chat",
+    "recent": "Recent conversations",
+    "loading": "Loading…",
+    "empty": "No conversations yet. Click \"New chat\" to start",
+    "messagesCount": "{{count}} messages",
+    "refreshList": "Refresh list",
+    "collapseHistory": "Collapse history",
+    "expandHistory": "Expand history"
+  },
+  "menu": {
+    "share": "Share conversation",
+    "pin": "Pin",
+    "unpin": "Unpin",
+    "rename": "Rename",
+    "delete": "Delete"
+  },
+  "toast": {
+    "deleted": "Conversation deleted",
+    "deleteFailed": "Failed to delete",
+    "titleCopied": "Conversation title copied",
+    "pinned": "Conversation pinned",
+    "unpinned": "Conversation unpinned",
+    "noUsablePreset": "The current provider has no usable preset. Please finish setup in AI settings",
+    "noChatModel": "The current provider has no chat model available",
+    "openChatWindowFailed": "Failed to open chat window",
+    "debugOverlayEnabled": "Debug overlay enabled",
+    "debugOverlayDisabled": "Debug overlay disabled",
+    "debugOverlayToggleFailed": "Failed to toggle debug overlay"
+  },
+  "stream": {
+    "errorInline": "\n[Error] {{message}}",
+    "thinking": "Thinking..."
+  },
+  "emptyStart": {
+    "greeting": "How can I help you today?"
+  },
+  "usage": {
+    "conversationTotal": "Conversation total",
+    "currentRound": "This turn"
+  },
+  "scroll": {
+    "toBottom": "Scroll to bottom"
+  },
+  "renameDialog": {
+    "title": "Rename conversation",
+    "confirm": "OK"
+  },
+  "deleteDialog": {
+    "title": "Delete conversation",
+    "description": "Are you sure you want to delete this conversation? This action cannot be undone."
+  },
+  "panel": {
+    "placeholders": {
+      "askQuestion": "Type a question to start chatting, web search available",
+      "summarizeText": "Paste some text and let me summarize the key points",
+      "translateToEnglish": "Translate this Chinese text into English",
+      "tsComponentExample": "Write an example TypeScript function component",
+      "analyzeWebpage": "Analyze this webpage and output a summary",
+      "skillCommand": "Commands starting with / quickly invoke skills"
+    },
+    "miniPlaceholder": "Ask something..."
+  },
+  "spriteMenu": {
+    "quit": "Quit",
+    "status": "Status",
+    "voiceService": "Voice services",
+    "asrTest": "ASR test",
+    "ttsConfig": "TTS settings",
+    "chat": "Chat",
+    "settings": "Settings",
+    "debugTest": "Debug tests",
+    "debugOverlay": "Debug overlay",
+    "debugOverlayOff": "Disable overlay",
+    "bubbleTop": "Top bubble",
+    "bubbleInline": "Inline bubble"
+  },
+  "components": {
+    "toolCall": {
+      "emojiFallbackTitle": "Sticker",
+      "sendingEmoji": "Sending sticker...",
+      "emojiSendFailed": "Failed to send sticker",
+      "emojiSent": "Sticker sent",
+      "noDisplayableEmoji": "No sticker available to display",
+      "preparingOptions": "Preparing options...",
+      "executing": "{{name}} is running",
+      "backgroundHint": "If you don't want to keep waiting, you can switch to background execution.",
+      "switchingToBackground": "Switching to background...",
+      "runInBackground": "Run in background",
+      "backgroundSubmittedNote": "The current wait will end shortly, and the task will keep running in the background.",
+      "backgroundWaitingNote": "Progress and status update in real time while you wait.",
+      "completed": "{{name}} done",
+      "runningInBackground": "{{name}} running in background",
+      "argsLabel": "Arguments",
+      "resultLabel": "Result",
+      "copy": "Copy {{label}}",
+      "copied": "{{label}} copied",
+      "copyUnsupported": "Copying is not supported in this environment"
+    },
+    "speechInput": {
+      "recognizing": "Recognizing...",
+      "holdTooShort": "Pressed too briefly, not sent",
+      "serviceNotRunning": "Please start the speech recognition service first",
+      "configReadFailed": "Failed to read speech recognition config",
+      "cloudConfigIncomplete": "Cloud speech recognition config is incomplete",
+      "micPermissionDenied": "Microphone access denied. Please allow microphone access first",
+      "micNotFound": "No microphone detected",
+      "micBusy": "Microphone is in use by another app",
+      "startFailed": "Failed to start speech input"
+    },
+    "choiceCard": {
+      "multipleHint": "Multiple choice — select one or more",
+      "singleHint": "Single choice — select one",
+      "prevQuestion": "Previous",
+      "nextQuestion": "Next",
+      "submit": "Submit"
+    },
+    "messageRenderer": {
+      "imageAlt": "Image"
+    },
+    "input": {
+      "modelSelectPlaceholder": "Select model",
+      "coderWorkspaceRequired": "The coding assistant requires selecting a project directory first",
+      "argumentHintLabel": "Argument hint: {{hint}}",
+      "sourceLabel": "Source: {{source}}",
+      "argumentHintBadge": "Argument hint",
+      "tabCompleteHint": "Press Tab to complete the skill",
+      "argumentHintTooltip": "Keep typing arguments after the skill name.",
+      "characterInjected": "Character injected",
+      "characterPromptTooltip": "Inject persona; affection and mood affect speaking style",
+      "miniPlaceholder": "Ask something...",
+      "openingConversation": "Opening conversation",
+      "sendTooltip": "Send message",
+      "sendAriaLabel": "Send",
+      "shortcutHint": "Enter to send, Shift+Enter for newline",
+      "stopAriaLabel": "Stop",
+      "stopTooltip": "Stop generating",
+      "placeholderAsk": "Type a question to start chatting...",
+      "placeholderAnalyze": "Help me analyze a piece of text",
+      "placeholderTranslate": "Translate this Chinese into English",
+      "placeholderCode": "Write a code example",
+      "placeholderChat": "Chat with me"
+    },
+    "skillPicker": {
+      "selectAriaLabel": "Select Skill",
+      "tooltip": "Pick a Skill, or type `/skill-name` directly",
+      "searchPlaceholder": "Search skills...",
+      "loading": "Loading skills...",
+      "noMatch": "No matching skill",
+      "heading": "Available Skills",
+      "trust": {
+        "trusted": {
+          "label": "Trusted",
+          "note": "From built-in or user-local skill directories."
+        },
+        "workspace": {
+          "label": "Workspace",
+          "note": "From the current repository or workspace; use in the context of the current project."
+        },
+        "plugin": {
+          "label": "Plugin",
+          "note": "From a plugin extension; verify the plugin source and expected actions before running."
+        },
+        "compatibility": {
+          "label": "Compatibility",
+          "note": "From the legacy toolbox compatibility bridge, mainly for migration."
+        }
+      }
+    },
+    "thinking": {
+      "inProgress": "Thinking...",
+      "done": "Thought"
+    },
+    "webSearch": {
+      "disable": "Disable web search",
+      "enable": "Enable web search",
+      "enableTooltip": "Enable web search (DuckDuckGo, no API Key required)"
+    },
+    "tokenUsage": {
+      "input": "In {{count}}",
+      "output": "Out {{count}}",
+      "total": "Total {{count}}"
+    },
+    "codingWorkspace": {
+      "selectProject": "Select project",
+      "pickDirectory": "Select project directory",
+      "clearDirectory": "Clear project directory"
+    },
+    "agentSelect": {
+      "placeholder": "Select mode"
+    },
+    "aiSpeech": {
+      "enabledTooltip": "AI speech is on, click to turn off",
+      "disabledTooltip": "AI speech is off, click to turn on",
+      "disableAriaLabel": "Disable AI speech",
+      "enableAriaLabel": "Enable AI speech"
+    },
+    "speechButton": {
+      "releaseToCancel": "Release to cancel",
+      "releaseToSend": "Release to send, slide left to cancel",
+      "holdToTalk": "Hold to talk",
+      "releaseToEndAriaLabel": "Release to end voice input",
+      "holdToStartAriaLabel": "Hold to start voice input"
+    }
+  }
+}

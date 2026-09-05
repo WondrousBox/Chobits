@@ -21,6 +21,13 @@ const deepseekSchema: ProviderConfig = {
         apiKey: 'API Key',
         baseUrl: 'Base URL'
       }
+    },
+    ja: {
+      label: 'DeepSeek',
+      fields: {
+        apiKey: 'API Key',
+        baseUrl: 'Base URL'
+      }
     }
   },
   fields: [

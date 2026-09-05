@@ -21,6 +21,13 @@ const anthropicSchema: ProviderConfig = {
         apiKey: 'API Key',
         baseUrl: 'Base URL（可选，自定义网关）'
       }
+    },
+    ja: {
+      label: 'Anthropic (Claude)',
+      fields: {
+        apiKey: 'API Key',
+        baseUrl: 'Base URL（任意、カスタムゲートウェイ）'
+      }
     }
   },
   fields: [

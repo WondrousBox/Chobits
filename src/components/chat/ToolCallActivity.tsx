@@ -5,6 +5,7 @@
 
 import { LONG_TASK_BACKGROUND_CHOICE_QUESTION_ID, LONG_TASK_BACKGROUND_CHOICE_VALUE, type ToolCallDisplay, type UserChoiceRequest } from '@packages/ai/types';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TbCheck, TbChevronDown, TbChevronRight, TbClock, TbCopy, TbLoader2, TbTool } from 'react-icons/tb';
 
 import UserChoiceCard from './UserChoiceCard';
@@ -155,14 +156,15 @@ function getEmojiArgSummary(args: any): string | undefined {
 }
 
 const EmojiSendToolItem: React.FC<{ activity: ToolActivity }> = ({ activity }) => {
+  const { t } = useTranslation('chat');
   const [isExpanded, setIsExpanded] = useState(false);
   const args = parseToolArgs(activity.args) || {};
   const details = readToolDetails(activity.result) || {};
   const emoji = details.emoji;
   const imageUrl = allowToolImageUrl(emoji?.url || '');
-  const title = emoji?.title || args.caption || args.query || '表情包';
+  const title = emoji?.title || args.caption || args.query || t('components.toolCall.emojiFallbackTitle');
   const argSummary = getEmojiArgSummary(args);
-  const statusText = activity.status === 'calling' ? '发送表情包...' : details.error && !imageUrl ? '表情包发送失败' : '发送表情包完成';
+  const statusText = activity.status === 'calling' ? t('components.toolCall.sendingEmoji') : details.error && !imageUrl ? t('components.toolCall.emojiSendFailed') : t('components.toolCall.emojiSent');
 
   if (activity.display?.mode === 'content-only') {
     if (activity.status !== 'done' || !imageUrl) return null;
@@ -194,8 +196,8 @@ const EmojiSendToolItem: React.FC<{ activity: ToolActivity }> = ({ activity }) =
 
       {isExpanded && (
         <div className="max-h-64 space-y-1 overflow-auto border-t border-border/50 bg-muted/30 px-2 py-1">
-          {activity.args != null && <DetailBlock label="参数" value={activity.args} />}
-          {activity.status === 'done' && activity.result != null && <DetailBlock label="结果" value={activity.result} />}
+          {activity.args != null && <DetailBlock label={t('components.toolCall.argsLabel')} value={activity.args} />}
+          {activity.status === 'done' && activity.result != null && <DetailBlock label={t('components.toolCall.resultLabel')} value={activity.result} />}
         </div>
       )}
 
@@ -207,7 +209,7 @@ const EmojiSendToolItem: React.FC<{ activity: ToolActivity }> = ({ activity }) =
               <img src={imageUrl} alt={title} loading="lazy" className="block max-h-[260px] max-w-full object-contain" />
             </div>
           ) : (
-            <div className="text-xs text-muted-foreground">{details.error || '没有找到可展示的表情包'}</div>
+            <div className="text-xs text-muted-foreground">{details.error || t('components.toolCall.noDisplayableEmoji')}</div>
           )}
         </div>
       )}
@@ -216,12 +218,13 @@ const EmojiSendToolItem: React.FC<{ activity: ToolActivity }> = ({ activity }) =
 };
 
 const AskUserToolItem: React.FC<{ activity: ToolActivity; onSubmit?: (choiceId: string, answers: Record<string, string[]>) => void }> = ({ activity, onSubmit }) => {
+  const { t } = useTranslation('chat');
   const request = activity.choiceRequest;
   if (!request) {
     return (
       <div className="flex items-center gap-2 py-1 text-xs text-muted-foreground">
         <TbLoader2 className="h-3 w-3 animate-spin text-blue-500" />
-        <span>准备选项...</span>
+        <span>{t('components.toolCall.preparingOptions')}</span>
       </div>
     );
   }
@@ -236,6 +239,7 @@ const AskUserToolItem: React.FC<{ activity: ToolActivity; onSubmit?: (choiceId: 
 };
 
 const LongTaskChoiceItem: React.FC<{ activity: ToolActivity; onSubmit?: (choiceId: string, answers: Record<string, string[]>) => void }> = ({ activity, onSubmit }) => {
+  const { t } = useTranslation('chat');
   const request = activity.choiceRequest;
   if (!request || !isLongTaskChoiceRequest(request)) return null;
 
@@ -245,8 +249,8 @@ const LongTaskChoiceItem: React.FC<{ activity: ToolActivity; onSubmit?: (choiceI
 
   return (
     <div className="mx-2 mb-2 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2">
-      <div className="text-xs font-medium text-foreground">{request.prompt || `${getToolDisplayName(activity)} 正在执行中`}</div>
-      <div className="mt-1 text-[11px] text-muted-foreground">{question.description || '如果你不想继续等待，可以切到后台执行。'}</div>
+      <div className="text-xs font-medium text-foreground">{request.prompt || t('components.toolCall.executing', { name: getToolDisplayName(activity) })}</div>
+      <div className="mt-1 text-[11px] text-muted-foreground">{question.description || t('components.toolCall.backgroundHint')}</div>
       <div className="mt-2 flex items-center gap-2">
         <button
           type="button"
@@ -258,15 +262,16 @@ const LongTaskChoiceItem: React.FC<{ activity: ToolActivity; onSubmit?: (choiceI
           }
           disabled={submitted}
         >
-          {submitted ? '正在切到后台...' : '转为后台执行'}
+          {submitted ? t('components.toolCall.switchingToBackground') : t('components.toolCall.runInBackground')}
         </button>
-        <span className="text-[11px] text-muted-foreground">{submitted ? '当前等待即将结束，任务会继续在后台运行。' : '继续等待时，进度和状态文本会实时更新。'}</span>
+        <span className="text-[11px] text-muted-foreground">{submitted ? t('components.toolCall.backgroundSubmittedNote') : t('components.toolCall.backgroundWaitingNote')}</span>
       </div>
     </div>
   );
 };
 
 const ToolCallItem: React.FC<{ activity: ToolActivity; onUserChoiceSubmit?: (choiceId: string, answers: Record<string, string[]>) => void }> = ({ activity, onUserChoiceSubmit }) => {
+  const { t } = useTranslation('chat');
   const [isExpanded, setIsExpanded] = useState(false);
 
   if (ASK_USER_TOOL_NAMES.has(activity.name)) return <AskUserToolItem activity={activity} onSubmit={onUserChoiceSubmit} />;
@@ -277,7 +282,7 @@ const ToolCallItem: React.FC<{ activity: ToolActivity; onUserChoiceSubmit?: (cho
   const hasProgress = activity.status === 'calling' && typeof activity.progress === 'number' && activity.progress > 0;
   const shouldShowLongTaskChoice = activity.status === 'calling' && isLongTaskChoiceRequest(activity.choiceRequest);
 
-  let statusText = `${displayName} 完成`;
+  let statusText = t('components.toolCall.completed', { name: displayName });
   if (activity.status === 'calling') {
     if (hasProgress) {
       statusText = `${displayName} ${Math.round(activity.progress!)}%${activity.progressMessage ? ` - ${activity.progressMessage}` : ''}`;
@@ -287,7 +292,7 @@ const ToolCallItem: React.FC<{ activity: ToolActivity; onUserChoiceSubmit?: (cho
       statusText = `${displayName} ...`;
     }
   } else if (isBackgroundExecution) {
-    statusText = `${displayName} 后台执行中`;
+    statusText = t('components.toolCall.runningInBackground', { name: displayName });
   }
 
   return (
@@ -313,8 +318,8 @@ const ToolCallItem: React.FC<{ activity: ToolActivity; onUserChoiceSubmit?: (cho
 
       {isExpanded && (
         <div className="max-h-64 space-y-1 overflow-auto border-t border-border/50 bg-muted/30 px-2 py-1">
-          {activity.args != null && <DetailBlock label="参数" value={activity.args} />}
-          {activity.status === 'done' && activity.result != null && <DetailBlock label="结果" value={activity.result} />}
+          {activity.args != null && <DetailBlock label={t('components.toolCall.argsLabel')} value={activity.args} />}
+          {activity.status === 'done' && activity.result != null && <DetailBlock label={t('components.toolCall.resultLabel')} value={activity.result} />}
         </div>
       )}
     </div>
@@ -347,6 +352,7 @@ const CircularProgress: React.FC<{ size: number; progress: number }> = ({ size, 
 };
 
 const DetailBlock: React.FC<{ label: string; value: any }> = ({ label, value }) => {
+  const { t } = useTranslation('chat');
   const [isCopied, setIsCopied] = useState(false);
   const { text, lang } = formatValue(value);
   const canCopy =
@@ -374,8 +380,8 @@ const DetailBlock: React.FC<{ label: string; value: any }> = ({ label, value }) 
           className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded border border-transparent text-muted-foreground transition-colors hover:bg-background/80 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
           onClick={handleCopy}
           disabled={!canCopy}
-          title={canCopy ? (isCopied ? `${label}已复制` : `复制${label}`) : '当前环境不支持复制'}
-          aria-label={isCopied ? `${label}已复制` : `复制${label}`}
+          title={canCopy ? (isCopied ? t('components.toolCall.copied', { label }) : t('components.toolCall.copy', { label })) : t('components.toolCall.copyUnsupported')}
+          aria-label={isCopied ? t('components.toolCall.copied', { label }) : t('components.toolCall.copy', { label })}
         >
           {isCopied ? <TbCheck className="h-3 w-3 text-green-500" /> : <TbCopy className="h-3 w-3" />}
         </button>

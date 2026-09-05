@@ -1,0 +1,203 @@
+{
+  "page": {
+    "loading": "Loading...",
+    "tab": {
+      "available": "Available Plugins",
+      "installed": "Installed"
+    },
+    "filter": {
+      "label": "Category",
+      "clear": "Clear filter"
+    },
+    "storage": {
+      "label": "Storage Location",
+      "tooltip": "Set download folder"
+    },
+    "downloadSettings": {
+      "label": "Download Settings",
+      "title": "Download Settings",
+      "description": "Control download cancellation, failure cleanup, and resume validation behavior.",
+      "items": {
+        "deletePartialDownloadOnCancel": {
+          "title": "Delete temporary files after canceling",
+          "description": "When off, canceling a download keeps the .download file so you can resume it next time."
+        },
+        "deletePartialDownloadOnFailure": {
+          "title": "Delete temporary files after failure",
+          "description": "When off, incomplete temporary files are kept when a download fails."
+        },
+        "deleteDownloadedFileOnFailure": {
+          "title": "Delete target file after failure",
+          "description": "Controls whether the target file is cleaned up when a non-archive resource fails to download."
+        },
+        "deleteArchiveAfterInstall": {
+          "title": "Delete archive after installation",
+          "description": "When on, the original archive is removed after extraction and installation complete."
+        },
+        "downloaderResumeValidation": {
+          "title": "Validate remote resource before resuming",
+          "description": "When on, a HEAD request checks whether the resource has changed before resuming a download."
+        },
+        "downloaderDebug": {
+          "title": "Downloader debug logs",
+          "description": "When on, prints internal debug logs from aim-downloader."
+        }
+      }
+    },
+    "networkTest": "Network Test",
+    "empty": {
+      "title": "No plugins yet",
+      "hiddenByFeatureFlags": "Plugins are hidden. Enable \"Local AI Inference\" in \"Feature Management\" first"
+    },
+    "installedBadge": "Installed",
+    "modelCount": "{{count}} models",
+    "installEngineFirst": "Install the engine before selecting models",
+    "availableModelCount": "This engine has {{count}} models available",
+    "modelListTitle": "Models ({{count}})"
+  },
+  "category": {
+    "core": "Core Engine",
+    "asr": "Speech Recognition",
+    "tts": "Speech Synthesis",
+    "stt": "Speech to Text",
+    "vad": "Voice Activity Detection",
+    "voice-clone": "Voice Cloning",
+    "llm": "Large Language Model",
+    "nlp": "Natural Language Processing",
+    "translation": "Translation",
+    "punctuation": "Punctuation Restoration",
+    "embedding": "Text Embedding",
+    "image-gen": "Image Generation",
+    "image-edit": "Image Editing",
+    "ocr": "OCR",
+    "image-recognition": "Image Recognition",
+    "face": "Face Recognition",
+    "image-super-res": "Image Super-Resolution",
+    "audio-process": "Audio Processing",
+    "video-gen": "Video Generation",
+    "video-edit": "Video Editing",
+    "video-analysis": "Video Analysis",
+    "multimodal": "Multimodal",
+    "agent": "AI Agent",
+    "code": "Code Generation",
+    "music": "Music Generation",
+    "three-d": "3D Generation",
+    "other": "Other"
+  },
+  "item": {
+    "type": {
+      "engine": "Engine",
+      "model": "Model",
+      "plugin": "Plugin"
+    },
+    "supportedLanguages": "Supported languages:",
+    "status": {
+      "queued": "Queued",
+      "downloading": "Downloading",
+      "extracting": "Extracting",
+      "verifying": "Verifying",
+      "installed": "Installed",
+      "failed": "Failed",
+      "cancelled": "Canceled",
+      "removed": "Removed",
+      "unknown": "Unknown"
+    },
+    "progress": {
+      "queued": "Queued…",
+      "extracting": "Extracting…",
+      "verifying": "Verifying…",
+      "failedWithError": "Installation failed: {{error}}",
+      "failedRetryable": "Installation failed. You can retry"
+    },
+    "action": {
+      "cancel": "Cancel",
+      "retry": "Retry",
+      "install": "Install",
+      "installing": "Installing...",
+      "delete": "Delete"
+    },
+    "systemPreset": "System preset",
+    "delete": {
+      "title": "Delete {{type}}",
+      "description": "Are you sure you want to delete \"{{name}}\"? This removes the installation record and deletes the downloaded local files. You will need to download it again to use it later."
+    }
+  },
+  "language": {
+    "multi": "Multilingual",
+    "en": "English",
+    "zh": "Chinese",
+    "ja": "Japanese",
+    "ko": "Korean",
+    "yue": "Cantonese",
+    "de": "German",
+    "es": "Spanish",
+    "ru": "Russian",
+    "fr": "French",
+    "pt": "Portuguese",
+    "tr": "Turkish",
+    "pl": "Polish",
+    "ca": "Catalan",
+    "nl": "Dutch",
+    "ar": "Arabic",
+    "sv": "Swedish",
+    "it": "Italian",
+    "id": "Indonesian",
+    "hi": "Hindi",
+    "fi": "Finnish",
+    "vi": "Vietnamese",
+    "he": "Hebrew",
+    "uk": "Ukrainian",
+    "el": "Greek",
+    "ms": "Malay",
+    "cs": "Czech",
+    "ro": "Romanian",
+    "da": "Danish",
+    "hu": "Hungarian",
+    "ta": "Tamil",
+    "no": "Norwegian",
+    "th": "Thai",
+    "ur": "Urdu",
+    "hr": "Croatian",
+    "bg": "Bulgarian",
+    "lt": "Lithuanian",
+    "la": "Latin",
+    "mi": "Māori",
+    "ml": "Malayalam",
+    "cy": "Welsh",
+    "sk": "Slovak",
+    "te": "Telugu",
+    "fa": "Persian",
+    "lv": "Latvian",
+    "bn": "Bengali",
+    "sr": "Serbian",
+    "az": "Azerbaijani",
+    "sl": "Slovenian",
+    "kn": "Kannada",
+    "et": "Estonian",
+    "mk": "Macedonian",
+    "br": "Breton",
+    "eu": "Basque",
+    "is": "Icelandic",
+    "hy": "Armenian",
+    "ne": "Nepali",
+    "mn": "Mongolian",
+    "bs": "Bosnian",
+    "kk": "Kazakh",
+    "sq": "Albanian",
+    "sw": "Swahili",
+    "gl": "Galician",
+    "mr": "Marathi",
+    "pa": "Punjabi",
+    "si": "Sinhala",
+    "km": "Khmer",
+    "sn": "Shona",
+    "yo": "Yoruba",
+    "so": "Somali",
+    "af": "Afrikaans",
+    "oc": "Occitan",
+    "ka": "Georgian",
+    "be": "Belarusian",
+    "tg": "Tajik",
+    "sd": "Sindhi"
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "action": {
+    "save": "保存",
+    "cancel": "取消"
+  },
+  "providerModelSelect": {
+    "placeholder": "选择服务商 · 模型",
+    "searchPlaceholder": "搜索服务商或模型...",
+    "noMatchingModels": "未找到匹配的模型",
+    "loading": "加载中...",
+    "free": "免费",
+    "noModels": "暂无模型",
+    "modelType": {
+      "chat": "对话",
+      "vision": "视觉",
+      "image": "图像",
+      "text2music": "音乐",
+      "tts": "语音",
+      "stt": "转写",
+      "video": "视频",
+      "audio": "音频",
+      "embedding": "向量",
+      "realtime": "实时",
+      "tool": "工具"
+    }
+  },
+  "voiceSelect": {
+    "placeholder": "选择音色",
+    "searchPlaceholder": "搜索音色名称或 voiceId...",
+    "emptyVoices": "当前服务商暂无内置音色列表，请手动输入 voiceId。",
+    "noMatch": "没有匹配的音色"
+  },
+  "errorBoundary": {
+    "title": "应用出错",
+    "unknownError": "未知错误",
+    "errorInfo": "错误信息:",
+    "stackInfo": "堆栈信息:",
+    "componentStack": "组件堆栈:",
+    "copied": "已复制",
+    "copy": "复制",
+    "copyErrorInfo": "复制错误信息",
+    "expandDetails": "展开详情",
+    "collapseDetails": "收起详情",
+    "expand": "详情",
+    "collapse": "收起",
+    "retry": "重试"
+  },
+  "modelInstall": {
+    "downloading": "正在下载 {{name}}",
+    "failed": "模型安装失败",
+    "failedWithError": "模型安装失败：{{error}}",
+    "notInstalled": "模型 {{names}} 未安装",
+    "notInstalledWithSize": "模型 {{names}} 未安装（共约 {{size}}）",
+    "retry": "重试",
+    "installAll": "一键安装",
+    "errorFallback": "安装失败"
+  }
+}

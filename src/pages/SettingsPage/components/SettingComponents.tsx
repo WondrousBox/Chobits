@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { cn } from '@/lib/utils';
 
@@ -76,6 +77,7 @@ interface SettingPathProps {
   placeholder?: string;
 }
 
-export const SettingPath: React.FC<SettingPathProps> = ({ path, placeholder = '未设置' }) => {
-  return <div className="px-2 py-1.5 bg-muted rounded text-xs text-muted-foreground font-mono truncate max-w-[200px]">{path || placeholder}</div>;
+export const SettingPath: React.FC<SettingPathProps> = ({ path, placeholder }) => {
+  const { t } = useTranslation('settings');
+  return <div className="px-2 py-1.5 bg-muted rounded text-xs text-muted-foreground font-mono truncate max-w-[200px]">{path || placeholder || t('common.notSet')}</div>;
 };

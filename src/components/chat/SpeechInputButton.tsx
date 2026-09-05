@@ -1,4 +1,5 @@
 import { type PointerEvent, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TbLoader2, TbMicrophone, TbMicrophoneOff, TbX } from 'react-icons/tb';
 
 import { type ButtonProps } from '@/components/ui/button';
@@ -35,6 +36,7 @@ export default function SpeechInputButton({
   buttonSize = 'icon',
   className
 }: SpeechInputButtonProps): JSX.Element {
+  const { t } = useTranslation('chat');
   const cancelRef = useRef<HTMLDivElement | null>(null);
   const [isCancelHover, setIsCancelHover] = useState(false);
 
@@ -63,7 +65,13 @@ export default function SpeechInputButton({
     void onPressEnd();
   };
 
-  const tooltipText = isCancelHover ? '松开取消' : interimText ? interimText : isListening ? '松开自动发送，左滑取消' : '按住说话';
+  const tooltipText = isCancelHover
+    ? t('components.speechButton.releaseToCancel')
+    : interimText
+      ? interimText
+      : isListening
+        ? t('components.speechButton.releaseToSend')
+        : t('components.speechButton.holdToTalk');
 
   return (
     <span className="inline-flex shrink-0 items-center gap-1">
@@ -81,7 +89,7 @@ export default function SpeechInputButton({
       )}
       <ChatFooterActionButton
         tooltip={tooltipText}
-        ariaLabel={isListening ? '松开结束语音输入' : '按住开始语音输入'}
+        ariaLabel={isListening ? t('components.speechButton.releaseToEndAriaLabel') : t('components.speechButton.holdToStartAriaLabel')}
         icon={isBusy ? <TbLoader2 className="animate-spin" /> : isListening ? <TbMicrophoneOff /> : <TbMicrophone />}
         disabled={disabled}
         onPressStart={() => void onPressStart()}
