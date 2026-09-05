@@ -144,7 +144,9 @@ const SCENE_COMMON_CONFIGS: Record<string, CommonConfig> = {
 };
 
 const DEFAULT_ASR_CONFIG: ASRConfig = {
-  enabled: false,
+  // 新装默认启用:initSherpaHandlers 会按此配置自动启动识别服务(模型随包内置,免下载);
+  // 已有用户以保存的 asr-config.json 为准,不受影响。麦克风系统授权仍需用户首次确认
+  enabled: true,
   backend: 'local',
   // 新装默认选中随包内置的 SenseVoice 模型;模型文件缺失时(如 dev 环境未拉取 LFS)启动实例会报错,属预期
   local: { scene: 'meeting', model: BUNDLED_ASR_MODEL_NAME, language: 'zh', punctuationModel: '' },
