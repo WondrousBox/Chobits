@@ -1,5 +1,4 @@
 import type { GeneratedAudioArtifact, ProviderAdapter, ProviderSecrets, SpeechSynthesisRequest, SpeechSynthesisResponse, SpeechSynthesisStreamEvent, SpeechTextInputChunk } from '../types';
-import { resolveModelAlias } from './model-aliases';
 import { createOpenAIClient, listOpenAIModels } from './openai-runtime';
 import { getBuiltinProviderDefinitionOrThrow } from './service';
 import { resolveFetch } from './tls';
@@ -15,13 +14,6 @@ const OUTPUT_CHANNELS = 1;
 const OUTPUT_SAMPLE_FORMAT = 's16le';
 // WAV 头解析上限：超过这么多字节还没找到 data 块就说明不是预期的 WAV 流
 const MAX_WAV_HEADER_BYTES = 4096;
-
-// 历史配置里的 voiceId 别名（chi 时代的旧音色名），映射到服务端音色名
-const VOICE_ALIASES: Record<string, string> = {
-  chi: 'chii',
-  'chi-default': 'chii',
-  chii: 'chii'
-};
 
 function isRecord(value: unknown): value is Record<string, any> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
@@ -132,9 +124,7 @@ export class GptSovitsProvider implements ProviderAdapter {
   }
 
   private resolveVoice(req: SpeechSynthesisRequest): string {
-    const requested = trimString(req.voice) || trimString(req.voiceId);
-    if (!requested) return DEFAULT_VOICE;
-    return VOICE_ALIASES[requested] || requested;
+    return trimString(req.voice) || trimString(req.voiceId) || DEFAULT_VOICE;
   }
 
   private async buildRequest(req: SpeechSynthesisRequest): Promise<{ apiKey?: string; body: Record<string, unknown>; endpoint: string; fetchImpl: FetchLike; secrets: ProviderSecrets; text: string }> {
@@ -145,8 +135,7 @@ export class GptSovitsProvider implements ProviderAdapter {
       throw new Error('GPT-SoVITS speech synthesis requires text');
     }
 
-    // 旧持久化配置里的 legacy 模型 id（chi-tts）统一映射为新 id 再发请求
-    const model = resolveModelAlias(trimString(req.model) || this.definition.defaults.models.speechSynthesis || 'chii-tts');
+    const model = trimString(req.model) || this.definition.defaults.models.speechSynthesis || 'chii-tts';
     const speedFactor = toFiniteNumber(req.speed);
 
     // 自签名 HTTPS 部署时，用户在 provider 配置里开启「TLS 证书校验 → 允许自签名」；

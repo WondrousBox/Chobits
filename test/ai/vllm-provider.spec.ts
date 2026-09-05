@@ -120,27 +120,6 @@ describe('vLLM builtin provider', () => {
     expect(new Headers(init.headers).get('authorization')).toBe('Bearer S8-ae2yp0H0DxYG5A7I9g3xBAvaqiUmOSDDuzEcjxms');
     expect(JSON.parse(String(init.body)).model).toBe('chii-chat');
   });
-
-  it('maps legacy chi-* model ids to chii-* before sending chat requests', async () => {
-    undiciFetchMock.mockImplementation(async () => {
-      return new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), {
-        headers: { 'content-type': 'application/json' },
-        status: 200
-      });
-    });
-
-    const provider = new VllmProvider();
-    // 已持久化的旧 preset/secrets 里的 chi-chat 仍路由到新模型，不直接失效
-    await provider.chat({
-      extras: { model: 'chi-chat' },
-      messages: [{ content: 'おはよう', role: 'user' }],
-      providerId: 'vllm'
-    });
-
-    expect(undiciFetchMock).toHaveBeenCalledOnce();
-    const [, init] = undiciFetchMock.mock.calls[0] as [string, RequestInit];
-    expect(JSON.parse(String(init.body)).model).toBe('chii-chat');
-  });
 });
 
 describe('OpenAI runtime insecure TLS passthrough', () => {

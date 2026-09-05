@@ -84,7 +84,7 @@ describe('GPT-SoVITS speech synthesis provider', () => {
       providerId: 'gpt-sovits',
       speed: 1.1,
       text: 'おはよう',
-      voiceId: 'chi-default'
+      voiceId: 'chii'
     });
 
     expect(fetchMock).toHaveBeenCalledOnce();
@@ -93,7 +93,7 @@ describe('GPT-SoVITS speech synthesis provider', () => {
     expect(init.method).toBe('POST');
     expect((init.headers as Record<string, string>).Authorization).toBeUndefined();
 
-    // OpenAI 兼容 TTS 报文；历史 voiceId 'chi-default' 是 legacy 别名，映射到服务端音色 'chii'
+    // OpenAI 兼容 TTS 报文
     const body = JSON.parse(String(init.body));
     expect(body).toEqual({
       input: 'おはよう',
@@ -108,8 +108,8 @@ describe('GPT-SoVITS speech synthesis provider', () => {
       audioBase64: expectedBase64,
       model: 'chii-tts',
       providerId: 'gpt-sovits',
-      voice: 'chi-default',
-      voiceId: 'chi-default'
+      voice: 'chii',
+      voiceId: 'chii'
     });
     expect(response.artifacts[0]).toMatchObject({
       audioBase64: expectedBase64,
@@ -121,30 +121,8 @@ describe('GPT-SoVITS speech synthesis provider', () => {
     expect(response.artifacts[0].metadata).toMatchObject({
       mode: 'complete',
       transport: 'http',
-      voiceId: 'chi-default'
+      voiceId: 'chii'
     });
-  });
-
-  it('maps legacy chi-* ids to chii-* before sending requests', async () => {
-    const fetchMock = mockFetchWav();
-    vi.stubGlobal('fetch', fetchMock);
-
-    const provider = new GptSovitsProvider();
-    provider.setSecrets({ apiKey: '', baseUrl: 'http://127.0.0.1:9880' });
-
-    // 已持久化的旧配置（legacy 模型 id chi-tts、旧音色名 chi）不能直接失效
-    await provider.synthesizeSpeech({
-      model: 'chi-tts',
-      providerId: 'gpt-sovits',
-      text: 'テスト',
-      voiceId: 'chi'
-    });
-
-    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(JSON.parse(String(init.body))).toMatchObject({ model: 'chii-tts', voice: 'chii' });
-    // 模型定义查询同样兼容 legacy id
-    registerBuiltinProviderDefinitions();
-    expect(getProviderDefinitionModel('gpt-sovits', 'chi-tts')?.id).toBe('chii-tts');
   });
 
   it('sends Authorization header when an API key is configured', async () => {
@@ -386,7 +364,7 @@ describe('GPT-SoVITS streaming speech synthesis', () => {
         providerId: 'gpt-sovits',
         text: 'おはよう',
         transportPreference: 'http-stream',
-        voiceId: 'chi-default'
+        voiceId: 'chii'
       },
       (event) => events.push(event)
     );

@@ -3,7 +3,6 @@ import type { Uploadable } from 'openai/core/uploads';
 import type { ChatCompletionMessageParam, ChatCompletionTool } from 'openai/resources/chat/completions';
 
 import type { ChatRequest, ChatResponse, EmbeddingRequest, EmbeddingResponse, StreamEvent, TokenUsage, TranscribeOptions, TranscriptionResponse } from '../types';
-import { resolveModelAlias } from './model-aliases';
 import { listProviderRuntimeModels } from './service';
 import { type InsecureFetchFactory, resolveFetch } from './tls';
 
@@ -48,8 +47,7 @@ export interface OpenAIListModelsOptions {
 }
 
 function resolveOpenAIChatModel(request: ChatRequest, configuredModel: string | undefined, defaultModel: string): string {
-  // 旧持久化配置里的 legacy 模型 id（chi-chat/chi-translate）统一映射为新 id 再发请求
-  return resolveModelAlias((request.extras?.model as string) || configuredModel || defaultModel);
+  return (request.extras?.model as string) || configuredModel || defaultModel;
 }
 
 function resolveOpenAIEmbeddingModel(request: EmbeddingRequest, configuredModel: string | undefined, defaultModel: string): string {

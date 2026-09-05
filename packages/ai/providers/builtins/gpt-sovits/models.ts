@@ -3,7 +3,6 @@ import type { ProviderModelDefinition } from '../../model-types';
 // chobits-chii-tts 自托管 TTS 服务（OpenAI 兼容 /v1/audio/speech）
 // 声线由服务端按 voice 管理（当前仅 chii），模型标识与服务端 /v1/models 返回一致
 // 流式：服务端 wav 走 chunked 流式返回（WAV 头 + PCM 裸流），provider 剥头后按 PCM 边收边发
-// 旧 id（chi-tts）由 model-aliases 兼容映射
 
 const gptSovitsSpeechModels: ProviderModelDefinition[] = [
   {

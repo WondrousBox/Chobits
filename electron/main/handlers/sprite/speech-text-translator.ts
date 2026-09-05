@@ -23,7 +23,7 @@ import { resolveFetch } from '../../../../packages/ai/providers/tls';
 import { getAllSecrets, getFirstApiKey } from '../../../../packages/ai/settings-store';
 import type { SpriteSpeechTextTranslator } from '../../../../packages/sprite-core/speak/types';
 
-// 翻译路由模型：serve.py 门面按 model 名分发到翻译逻辑（旧名 chi-translate 由服务端别名兼容）
+// 翻译路由模型：serve.py 门面按 model 名分发到翻译逻辑
 const TRANSLATE_MODEL = 'chii-translate';
 
 const TRANSLATE_TIMEOUT_MS = 60_000;

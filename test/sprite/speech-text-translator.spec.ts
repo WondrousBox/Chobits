@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   getAllSecrets: vi.fn(async () => ({}) as Record<string, string>),
   getPresetSecrets: vi.fn(async () => ({}) as Record<string, string>),
-  resolveUsablePreset: vi.fn(async () => ({ id: 'vllm-chi-cloud', providerId: 'vllm', name: 'vllm-chi-cloud' }) as any)
+  resolveUsablePreset: vi.fn(async () => ({ id: 'vllm-chii-cloud', providerId: 'vllm', name: 'vllm-chii-cloud' }) as any)
 }));
 
 vi.mock('../../packages/ai/preset-service', () => ({
@@ -54,7 +54,7 @@ function arrangeSecrets(secrets: Record<string, string>): void {
 
 describe('speech text translator gateway', () => {
   beforeEach(() => {
-    mocks.resolveUsablePreset.mockResolvedValue({ id: 'vllm-chi-cloud', providerId: 'vllm', name: 'vllm-chi-cloud' } as any);
+    mocks.resolveUsablePreset.mockResolvedValue({ id: 'vllm-chii-cloud', providerId: 'vllm', name: 'vllm-chii-cloud' } as any);
     // 内置 defaults.config 里 allowInsecureTls 默认为 'true'，显式 'false' 让用例走全局 fetch
     arrangeSecrets({ allowInsecureTls: 'false', apiKey: 'gateway-key' });
     undiciFetchMock.mockImplementation(async () => mockGatewayResponse(translateResponse('おはよう'))());
