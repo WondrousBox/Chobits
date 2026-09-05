@@ -152,6 +152,15 @@ Linux 特記：妖精は透明なボーダーレスウィンドウのため、�
 
 `test/screenshots/` にアプリのスクリーンショットを配置・更新して、主要機能を紹介できます。
 
+## 🙏 謝辞・参考プロジェクト
+
+本プロジェクトは以下のオープンソースプロジェクトを参考に、またはその恩恵を受けています：
+
+- [WondrousBox/Chobits](https://github.com/WondrousBox/Chobits) —— 本プロジェクトの前身でありインスピレーションの源泉。デスクトップマスコットの中核的なインタラクションと Live2D の遊び方はここから生まれました。
+- [Open-LLM-VTuber](https://github.com/Open-LLM-VTuber/Open-LLM-VTuber) —— 音声インタラクションパイプライン（ASR → LLM → TTS）と sherpa-onnx のモデル選定における重要な参考。
+- [k2-fsa/sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) —— ローカル音声認識・音声合成エンジン（SenseVoice / Kokoro などのモデルランタイム）。
+- [RVC-Boss/GPT-SoVITS](https://github.com/RVC-Boss/GPT-SoVITS) —— キャラクターボイスのクローン合成。キャラクター発話機能のデフォルト音声バックエンド。
+
 ## 📄 ライセンス
 
 本プロジェクトは [MIT ライセンス](./LICENSE) で公開されています：

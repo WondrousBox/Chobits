@@ -152,6 +152,15 @@ Linux notes: the sprite is a transparent, borderless window and requires a deskt
 
 You can place or update app screenshots in `test/screenshots/` to showcase key features.
 
+## 🙏 Acknowledgments & References
+
+This project is inspired by or benefits from the following open-source projects:
+
+- [WondrousBox/Chobits](https://github.com/WondrousBox/Chobits) —— the predecessor and inspiration of this project; the core desktop-pet interaction and Live2D gameplay originated here.
+- [Open-LLM-VTuber](https://github.com/Open-LLM-VTuber/Open-LLM-VTuber) —— a key reference for the voice interaction pipeline (ASR → LLM → TTS) and sherpa-onnx model selection.
+- [k2-fsa/sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) —— the local speech recognition and synthesis engine (runtime for SenseVoice / Kokoro and other models).
+- [RVC-Boss/GPT-SoVITS](https://github.com/RVC-Boss/GPT-SoVITS) —— voice cloning and synthesis; the default voice backend for character speech.
+
 ## 📄 License
 
 This project is released under the [MIT License](./LICENSE):
