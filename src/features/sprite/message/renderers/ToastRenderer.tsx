@@ -7,7 +7,7 @@
  * - 不同等级的视觉样式
  */
 
-import Messages from '@packages/sprite-core/messages/zh-CN';
+import { getSpriteMessagesProvider } from '@packages/sprite-core/messages';
 import clsx from 'clsx';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
@@ -30,19 +30,21 @@ const levelStyles: Record<string, string> = {
 };
 
 export function ToastRenderer({ message, className, placement = 'inline' }: ToastRendererProps): JSX.Element {
-  const { t } = useTranslation('sprite');
+  const { t, i18n } = useTranslation('sprite');
   // 计算显示文案
   const displayText = React.useMemo(() => {
     // 优先使用自定义内容
     if (message.content) {
       return message.content;
     }
-    // 使用预设文案
+    // 使用预设文案（按当前语言的精灵消息目录）
     if (message.category) {
-      return Messages.t(message.category as MessageCategory, message.ctx);
+      return getSpriteMessagesProvider().t(message.category as MessageCategory, message.ctx);
     }
     return '';
-  }, [message.content, message.category, message.ctx]);
+    // i18n.language 与精灵消息目录语言同步切换，依赖它即可在语言变化时重取预设文案
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [message.content, message.category, message.ctx, i18n.language]);
 
   const level = message.level || 'info';
   const image = message.image;

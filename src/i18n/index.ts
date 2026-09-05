@@ -1,4 +1,6 @@
+import { resolveSystemLanguageFromLocale } from '@packages/common/language';
 import type { AppLanguage, LanguagePreference } from '@packages/common/types/preferences';
+import { setSpriteMessagesLanguage } from '@packages/sprite-core/messages';
 import i18n, { type Resource, type ResourceKey } from 'i18next';
 import { initReactI18next } from 'react-i18next';
 
@@ -27,11 +29,9 @@ const { resources, namespaces } = buildResources();
  * zh* → zh-CN，ja* → ja，其余 → en，无法检测时回退默认语言 zh-CN
  */
 export function resolveSystemLanguage(): AppLanguage {
-  const systemLanguage = typeof navigator !== 'undefined' ? navigator.language?.toLowerCase?.() : undefined;
+  const systemLanguage = typeof navigator !== 'undefined' ? navigator.language : undefined;
   if (!systemLanguage) return 'zh-CN';
-  if (systemLanguage.startsWith('zh')) return 'zh-CN';
-  if (systemLanguage.startsWith('ja')) return 'ja';
-  return 'en';
+  return resolveSystemLanguageFromLocale(systemLanguage);
 }
 
 void i18n.use(initReactI18next).init({
@@ -45,6 +45,9 @@ void i18n.use(initReactI18next).init({
   }
 });
 
+// 精灵消息目录初始语言与 i18n 初始语言保持一致（initI18n 读取偏好后会再校正）
+setSpriteMessagesLanguage(resolveSystemLanguage());
+
 /**
  * 获取当前应用语言（供 pickLocale 等非 hook 场景使用）
  */
@@ -55,10 +58,12 @@ export function getCurrentAppLanguage(): AppLanguage {
 
 /**
  * 应用语言偏好：'system' 时跟随系统语言，否则直接使用指定语言
+ * 同步切换渲染进程内的精灵消息目录语言（ToastRenderer 等直接读取）
  */
 export function applyLanguagePreference(preference: LanguagePreference): void {
   const language = preference === 'system' ? resolveSystemLanguage() : preference;
   void i18n.changeLanguage(language);
+  setSpriteMessagesLanguage(language);
 }
 
 /**

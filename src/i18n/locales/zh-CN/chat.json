@@ -189,7 +189,12 @@
       "clearDirectory": "清除项目目录"
     },
     "agentSelect": {
-      "placeholder": "选择模式"
+      "placeholder": "选择模式",
+      "modes": {
+        "chat": "对话模式",
+        "assistant": "Agent模式",
+        "coder": "代码模式"
+      }
     },
     "aiSpeech": {
       "enabledTooltip": "AI 说话已开启，点击关闭",

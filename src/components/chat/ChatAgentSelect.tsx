@@ -44,8 +44,10 @@ export default function ChatAgentSelect({
   avoidCollisions
 }: ChatAgentSelectProps): JSX.Element {
   const { t } = useTranslation('chat');
+  // profile 的 label 来自 profiles.md 数据（中文），按 id 映射到 i18n 文案，未知 id 回退原始 label
+  const resolveAgentLabel = (agent: ChatAgentSelectOption): string => t(`components.agentSelect.modes.${agent.id}`, { defaultValue: agent.label });
   const selectedAgent = agents.find((agent) => agent.id === value);
-  const label = selectedAgent?.label || placeholder || t('components.agentSelect.placeholder');
+  const label = (selectedAgent ? resolveAgentLabel(selectedAgent) : '') || placeholder || t('components.agentSelect.placeholder');
 
   return (
     <DropdownMenu onOpenChange={onOpenChange}>
@@ -65,7 +67,7 @@ export default function ChatAgentSelect({
       <DropdownMenuContent align={contentAlign} side={contentSide} avoidCollisions={avoidCollisions} className={cn('no-drag pointer-events-auto min-w-[8rem] text-xs', contentClassName)}>
         {agents.map((agent) => (
           <DropdownMenuItem key={agent.id} onSelect={() => onValueChange(agent.id)}>
-            {agent.label}
+            {resolveAgentLabel(agent)}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>

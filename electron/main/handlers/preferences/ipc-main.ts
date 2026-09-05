@@ -1,7 +1,8 @@
 import type { LanguagePreference } from '@packages/common/types/preferences';
+import { setSpriteMessagesLanguage } from '@packages/sprite-core/messages';
 import { app, BrowserWindow, ipcMain } from 'electron';
 
-import { type PreferencesConfig, PreferencesStore, type PreviewMode } from './preferences-store';
+import { type PreferencesConfig, PreferencesStore, type PreviewMode, resolveAppLanguage } from './preferences-store';
 
 /**
  * 语言变更广播：各窗口是独立渲染进程，各有自己的 i18n 实例，
@@ -41,8 +42,9 @@ export function initPreferencesHandlers(): void {
           console.error('[Preferences] 应用开机自启动设置失败:', error);
         }
       }
-      // 语言变更立即广播到所有窗口，无需重启
+      // 语言变更立即广播到所有窗口，无需重启；主进程侧的精灵消息目录同步切换
       if (payload.config.language) {
+        setSpriteMessagesLanguage(resolveAppLanguage());
         broadcastLanguageChange(payload.config.language);
       }
       return { ok: true, config };

@@ -9,6 +9,7 @@ import { AppEvent, eventManager } from '@packages/event';
 
 import type { SpriteManager } from '../manager';
 import { ProgressSpeechAnnouncer, type ProgressSpeechKind } from '../manager/progress-speech-announcer';
+import { getSpriteMessageFallback } from '../messages';
 import { getCharacterRoutineText, getCharacterSpriteEventText } from '../messages/character';
 import type { SpriteRealtimeSpeechScope } from '../speak/types';
 
@@ -83,7 +84,7 @@ function isMiniMaxChatApiConfigSave(data?: SpriteEventPayload): boolean {
 }
 
 function getMiniMaxChatApiConfigEasterEggText(): string {
-  return getCharacterRoutineText('chat.api-config-guide.done.minimax', { providerId: 'minimax' }, 'MiniMax 还可以制作音乐，以后可以和我说哦');
+  return getCharacterRoutineText('chat.api-config-guide.done.minimax', { providerId: 'minimax' }, getSpriteMessageFallback('chatApiConfigGuideDoneMiniMax'));
 }
 
 function shouldSuppressAIEventSpeech(data?: SpriteEventPayload): boolean {
@@ -174,7 +175,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
         progress: data?.progress ?? 0,
         message: data?.message
       });
-      mgr.showBusy(data?.message || eventText('downloadStart', data, '下载中...'), data?.progress ?? 0);
+      mgr.showBusy(data?.message || eventText('downloadStart', data, getSpriteMessageFallback('downloadStart')), data?.progress ?? 0);
       mgr.trigger('download', { silent: true });
     }
   });
@@ -191,7 +192,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
         progress: data.progress,
         message: data.message
       });
-      mgr.updateBusy(data.progress, data.message || eventText('downloadProgress', data, '下载中...'));
+      mgr.updateBusy(data.progress, data.message || eventText('downloadProgress', data, getSpriteMessageFallback('downloadProgress')));
     }
   });
 
@@ -205,7 +206,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
       });
       mgr.clearBusy();
       mgr.trigger('success', { silent: true });
-      mgr.showToast(data?.message || eventText('downloadComplete', data, '下载完成！'), { category: 'success', duration: 1500, speak: false });
+      mgr.showToast(data?.message || eventText('downloadComplete', data, getSpriteMessageFallback('downloadComplete')), { category: 'success', duration: 1500, speak: false });
     }
   });
 
@@ -214,7 +215,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
     handler: (data) => {
       progressSpeech.reset(getDownloadProgressSpeechId(data));
       mgr.clearBusy();
-      mgr.trigger('error', { message: data?.message || data?.error || eventText('downloadFail', data, '下载失败') });
+      mgr.trigger('error', { message: data?.message || data?.error || eventText('downloadFail', data, getSpriteMessageFallback('downloadFail')) });
     }
   });
 
@@ -223,14 +224,14 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
   handlers.push({
     event: AppEvent.SPRITE_PLUGIN_INSTALLED,
     handler: (data) => {
-      mgr.trigger('install', { message: data?.message || eventText('pluginInstall', data, '插件安装完成！'), silent: true });
+      mgr.trigger('install', { message: data?.message || eventText('pluginInstall', data, getSpriteMessageFallback('pluginInstall')), silent: true });
     }
   });
 
   handlers.push({
     event: AppEvent.SPRITE_PLUGIN_REMOVED,
     handler: (data) => {
-      mgr.trigger('remove', { message: data?.message || eventText('pluginRemove', data, '插件已移除') });
+      mgr.trigger('remove', { message: data?.message || eventText('pluginRemove', data, getSpriteMessageFallback('pluginRemove')) });
     }
   });
 

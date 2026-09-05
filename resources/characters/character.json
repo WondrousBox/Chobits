@@ -182,6 +182,162 @@
       "complete": "{kind}完成了。"
     }
   },
+  "messagesLocales": {
+    "ja": {
+      "categories": {
+        "welcome": ["ちぃ～", "ちぃ～ご指示をお待ちしてます。", "おかえり！今日は何をしたい？"],
+        "click": [
+          "ちぃ～",
+          "今日は何をするの？",
+          "了解～",
+          "ちぃ？呼んだ～？",
+          "いるよいるよ～",
+          "ん？どうしたの～",
+          "つついてどうするの～",
+          "えへへ、くすぐったい～",
+          "ちぃはここだよ～",
+          "おしゃべりする？",
+          "ちぃにお仕事ある～？",
+          "いつでも始められるよ～",
+          "今日も一緒にがんばろう～",
+          "わっ、ご主人に見つかっちゃった～",
+          "ちぃにお手伝いしてほしいの～？",
+          "ポチッとして、元気百倍～",
+          "ちぃ！充電完了～",
+          "一緒に新しいこと勉強しよう～",
+          "ちぃのバッテリー満タン～",
+          "待機中～ちぃ～",
+          "ご主人、ちぃ～",
+          "なでなで...えへへ～"
+        ],
+        "hold": [
+          "ふむ。",
+          "いいよ。",
+          "ちょっと動くね。",
+          "いるよ。",
+          "来たよ。",
+          "ここに置く？",
+          "言う通りにするね。",
+          "うん。"
+        ],
+        "reminder": ["適度に休憩して、お水を飲んでね～", "座りっぱなしは体に悪いよ、立って動こうね。"],
+        "tip": ["右クリックでメニューが開けるよ。", "どこにでもドラッグできるよ～", "ちぃと触れ合ってみて～"],
+        "message": ["新着メッセージだよ～", "メッセージが届いたよ～"]
+      },
+      "events": {
+        "appear": ["来たよ！", "ちぃ～登場！", "出現！"],
+        "wake": ["おはよう～！", "起きた！", "ん…今日もがんばろう～"],
+        "aiThinking": ["考え中...", "考えてるよ～", "考えさせて..."],
+        "aiComplete": ["回答完了！", "できたよ～", "これが答えだよ～"],
+        "aiError": ["考えがこんがらがっちゃった...", "AIがぼーっとしてる...", "ちょっと問題が起きちゃった..."],
+        "downloadStart": ["ダウンロード中..."],
+        "downloadProgress": ["ダウンロード中..."],
+        "downloadComplete": ["ダウンロード完了！"],
+        "downloadFail": ["ダウンロードに失敗しました"],
+        "pluginInstall": ["プラグインのインストールが完了しました！"],
+        "pluginRemove": ["プラグインを削除しました"]
+      },
+      "routines": {
+        "daily.rest-reminder.speak": ["そろそろ休憩しましょう。"],
+        "idle.sleepy.toast": ["ちょっと眠くなってきた…"],
+        "onboarding.chat.start.tip": ["ダブルクリックでチャットウィンドウを開けます。"],
+        "onboarding.chat.start.done": ["開きました！"],
+        "chat.api-config-guide.invite": ["先に API Key を設定する必要があります"],
+        "chat.api-config-guide.tip": ["API Key を入力すれば、私とおしゃべりできます"],
+        "chat.api-config-guide.done": ["設定を保存しました。チャットを始められます。"],
+        "chat.api-config-guide.done.minimax": ["MiniMax では音楽も作れます。あとで話しかけてくださいね"]
+      },
+      "progress": {
+        "kindLabels": {
+          "download": "ダウンロード",
+          "transcribe": "文字起こし",
+          "import": "インポート",
+          "workflow": "処理",
+          "generic": "タスク"
+        },
+        "progress": "{kind}の進捗 {progress}%。",
+        "almost": "{kind}はもうすぐ完了です。",
+        "complete": "{kind}が完了しました。"
+      }
+    },
+    "en": {
+      "categories": {
+        "welcome": ["Chii~", "Chii~ awaiting your orders.", "Welcome back! What would you like to do today?"],
+        "click": [
+          "Chii~",
+          "What should we do today?",
+          "Got it~",
+          "Chii? Did you call me~?",
+          "I'm here, I'm here~",
+          "Hm? What's up~",
+          "Why are you poking me~",
+          "Hehe, that tickles~",
+          "Chii is right here~",
+          "Want to chat?",
+          "Got a task for Chii~?",
+          "Ready to start anytime~",
+          "Let's do our best together today~",
+          "Whoa, Master found me~",
+          "Want Chii to help out~?",
+          "One click, full of energy~",
+          "Chii! Fully charged~",
+          "Let's learn something new together~",
+          "Chii's battery is full~",
+          "Standing by~ Chii~",
+          "Master, Chii~",
+          "Head pats... hehe~"
+        ],
+        "hold": [
+          "Mm-hm.",
+          "Sure.",
+          "Moving a bit.",
+          "I'm here.",
+          "Coming.",
+          "Put me here?",
+          "As you say.",
+          "Mm."
+        ],
+        "reminder": ["Remember to take breaks and drink some water~", "Sitting too long is bad for you — get up and move around."],
+        "tip": ["Right-click me to open the menu.", "You can drag me anywhere~", "Try interacting with me~"],
+        "message": ["New message~", "Message received~"]
+      },
+      "events": {
+        "appear": ["I'm here!", "Chii~ has arrived!", "Appearing!"],
+        "wake": ["Good morning~!", "I'm awake!", "Mm... let's do our best today~"],
+        "aiThinking": ["Thinking...", "Thinking it over~", "Let me think..."],
+        "aiComplete": ["Answer complete!", "All done~", "Here's the answer~"],
+        "aiError": ["My thoughts got tangled...", "The AI spaced out...", "Something went wrong..."],
+        "downloadStart": ["Downloading..."],
+        "downloadProgress": ["Downloading..."],
+        "downloadComplete": ["Download complete!"],
+        "downloadFail": ["Download failed"],
+        "pluginInstall": ["Plugin installed!"],
+        "pluginRemove": ["Plugin removed"]
+      },
+      "routines": {
+        "daily.rest-reminder.speak": ["Time for a short break."],
+        "idle.sleepy.toast": ["I'm getting sleepy..."],
+        "onboarding.chat.start.tip": ["Double-click me to open the chat window."],
+        "onboarding.chat.start.done": ["It's open!"],
+        "chat.api-config-guide.invite": ["You need to configure an API Key first"],
+        "chat.api-config-guide.tip": ["Enter your API Key and you can chat with me"],
+        "chat.api-config-guide.done": ["Settings saved. You can start chatting now."],
+        "chat.api-config-guide.done.minimax": ["MiniMax can also make music — feel free to ask me later"]
+      },
+      "progress": {
+        "kindLabels": {
+          "download": "Download",
+          "transcribe": "Transcription",
+          "import": "Import",
+          "workflow": "Processing",
+          "generic": "Task"
+        },
+        "progress": "{kind} is at {progress}%.",
+        "almost": "{kind} is almost done.",
+        "complete": "{kind} is done."
+      }
+    }
+  },
   "toolLabels": {
     "toolboxTool": {
       "default": {

@@ -1,3 +1,4 @@
+import { getSpriteMessageFallback } from '../messages';
 import { getCharacterRoutineText } from '../messages/character';
 import { CHAT_API_CONFIGURED_GUIDE_GOAL, FIRST_CHAT_GUIDE_GOAL, type SpriteRoutineGuideGoalDefinition } from './guide-goals';
 import type { SpritePurpose, SpriteRoutine, SpriteRoutineStep, SpriteRoutineStepInput, StartSpritePurposeRequest } from './types';
@@ -154,7 +155,7 @@ function normalizeRoutineStepInput(input: SpriteRoutineStepInput, index: number,
 function createRestReminderSteps(): SpriteRoutineStepInput[] {
   return [
     { id: 'attention', type: 'playAnimation', trigger: 'wave', durationMs: 1200, waitFor: 'duration', silent: true },
-    { id: 'speak', type: 'speak', text: getCharacterRoutineText('daily.rest-reminder.speak', undefined, '差不多该休息一下了。'), bubbleDuration: 3600 },
+    { id: 'speak', type: 'speak', text: getCharacterRoutineText('daily.rest-reminder.speak', undefined, getSpriteMessageFallback('dailyRestReminder')), bubbleDuration: 3600 },
     { id: 'pause', type: 'wait', durationMs: 800 },
     { id: 'tired', type: 'playAnimation', trigger: 'tired', durationMs: 1800, waitFor: 'duration', silent: true }
   ];
@@ -207,9 +208,9 @@ const CHAT_API_CONFIG_COMPLETION_ACTIONS = [
 
 function getChatApiConfigDoneText(providerId: string): string {
   if (providerId === 'minimax') {
-    return getCharacterRoutineText('chat.api-config-guide.done.minimax', { providerId }, 'MiniMax 还可以制作音乐，以后可以和我说哦');
+    return getCharacterRoutineText('chat.api-config-guide.done.minimax', { providerId }, getSpriteMessageFallback('chatApiConfigGuideDoneMiniMax'));
   }
-  return getCharacterRoutineText('chat.api-config-guide.done', { providerId }, '配置保存好了，现在可以开始聊天。');
+  return getCharacterRoutineText('chat.api-config-guide.done', { providerId }, getSpriteMessageFallback('chatApiConfigGuideDone'));
 }
 
 function isPurposeContextFlagEnabled(purpose: SpritePurpose, key: string): boolean {
@@ -239,7 +240,7 @@ function createFirstChatRoutineSteps(): SpriteRoutineStepInput[] {
         {
           id: 'first-chat-help',
           type: 'speak',
-          text: getCharacterRoutineText('onboarding.chat.start.tip', undefined, '鼠标双击我，就能打开聊天窗口。'),
+          text: getCharacterRoutineText('onboarding.chat.start.tip', undefined, getSpriteMessageFallback('onboardingChatStartTip')),
           bubbleDuration: 4800,
           cooldownKey: 'onboarding.chat.start.tip',
           cooldownMs: FIRST_CHAT_HELP_COOLDOWN_MS
@@ -263,7 +264,7 @@ function createFirstChatRoutineSteps(): SpriteRoutineStepInput[] {
     {
       id: 'first-chat-done',
       type: 'speak',
-      text: getCharacterRoutineText('onboarding.chat.start.done', undefined, '打开啦！'),
+      text: getCharacterRoutineText('onboarding.chat.start.done', undefined, getSpriteMessageFallback('onboardingChatStartDone')),
       bubbleDuration: 3800
     },
     { id: 'first-chat-return-corner', type: 'walkTo', target: 'corner', speed: 110, timeoutMs: 10000 }
@@ -313,7 +314,11 @@ function createChatApiConfigGuideSteps(purpose: SpritePurpose): SpriteRoutineSte
     {
       id: 'chat-api-config-tip',
       type: 'speak',
-      text: getCharacterRoutineText('chat.api-config-guide.tip', { providerId }, hasPreset ? '填好 API Key 就可以和我对话了' : '先新增一个模型预设并填入 API Key，就可以开始聊天。'),
+      text: getCharacterRoutineText(
+        'chat.api-config-guide.tip',
+        { providerId },
+        hasPreset ? getSpriteMessageFallback('chatApiConfigGuideTipPreset') : getSpriteMessageFallback('chatApiConfigGuideTipNoPreset')
+      ),
       bubbleDuration: 5200
     },
     {
@@ -372,7 +377,7 @@ function createChatApiConfigGuideSteps(purpose: SpritePurpose): SpriteRoutineSte
       id: 'chat-api-config-invite',
       type: 'showNotice',
       messageId: CHAT_API_CONFIG_NOTICE_ID,
-      content: getCharacterRoutineText('chat.api-config-guide.invite', { providerId }, '需要先配置 API Key'),
+      content: getCharacterRoutineText('chat.api-config-guide.invite', { providerId }, getSpriteMessageFallback('chatApiConfigGuideInvite')),
       level: 'info',
       persistent: true,
       buttons: [{ id: 'open-ai-provider-settings', label: '去配置', variant: 'default', purposeAction: CHAT_API_CONFIG_OPEN_SETTINGS_ACTION }],

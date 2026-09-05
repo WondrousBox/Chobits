@@ -294,7 +294,7 @@ export function CharacterPackEditorContent({ editor, setEditor, className, extra
             <div className="text-xs text-muted-foreground">{t('editor.messagesHint')}</div>
           </div>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            {CHARACTER_MESSAGE_SPECS.map((spec) => renderMessageTextarea(spec.field, spec.label, (spec as CharacterMessageSpec).placeholder))}
+            {CHARACTER_MESSAGE_SPECS.map((spec) => renderMessageTextarea(spec.field, t(`editor.messageSpec.${spec.field}`), (spec as CharacterMessageSpec).placeholder))}
           </div>
         </div>
 
@@ -306,13 +306,13 @@ export function CharacterPackEditorContent({ editor, setEditor, className, extra
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {CHARACTER_PROGRESS_KIND_LABEL_SPECS.map((spec) => (
               <div key={spec.key} className="space-y-2">
-                <Label>{spec.label}</Label>
+                <Label>{t(`editor.progressKindLabel.${spec.key}`)}</Label>
                 <Input value={messages.progressKindLabels[spec.key]} onChange={(event) => updateProgressKindLabel(spec.key, event.target.value)} />
               </div>
             ))}
             {CHARACTER_PROGRESS_MESSAGE_SPECS.map((spec) => (
               <div key={spec.key} className="space-y-2">
-                <Label>{spec.label}</Label>
+                <Label>{t(`editor.progressMessage.${spec.key}`)}</Label>
                 <Input value={messages.progress[spec.key]} onChange={(event) => updateProgressMessage(spec.key, event.target.value)} />
               </div>
             ))}

@@ -189,7 +189,12 @@
       "clearDirectory": "Clear project directory"
     },
     "agentSelect": {
-      "placeholder": "Select mode"
+      "placeholder": "Select mode",
+      "modes": {
+        "chat": "Chat Mode",
+        "assistant": "Agent Mode",
+        "coder": "Code Mode"
+      }
     },
     "aiSpeech": {
       "enabledTooltip": "AI speech is on, click to turn off",

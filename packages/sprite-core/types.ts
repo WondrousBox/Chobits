@@ -223,6 +223,17 @@ export interface MessagesProvider {
   t: (category: MessageCategory, ctx?: any) => string;
 }
 
+export type SpriteEventMessageEntry = Array<MessageProducer | string> | MessageProducer | string;
+
+/**
+ * 单语言消息数据（messages/{zh-CN,ja,en}.ts 纯数据文件的导出形状）：
+ * catalog 按 MessageCategory 索引，spriteEventMessages 按 SpriteEventType 索引
+ */
+export interface SpriteMessagesData {
+  catalog: MessageCatalog;
+  spriteEventMessages: Record<string, SpriteEventMessageEntry>;
+}
+
 // ============================================================================
 // 窗口移动配置
 // ============================================================================

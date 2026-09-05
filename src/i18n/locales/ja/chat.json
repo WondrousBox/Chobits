@@ -189,7 +189,12 @@
       "clearDirectory": "プロジェクトフォルダをクリア"
     },
     "agentSelect": {
-      "placeholder": "モードを選択"
+      "placeholder": "モードを選択",
+      "modes": {
+        "chat": "チャットモード",
+        "assistant": "Agentモード",
+        "coder": "コードモード"
+      }
     },
     "aiSpeech": {
       "enabledTooltip": "AI の発話はオンです。クリックでオフ",

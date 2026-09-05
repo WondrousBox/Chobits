@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import type { PreferencesConfig, PreviewMode } from '@packages/common/types/preferences';
+import { resolveSystemLanguageFromLocale } from '@packages/common/language';
+import type { AppLanguage, PreferencesConfig, PreviewMode } from '@packages/common/types/preferences';
 import { app } from 'electron';
 
 export type { PreferencesConfig, PreviewMode } from '@packages/common/types/preferences';
@@ -75,6 +76,15 @@ function write(next: StoreShape): void {
     console.error('[PreferencesStore] 写入配置失败:', error);
     throw error;
   }
+}
+
+/**
+ * 解析当前生效的应用语言：偏好为 'system' 时按系统 locale 解析
+ */
+export function resolveAppLanguage(): AppLanguage {
+  const preference = PreferencesStore.getConfig().language;
+  if (preference && preference !== 'system') return preference;
+  return resolveSystemLanguageFromLocale(app.getLocale());
 }
 
 /**

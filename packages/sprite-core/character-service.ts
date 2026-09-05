@@ -13,6 +13,8 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
+import type { AppLanguage } from '@packages/common/types/preferences';
+
 import { resolvePackRelativeAssetPath } from './character-pack-paths';
 import type { MessageCategory } from './types';
 
@@ -123,6 +125,8 @@ export interface CharacterDefinition {
   capabilityFlags?: CharacterCapabilityFlagsConfig;
   /** Character-specific bubble/speech copy overrides for sprite reactions and routines */
   messages?: CharacterMessagesConfig;
+  /** Per-UI-language message overrides; consulted before `messages` when the UI language is not zh-CN */
+  messagesLocales?: Partial<Record<Exclude<AppLanguage, 'zh-CN'>, CharacterMessagesConfig>>;
   /** Per-tool display label overrides with placeholder support */
   toolLabels?: Record<string, ToolLabelDefinition>;
   meta: CharacterMeta;

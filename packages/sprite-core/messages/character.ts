@@ -1,7 +1,7 @@
-import { type CharacterMessageTemplateEntry, getCharacterDefinition, getCharacterPackSource } from '../character-service';
+import { type CharacterMessagesConfig, type CharacterMessageTemplateEntry, getCharacterDefinition, getCharacterPackSource } from '../character-service';
 import type { MessageCategory } from '../types';
 import { buildDefaultCharacterMessages } from './default-character';
-import LegacyMessages, { getSpriteEventText as getLegacySpriteEventText } from './zh-CN';
+import { getSpriteEventText as getLegacySpriteEventText, getSpriteMessageFallback, getSpriteMessagesLanguage, getSpriteMessagesProvider } from './index';
 
 export type CharacterProgressSpeechStage = 'progress' | 'almost' | 'complete';
 
@@ -10,12 +10,6 @@ export interface CharacterProgressSpeechContext {
   fallbackKindLabel?: string;
   progress?: number;
 }
-
-const DEFAULT_PROGRESS_TEMPLATES: Record<CharacterProgressSpeechStage, string> = {
-  progress: '{kind}进度 {progress}%。',
-  almost: '{kind}快完成了。',
-  complete: '{kind}完成了。'
-};
 
 const warnedMissingKeys = new Set<string>();
 
@@ -72,6 +66,16 @@ function shouldUseGenericFallback(): boolean {
   return getCharacterPackSource() === 'installed';
 }
 
+/**
+ * 当前 UI 语言非 zh-CN 时返回角色包的按语言覆盖层（messagesLocales）。
+ * zh-CN 或覆盖层缺失时返回 undefined，查找链保持原样。
+ */
+function getLocalizedCharacterMessages(): CharacterMessagesConfig | undefined {
+  const language = getSpriteMessagesLanguage();
+  if (language === 'zh-CN') return undefined;
+  return getCharacterDefinition()?.messagesLocales?.[language];
+}
+
 function getGenericMessages() {
   const character = getCharacterDefinition();
   return buildDefaultCharacterMessages(character);
@@ -88,6 +92,8 @@ function warnInstalledPackMissingMessage(kind: string, key: string): void {
 
 export function getCharacterCategoryText(category: MessageCategory, ctx?: Record<string, unknown>): string {
   const character = getCharacterDefinition();
+  const localizedText = resolveCharacterEntry(getLocalizedCharacterMessages()?.categories?.[category], ctx);
+  if (localizedText) return localizedText;
   const characterText = resolveCharacterEntry(character?.messages?.categories?.[category], ctx);
   if (characterText) return characterText;
   if (shouldUseGenericFallback()) {
@@ -97,11 +103,18 @@ export function getCharacterCategoryText(category: MessageCategory, ctx?: Record
       return genericText;
     }
   }
-  return LegacyMessages.t(category, ctx);
+  return getSpriteMessagesProvider().t(category, ctx);
 }
 
 export function getCharacterSpriteEventText(eventType: string, ctx?: Record<string, unknown>, fallback?: string): string {
   const messages = getCharacterDefinition()?.messages;
+  const localizedMessages = getLocalizedCharacterMessages();
+  const localizedEventText = resolveCharacterEntry(localizedMessages?.events?.[eventType], ctx);
+  if (localizedEventText) return localizedEventText;
+
+  const localizedCategoryText = resolveCharacterEntry(localizedMessages?.categories?.[eventType], ctx);
+  if (localizedCategoryText) return localizedCategoryText;
+
   const eventText = resolveCharacterEntry(messages?.events?.[eventType], ctx);
   if (eventText) return eventText;
 
@@ -130,6 +143,8 @@ export function getCharacterSpriteEventText(eventType: string, ctx?: Record<stri
 }
 
 export function getCharacterRoutineText(key: string, ctx?: Record<string, unknown>, fallback?: string): string {
+  const localizedText = resolveCharacterEntry(getLocalizedCharacterMessages()?.routines?.[key], ctx);
+  if (localizedText) return localizedText;
   const routineText = resolveCharacterEntry(getCharacterDefinition()?.messages?.routines?.[key], ctx);
   if (routineText) return routineText;
   if (shouldUseGenericFallback()) {
@@ -144,14 +159,25 @@ export function getCharacterRoutineText(key: string, ctx?: Record<string, unknow
 
 export function getCharacterProgressSpeechText(stage: CharacterProgressSpeechStage, ctx: CharacterProgressSpeechContext): string {
   const characterMessages = getCharacterDefinition()?.messages;
-  if (shouldUseGenericFallback() && !characterMessages?.progress) {
+  const localizedProgress = getLocalizedCharacterMessages()?.progress;
+  const baseProgress = characterMessages?.progress;
+  // 覆盖层 progress 与基准逐字段合并（kindLabels 浅合并），未翻译字段回退基准文案
+  const mergedProgress =
+    localizedProgress || baseProgress
+      ? {
+          ...baseProgress,
+          ...localizedProgress,
+          kindLabels: { ...baseProgress?.kindLabels, ...localizedProgress?.kindLabels }
+        }
+      : undefined;
+  if (shouldUseGenericFallback() && !mergedProgress) {
     warnInstalledPackMissingMessage('progress', stage);
   }
-  const progressMessages = characterMessages?.progress ?? (shouldUseGenericFallback() ? getGenericMessages().progress : undefined);
+  const progressMessages = mergedProgress ?? (shouldUseGenericFallback() ? getGenericMessages().progress : undefined);
   const labelTemplate = progressMessages?.kindLabels?.[ctx.kind] ?? ctx.fallbackKindLabel ?? ctx.kind;
   const kind = renderCharacterMessageTemplate(labelTemplate, { ...ctx });
   const progress = ctx.progress !== undefined ? Math.round(ctx.progress) : '';
-  const template = progressMessages?.[stage] ?? DEFAULT_PROGRESS_TEMPLATES[stage];
+  const template = progressMessages?.[stage] ?? getSpriteMessageFallback(`progressTemplate.${stage}`);
   return renderCharacterMessageTemplate(template, {
     ...ctx,
     kind,

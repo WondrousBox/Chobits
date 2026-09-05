@@ -1,3 +1,4 @@
+import { getSpriteMessageFallback } from '../messages';
 import { getCharacterProgressSpeechText } from '../messages/character';
 
 export type ProgressSpeechKind = 'download' | 'transcribe' | 'import' | 'workflow' | 'generic';
@@ -82,16 +83,16 @@ function inferKind(message?: string, fallback: ProgressSpeechKind = 'generic'): 
 function getKindLabel(kind: ProgressSpeechKind): string {
   switch (kind) {
     case 'download':
-      return '下载';
+      return getSpriteMessageFallback('progressKind.download');
     case 'transcribe':
-      return '转写';
+      return getSpriteMessageFallback('progressKind.transcribe');
     case 'import':
-      return '导入';
+      return getSpriteMessageFallback('progressKind.import');
     case 'workflow':
-      return '处理';
+      return getSpriteMessageFallback('progressKind.workflow');
     case 'generic':
     default:
-      return '任务';
+      return getSpriteMessageFallback('progressKind.generic');
   }
 }
 

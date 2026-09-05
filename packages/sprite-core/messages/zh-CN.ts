@@ -1,15 +1,14 @@
 /**
- * 消息文案目录 - 中文简体
+ * 消息文案目录 - 中文简体（纯数据文件）
  *
  * 主进程 & 渲染进程共用
  * 包含两类文案：
- * 1. MessageCatalog — 按 MessageCategory 索引，用于消息气泡显示
+ * 1. catalog — 按 MessageCategory 索引，用于消息气泡显示
  * 2. spriteEventMessages — 按 SpriteEventType 索引，用于精灵事件触发时的气泡文案
+ * 查找逻辑（resolveEntry / getSpriteEventText / MessagesProvider）统一在 ./index.ts
  */
 
-import type { MessageCatalog, MessageCategory, MessageProducer, MessagesProvider } from '../types';
-
-const asText = (m: MessageProducer | string, ctx?: any): string => (typeof m === 'function' ? m(ctx) : m);
+import type { MessageCatalog, SpriteMessagesData } from '../types';
 
 // ============================================================================
 // MessageCategory 文案目录（已有 + 补全）
@@ -106,9 +105,7 @@ const catalog: MessageCatalog = {
 // 这些事件没有对应的 MessageCategory，需要独立的文案映射
 // ============================================================================
 
-export type SpriteEventMessageEntry = Array<MessageProducer | string> | MessageProducer | string;
-
-export const spriteEventMessages: Record<string, SpriteEventMessageEntry> = {
+const spriteEventMessages: SpriteMessagesData['spriteEventMessages'] = {
   // ── emotion 情感类 ──
   happy: ['开心~♪', '心情真好~', '嘿嘿~'],
   joy: ['好快乐！', '真开心呀~', '太高兴了~'],
@@ -234,45 +231,7 @@ export const spriteEventMessages: Record<string, SpriteEventMessageEntry> = {
   aiError: ['思考出错了...', 'AI开小差了...', '出了点问题...']
 };
 
-// ============================================================================
-// 统一查找函数
-// ============================================================================
-
-function resolveEntry(entry: SpriteEventMessageEntry | undefined, ctx?: any): string {
-  if (!entry) return '';
-  if (!(entry instanceof Array)) {
-    return asText(entry, ctx);
-  }
-  if (entry.length) {
-    const pick = entry[Math.floor(Math.random() * entry.length)];
-    return asText(pick, ctx);
-  }
-  return '';
-}
-
-export const zhCN: MessagesProvider = {
-  t: (category: MessageCategory, ctx?: any) => {
-    return resolveEntry(catalog[category], ctx);
-  }
+export const zhCNData: SpriteMessagesData = {
+  catalog,
+  spriteEventMessages
 };
-
-/**
- * 按 SpriteEventType 查找文案
- * 先查 spriteEventMessages，再 fallback 到 catalog（MessageCategory 与 SpriteEventType 有重叠部分）
- */
-export function getSpriteEventText(eventType: string, ctx?: any): string {
-  // 先查专用事件文案
-  const eventEntry = spriteEventMessages[eventType];
-  if (eventEntry !== undefined) {
-    const text = resolveEntry(eventEntry, ctx);
-    if (text) return text;
-  }
-  // fallback 到 MessageCategory 文案（交互/状态类事件名与 MessageCategory 重叠）
-  const categoryEntry = catalog[eventType as MessageCategory];
-  if (categoryEntry !== undefined) {
-    return resolveEntry(categoryEntry as SpriteEventMessageEntry, ctx);
-  }
-  return '';
-}
-
-export default zhCN;

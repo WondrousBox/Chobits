@@ -1091,7 +1091,7 @@ await window.chobits.sprite.trigger('celebrate', { message: '太好了！' });
 
 **总计约 150+ 事件类型**。
 
-每个事件类型都有中文气泡文案（`messages/zh-CN.ts` 覆盖）。无对应动画时仅显示气泡文字，有动画时播放动画 + 气泡文字。
+每个事件类型都有多语言气泡文案（`messages/{zh-CN,ja,en}.ts` 纯数据文件覆盖，查找逻辑统一在 `messages/index.ts`）。无对应动画时仅显示气泡文字，有动画时播放动画 + 气泡文字。
 
 ---
 
@@ -1122,7 +1122,7 @@ await window.chobits.sprite.trigger('celebrate', { message: '太好了！' });
 | IPC Handler                        | `packages/sprite-core/handlers/sprite-manager-ipc.ts`         |
 | Event Listener                     | `packages/sprite-core/handlers/sprite-event-listener.ts`      |
 | Sprite Assets                      | `packages/sprite-core/handlers/sprite-assets.ts`              |
-| Messages Catalog                   | `packages/sprite-core/messages/zh-CN.ts`                      |
+| Messages Catalog                   | `packages/sprite-core/messages/index.ts`（逻辑）+ `messages/{zh-CN,ja,en}.ts`（数据） |
 | SpeakService                       | `packages/sprite-core/speak/speak-service.ts`                 |
 | Speak Types                        | `packages/sprite-core/speak/types.ts`                         |
 | Preload Bridge                     | `packages/sprite-core/preload/sprite-bridge.ts`               |
@@ -1141,7 +1141,7 @@ await window.chobits.sprite.trigger('celebrate', { message: '太好了！' });
 ### 添加新事件类型
 
 1. 在 `types.ts` 的 `SpriteEventGroups` 中添加类型名
-2. 在 `messages/zh-CN.ts` 添加对应文案（支持数组随机）
+2. 在 `messages/{zh-CN,ja,en}.ts` 三个语言数据文件中都添加对应文案（支持数组随机），key 对齐由 `test/sprite/messages-alignment.spec.ts` 兜底
 3. 调用：`SpriteManager.getInstance().trigger('myEvent')`
 
 旧 `trigger-mapping` 兼容层已经删除，新事件不需要再新增场景映射。

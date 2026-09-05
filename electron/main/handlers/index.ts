@@ -15,6 +15,7 @@ import { initSherpaHandlers, initSherpaStubHandlers } from '../../../packages/sh
 import { assertSpriteCapabilityUnlocked } from '../../../packages/sprite-core/capability-runtime';
 import { getCharacterDefinition } from '../../../packages/sprite-core/character-service';
 import { initSpriteHandlers, initSpriteManagerHandlers } from '../../../packages/sprite-core/handlers';
+import { setSpriteMessagesLanguage } from '../../../packages/sprite-core/messages';
 import { DEFAULT_SPRITE_ROUTINE_PRESETS, SpritePurposeHistoryStore } from '../../../packages/sprite-core/purpose';
 import {
   SPRITE_EVENT_TYPES,
@@ -27,6 +28,7 @@ import { isFeatureEnabled } from '../feature-flags';
 import { addAllowedResourceRoot } from '../resource-protocol';
 import { initFileHandlers } from './file/ipc-main';
 import { initPreferencesHandlers } from './preferences/ipc-main';
+import { resolveAppLanguage } from './preferences/preferences-store';
 import { initProxyHandlers } from './proxy/ipc-main';
 import { getHttpProxy } from './proxy/proxy';
 import { initShortcutsHandlers } from './shortcuts';
@@ -322,6 +324,8 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
     animationTriggers: SPRITE_EVENT_TYPES,
     history: purposeHistoryStore
   });
+  // 精灵消息目录语言跟随偏好设置（'system' 时按系统 locale 解析）
+  setSpriteMessagesLanguage(resolveAppLanguage());
   await initSpriteManagerHandlers(win, {
     addAllowedResourceRoot,
     registerCharacterPromptProvider: async (resolveCharacterPrompt) => {

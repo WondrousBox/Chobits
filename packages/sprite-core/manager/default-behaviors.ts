@@ -17,6 +17,7 @@ import {
   createSleepyBehavior
 } from '../behavior-engine';
 import { getSpriteCapabilityRuntimeState } from '../capability-runtime';
+import { getSpriteMessageFallback } from '../messages';
 import { getCharacterRoutineText } from '../messages/character';
 import type { SpriteManager } from './sprite-manager';
 import type { SpriteSpontaneousUtteranceActionSource, SpriteSpontaneousUtteranceResult } from './types';
@@ -102,7 +103,7 @@ export function registerDefaultBehaviors(mgr: SpriteManager): void {
 
     idleSleepyRemindedAt = Date.now();
     mgr.playOnce('sleepy');
-    mgr.showToast(getCharacterRoutineText('idle.sleepy.toast', undefined, '有点困了呢...'), { category: 'info', duration: 2000 });
+    mgr.showToast(getCharacterRoutineText('idle.sleepy.toast', undefined, getSpriteMessageFallback('idleSleepy')), { category: 'info', duration: 2000 });
   };
   mgr.registerBehavior(idleSleepyDef);
 
