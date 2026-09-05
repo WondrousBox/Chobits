@@ -45,12 +45,12 @@ const EDGE_VOICES = [
 ];
 
 const DEFAULT_AI_PROVIDER_CONFIG: SpriteSpeakAIProviderConfig = {
-  providerId: 'minimax',
-  model: 'speech-2.8-turbo',
-  voiceId: 'female-shaonv',
+  providerId: 'gpt-sovits',
+  model: 'chii-tts',
+  voiceId: 'chii',
   speechLanguage: 'auto',
   audioSetting: {
-    format: 'mp3',
+    format: 'wav',
     sampleRate: 32000,
     bitrate: 128000,
     channels: 1

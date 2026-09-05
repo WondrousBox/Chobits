@@ -108,9 +108,9 @@ describe('Sprite speak AI Provider config', () => {
     expect(config.rate).toBe(20);
     expect(config.pitch).toBe(0);
     expect(config.aiProvider).toMatchObject({
-      providerId: 'minimax',
-      model: 'speech-2.8-turbo',
-      voiceId: 'female-shaonv'
+      providerId: 'gpt-sovits',
+      model: 'chii-tts',
+      voiceId: 'chii'
     });
     expect(config.realtimeSpeech).toMatchObject({
       enabled: false,

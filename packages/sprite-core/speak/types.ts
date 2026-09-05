@@ -88,12 +88,13 @@ export interface SpriteSpeakConfig {
 }
 
 export const DEFAULT_AI_PROVIDER_SPEAK_CONFIG: SpriteSpeakAIProviderConfig = {
-  providerId: 'minimax',
-  model: 'speech-2.8-turbo',
-  voiceId: 'female-shaonv',
+  providerId: 'gpt-sovits',
+  model: 'chii-tts',
+  voiceId: 'chii',
   speechLanguage: 'auto',
   audioSetting: {
-    format: 'mp3',
+    // 与实际输出一致：GPT-SoVITS 返回 WAV
+    format: 'wav',
     sampleRate: 32000,
     bitrate: 128000,
     channels: 1
@@ -131,7 +132,7 @@ export const DEFAULT_REALTIME_SPEECH_CONFIG: SpriteSpeakRealtimeSpeechConfig = {
 
 export const DEFAULT_SPEAK_CONFIG: SpriteSpeakConfig = {
   enabled: true,
-  engine: 'edge',
+  engine: 'ai-provider',
   serviceType: 'Edge',
   voiceName: 'zh-CN-XiaoxiaoNeural',
   rate: 20,
