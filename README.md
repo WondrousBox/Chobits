@@ -155,8 +155,8 @@ Linux 特别提示：精灵是透明无边框窗口，需要桌面混成器（GN
 
 本项目参考或受益于以下开源项目：
 
-- [WondrousBox/Chobits](https://github.com/WondrousBox/Chobits) —— 本项目的前身与灵感来源，桌面精灵的核心交互与 Live2D 玩法由此而来。
-- [Open-LLM-VTuber](https://github.com/Open-LLM-VTuber/Open-LLM-VTuber) —— 语音交互管线（ASR → LLM → TTS）与 sherpa-onnx 模型选型的重要参考。
+- [WondrousBox/Chobits](https://github.com/WondrousBox/Chobits) —— 本项目的前身，桌面精灵的基础形态与核心交互由此演进而来。
+- [Open-LLM-VTuber](https://github.com/Open-LLM-VTuber/Open-LLM-VTuber) —— Live2D 虚拟形象思路的来源，也是语音交互管线（ASR → LLM → TTS）与 sherpa-onnx 模型选型的重要参考。
 - [k2-fsa/sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) —— 本地语音识别与语音合成引擎（SenseVoice / Kokoro 等模型的运行时）。
 - [RVC-Boss/GPT-SoVITS](https://github.com/RVC-Boss/GPT-SoVITS) —— 角色语音克隆合成，角色说话能力的默认语音后端。
 
