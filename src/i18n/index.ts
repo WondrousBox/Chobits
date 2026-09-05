@@ -62,7 +62,8 @@ export function applyLanguagePreference(preference: LanguagePreference): void {
 }
 
 /**
- * 异步引导：读取用户已保存的语言偏好并应用（不阻塞渲染）
+ * 异步引导：读取用户已保存的语言偏好并应用（不阻塞渲染），
+ * 并订阅语言变更广播——各窗口是独立渲染进程，任一窗口切换语言时其他窗口同步跟随
  */
 export function initI18n(): void {
   void (async () => {
@@ -75,6 +76,14 @@ export function initI18n(): void {
       console.warn('[i18n] 读取语言偏好失败:', error);
     }
   })();
+
+  try {
+    window.chobits.preferences['preferences:onLanguageChange']((language) => {
+      applyLanguagePreference(language);
+    });
+  } catch (error) {
+    console.warn('[i18n] 订阅语言变更失败:', error);
+  }
 }
 
 export default i18n;

@@ -1,5 +1,5 @@
-import type { PreferencesConfig, PreviewMode } from '@packages/common/types/preferences';
-import { ipcRenderer } from 'electron';
+import type { LanguagePreference, PreferencesConfig, PreviewMode } from '@packages/common/types/preferences';
+import { ipcRenderer, type IpcRendererEvent } from 'electron';
 
 export type { PreferencesConfig, PreviewMode } from '@packages/common/types/preferences';
 
@@ -43,5 +43,14 @@ export const preferencesBridge = {
     error?: string;
   }> => {
     return await ipcRenderer.invoke('preferences:get-web-recorder-device-id');
+  },
+
+  /**
+   * 订阅语言变更广播（任意窗口切换语言时，主进程通知所有窗口同步）
+   */
+  'preferences:onLanguageChange': (callback: (language: LanguagePreference) => void): (() => void) => {
+    const listener = (_event: IpcRendererEvent, language: LanguagePreference): void => callback(language);
+    ipcRenderer.on('preferences:language-changed', listener);
+    return () => ipcRenderer.off('preferences:language-changed', listener);
   }
 };
