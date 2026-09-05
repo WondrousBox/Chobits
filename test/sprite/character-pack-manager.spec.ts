@@ -332,6 +332,31 @@ describe('character pack manager', () => {
     });
   });
 
+  it('dedupes an installed pack whose id collides with a builtin pack, preferring builtin', async () => {
+    tempRoot = mkdtempSync(path.join(os.tmpdir(), 'character-pack-manager-'));
+    const builtinRoot = path.join(tempRoot, 'builtin-pack');
+    const userDataDir = path.join(tempRoot, 'user-data');
+    // 同一 pack id 同时以内置和已安装形式存在（如 mao-pro 由用户安装转为内置分发）
+    const installedRoot = path.join(userDataDir, 'data', 'character-packs', 'pack-alpha');
+
+    writePack(builtinRoot, 'pack-alpha', 'Pack Alpha');
+    writePack(installedRoot, 'pack-alpha', 'Pack Alpha');
+    writeJsonFile(path.join(userDataDir, 'data', 'active-character-pack.json'), {
+      version: 1,
+      id: 'pack-alpha',
+      source: 'installed'
+    });
+
+    initCharacterPackManager({
+      userDataDir,
+      builtinPackRootDir: builtinRoot,
+      appVersion: '1.0.0'
+    });
+
+    const packs = await listCharacterPacks();
+    expect(packs.map((pack) => [pack.id, pack.source, pack.isActive])).toEqual([['pack-alpha', 'builtin', true]]);
+  });
+
   it('tracks companion start timestamps per pack and keeps them on reactivation', async () => {
     tempRoot = mkdtempSync(path.join(os.tmpdir(), 'character-pack-manager-'));
     const builtinRoot = path.join(tempRoot, 'builtin-pack');

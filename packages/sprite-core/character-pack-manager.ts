@@ -1702,7 +1702,12 @@ export class CharacterPackManager {
       this.listInstalledPacks(trustRoot)
     ]);
 
-    const packs = [builtinPack, ...extraBuiltinPacks, ...installedPacks]
+    // 与内置包同 ID 的已安装副本不重复展示（内置包优先:随包分发且经过摘要校验）。
+    // 场景:某角色包在历史版本里是用户安装的,后来变为内置(如 mao-pro),升级后两个来源同名并存
+    const builtinIds = new Set([builtinPack, ...extraBuiltinPacks].filter((pack): pack is CharacterPackSummary => !!pack).map((pack) => pack.id));
+    const dedupedInstalledPacks = installedPacks.filter((pack) => !builtinIds.has(pack.id));
+
+    const packs = [builtinPack, ...extraBuiltinPacks, ...dedupedInstalledPacks]
       .filter((pack): pack is CharacterPackSummary => !!pack)
       .sort((left, right) => {
         if (left.source !== right.source) {
