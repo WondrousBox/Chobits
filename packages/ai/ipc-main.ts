@@ -41,7 +41,7 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
     console.warn(`[ai][provider-plugin] ${location}${warning.message}`);
   }
 
-  // 新装用户种子一条内置 vLLM 默认 preset，首开聊天免配置 API Key（幂等）
+  // 新装用户为内置自托管 provider（vLLM / GPT-SoVITS）种子默认 preset，首开聊天/说话免配置 API Key（幂等）
   await seedDefaultProviderPreset();
 
   const chat = new ChatService(win);

@@ -13,6 +13,7 @@ vi.mock('electron', () => ({
   }
 }));
 
+import { gptSovitsDefinition } from '../../packages/ai/providers/builtins/gpt-sovits/definition';
 import { vllmDefinition } from '../../packages/ai/providers/builtins/vllm/definition';
 
 const tempDirs: string[] = [];
@@ -28,7 +29,7 @@ function makeUserDataDir(): string {
   return dir;
 }
 
-function writeExistingVllmPreset(userDataDir: string): void {
+function writeExistingPreset(userDataDir: string, providerId: string): void {
   const configDir = path.join(userDataDir, 'data');
   mkdirSync(configDir, { recursive: true });
   writeFileSync(
@@ -37,9 +38,9 @@ function writeExistingVllmPreset(userDataDir: string): void {
       {
         presets: [
           {
-            id: 'preset-existing-vllm',
-            providerId: 'vllm',
-            name: '我的 vLLM',
+            id: `preset-existing-${providerId}`,
+            providerId,
+            name: '我的自托管服务',
             overrides: {},
             enabledTools: [],
             createdAt: 1,
@@ -71,42 +72,47 @@ afterEach(() => {
 });
 
 describe('seedDefaultProviderPreset', () => {
-  it('seeds a default vllm preset with built-in server config when no preset exists', async () => {
+  it.each([
+    ['vllm', vllmDefinition],
+    ['gpt-sovits', gptSovitsDefinition]
+  ] as const)('seeds a default %s preset with built-in server config when no preset exists', async (providerId, definition) => {
     const seeded = await seedDefaultProviderPreset();
 
-    expect(seeded).toMatchObject({
-      providerId: 'vllm',
+    const preset = seeded.find((item) => item.providerId === providerId);
+    expect(preset).toMatchObject({
+      providerId,
       name: '默认（自托管）'
     });
 
-    const presets = listPresets('vllm');
+    const presets = listPresets(providerId);
     expect(presets).toHaveLength(1);
-    expect(presets[0].id).toBe(seeded!.id);
+    expect(presets[0].id).toBe(preset!.id);
     // 敏感字段不明文落入 preset 记录
-    expect(JSON.stringify(presets[0])).not.toContain(String(vllmDefinition.defaults.config?.apiKey));
+    expect(JSON.stringify(presets[0])).not.toContain(String(definition.defaults.config?.apiKey));
 
     // 内置默认服务器配置写入 preset secrets，与设置页手工创建的同构
-    const secrets = await getPresetSecrets(seeded!.id, ['baseUrl', 'apiKey', 'allowInsecureTls']);
-    expect(secrets).toEqual(vllmDefinition.defaults.config);
+    const secrets = await getPresetSecrets(preset!.id, ['baseUrl', 'apiKey', 'allowInsecureTls']);
+    expect(secrets).toEqual(definition.defaults.config);
   });
 
-  it('does not seed again when a vllm preset already exists', async () => {
-    writeExistingVllmPreset(electronState.userDataDir);
+  it.each(['vllm', 'gpt-sovits'] as const)('does not seed again when a %s preset already exists', async (providerId) => {
+    writeExistingPreset(electronState.userDataDir, providerId);
 
     const seeded = await seedDefaultProviderPreset();
 
-    expect(seeded).toBeUndefined();
-    const presets = listPresets('vllm');
+    expect(seeded.find((item) => item.providerId === providerId)).toBeUndefined();
+    const presets = listPresets(providerId);
     expect(presets).toHaveLength(1);
-    expect(presets[0].id).toBe('preset-existing-vllm');
+    expect(presets[0].id).toBe(`preset-existing-${providerId}`);
   });
 
   it('is idempotent across repeated calls', async () => {
     const first = await seedDefaultProviderPreset();
     const second = await seedDefaultProviderPreset();
 
-    expect(first).toBeDefined();
-    expect(second).toBeUndefined();
+    expect(first).toHaveLength(2);
+    expect(second).toHaveLength(0);
     expect(listPresets('vllm')).toHaveLength(1);
+    expect(listPresets('gpt-sovits')).toHaveLength(1);
   });
 });
