@@ -4,7 +4,7 @@
 	<p><b>叽～</b> 你的 AI 桌面精灵 / 助手 / 工具</p>
 	<p>基于 Electron、Vite 与 React 打造的 AI 桌面助手：跨平台、可扩展、隐私优先。</p>
 	<p>
-		<a href="./README.md">简体中文</a> ｜ <a href="./README.ja.md">日本語</a>
+		<a href="./README.md">简体中文</a> ｜ <a href="./README.ja.md">日本語</a> ｜ <a href="./README.en.md">English</a>
 	</p>
 	<p>
 		<a href="https://madewithlove.org.in"><img alt="Made with Love" src="https://img.shields.io/badge/Made%20with-Love-ff69b4.svg"></a>

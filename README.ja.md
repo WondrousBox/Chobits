@@ -4,7 +4,7 @@
 	<p><b>ちぃ～</b> あなたの AI デスクトップ妖精 / アシスタント / ツール</p>
 	<p>Electron・Vite・React で作られた AI デスクトップアシスタント。クロスプラットフォーム、拡張可能、プライバシー第一。</p>
 	<p>
-		<a href="./README.md">简体中文</a> ｜ <a href="./README.ja.md">日本語</a>
+		<a href="./README.md">简体中文</a> ｜ <a href="./README.ja.md">日本語</a> ｜ <a href="./README.en.md">English</a>
 	</p>
 	<p>
 		<a href="https://madewithlove.org.in"><img alt="Made with Love" src="https://img.shields.io/badge/Made%20with-Love-ff69b4.svg"></a>
