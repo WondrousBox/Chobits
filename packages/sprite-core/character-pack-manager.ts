@@ -212,6 +212,8 @@ export interface CharacterPackEditorSaveResult extends CharacterPackInstallResul
 export interface CharacterPackManagerOptions {
   userDataDir: string;
   builtinPackRootDir: string;
+  /** 额外内置角色包根目录（resources/character-packs），其下每个子目录视作一个 builtin 包 */
+  extraBuiltinPacksRootDir?: string;
   appVersion?: string;
 }
 
@@ -224,6 +226,8 @@ interface ActiveCharacterPackState {
 
 const SUPPORTED_CHARACTER_PACK_FORMAT_VERSION = 1;
 const IMPORT_PREVIEW_CACHE_LIMIT = 24;
+/** 新用户默认激活的内置角色包优先级：mao-pro 优先，chii-default 兜底 */
+const DEFAULT_ACTIVE_BUILTIN_PACK_IDS = ['mao-pro', 'chii-default'];
 const EDITOR_ANIMATION_INDEX_PATH = 'animations/index.json';
 const EDITOR_GALLERY_INDEX_PATH = DEFAULT_CHARACTER_GALLERY_INDEX_PATH;
 const WINDOWS_ABSOLUTE_ARCHIVE_PATH_PATTERN = /^[a-zA-Z]:[\\/]/;
@@ -1671,6 +1675,7 @@ async function ensureGalleryIndexExists(rootDir: string, declaredPath: string): 
 
 export class CharacterPackManager {
   private readonly builtinPackRootDir: string;
+  private readonly extraBuiltinPacksRootDir?: string;
   private readonly installedPacksDir: string;
   private readonly activePackStateFile: string;
   private readonly importPreviewCacheDir: string;
@@ -1681,6 +1686,7 @@ export class CharacterPackManager {
   constructor(options: CharacterPackManagerOptions) {
     const userDataDir = path.resolve(options.userDataDir);
     this.builtinPackRootDir = path.resolve(options.builtinPackRootDir);
+    this.extraBuiltinPacksRootDir = options.extraBuiltinPacksRootDir?.trim() ? path.resolve(options.extraBuiltinPacksRootDir) : undefined;
     this.installedPacksDir = path.join(userDataDir, 'data', 'character-packs');
     this.activePackStateFile = path.join(userDataDir, 'data', 'active-character-pack.json');
     this.importPreviewCacheDir = path.join(userDataDir, 'data', 'character-pack-import-previews');
@@ -1690,9 +1696,13 @@ export class CharacterPackManager {
 
   async listPacks(): Promise<CharacterPackSummary[]> {
     const [trustRoot, activeState] = await Promise.all([this.getTrustRoot(), this.readActiveState()]);
-    const [builtinPack, installedPacks] = await Promise.all([readCharacterPackAtRoot(this.builtinPackRootDir, 'builtin', { trustRoot }), this.listInstalledPacks(trustRoot)]);
+    const [builtinPack, extraBuiltinPacks, installedPacks] = await Promise.all([
+      readCharacterPackAtRoot(this.builtinPackRootDir, 'builtin', { trustRoot }),
+      this.listExtraBuiltinPacks(trustRoot),
+      this.listInstalledPacks(trustRoot)
+    ]);
 
-    const packs = [builtinPack, ...installedPacks]
+    const packs = [builtinPack, ...extraBuiltinPacks, ...installedPacks]
       .filter((pack): pack is CharacterPackSummary => !!pack)
       .sort((left, right) => {
         if (left.source !== right.source) {
@@ -2067,6 +2077,29 @@ export class CharacterPackManager {
     return this.importPreviewCacheDir;
   }
 
+  private async listExtraBuiltinPacks(trustRoot: CharacterPackTrustRoot | null): Promise<CharacterPackSummary[]> {
+    if (!this.extraBuiltinPacksRootDir) {
+      return [];
+    }
+
+    try {
+      const entries = await fsp.readdir(this.extraBuiltinPacksRootDir, { withFileTypes: true });
+      const packs = await Promise.all(
+        entries
+          .filter((entry) => entry.isDirectory())
+          .map((entry) =>
+            readCharacterPackAtRoot(path.join(this.extraBuiltinPacksRootDir!, entry.name), 'builtin', {
+              trustRoot
+            })
+          )
+      );
+
+      return packs.filter((pack): pack is CharacterPackSummary => !!pack);
+    } catch {
+      return [];
+    }
+  }
+
   private async listInstalledPacks(trustRoot: CharacterPackTrustRoot | null): Promise<CharacterPackSummary[]> {
     try {
       const entries = await fsp.readdir(this.installedPacksDir, { withFileTypes: true });
@@ -2261,9 +2294,11 @@ export class CharacterPackManager {
       return persistedState;
     }
 
-    const builtinPack = packs.find((pack) => pack.source === 'builtin');
-    if (builtinPack) {
-      return buildActivePackState(builtinPack, persistedState);
+    // 新用户（或持久状态失配）默认激活：mao-pro 优先，其次 chii-default，再退到任意 builtin 包
+    const builtinPacks = packs.filter((pack) => pack.source === 'builtin');
+    const defaultPack = DEFAULT_ACTIVE_BUILTIN_PACK_IDS.map((id) => builtinPacks.find((pack) => pack.id === id)).find((pack) => !!pack) ?? builtinPacks[0];
+    if (defaultPack) {
+      return buildActivePackState(defaultPack, persistedState);
     }
 
     const firstPack = packs[0];

@@ -100,6 +100,16 @@ export async function getDefaultCharactersDir(): Promise<string> {
   return charactersDir!;
 }
 
+/** 额外内置角色包根目录（resources/character-packs），目录可能不存在（打包未含额外包时返回 undefined） */
+export async function getDefaultCharacterPacksDir(): Promise<string | undefined> {
+  const characterPacksDir = deps().getResourcePath('character-packs');
+  if (!characterPacksDir || !fscb.existsSync(characterPacksDir)) {
+    return undefined;
+  }
+  deps().addAllowedResourceRoot(characterPacksDir);
+  return characterPacksDir;
+}
+
 function normalizeSpriteIndexPath(candidate: string): string {
   const resolved = path.resolve(candidate);
   try {

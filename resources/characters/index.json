@@ -39,21 +39,7 @@
       "autoplay": true,
       "muted": true,
       "playsInline": true,
-      "loop": true,
-      "movement": {
-        "enabled": true,
-        "mode": "walkTo",
-        "speed": 60,
-        "trigger": "behavior",
-        "behaviorSchedule": {
-          "type": "random",
-          "minMs": 10000,
-          "maxMs": 25000,
-          "probability": 0.8,
-          "minIdleMs": 5000
-        },
-        "verticalRange": 0.1
-      }
+      "loop": true
     },
     {
       "meta": {
@@ -72,12 +58,7 @@
       "padding": 100,
       "autoplay": true,
       "muted": true,
-      "playsInline": true,
-      "movement": {
-        "enabled": true,
-        "direction": "random",
-        "speed": 60
-      }
+      "playsInline": true
     },
     {
       "meta": {

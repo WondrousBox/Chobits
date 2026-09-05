@@ -69,7 +69,7 @@ import type { SpriteAnimationPlaylistMode, SpriteAnimationTrigger, SpriteBubbleM
 import { MESSAGE_IPC_CHANNELS } from '../types';
 import { WindowController } from '../window-controller';
 import { notifySpriteCapabilityChanged } from './capability-broadcast';
-import { getDefaultCharactersDir, listSprites, setSpriteAssetsChangeHandler } from './sprite-assets';
+import { getDefaultCharacterPacksDir, getDefaultCharactersDir, listSprites, setSpriteAssetsChangeHandler } from './sprite-assets';
 import { initSpriteEventListener } from './sprite-event-listener';
 
 export interface SpriteManagerDeps {
@@ -1054,6 +1054,7 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
   initCharacterPackManager({
     userDataDir: app.getPath('userData'),
     builtinPackRootDir: charactersDir,
+    extraBuiltinPacksRootDir: await getDefaultCharacterPacksDir(),
     appVersion: app.getVersion()
   });
   deps.addAllowedResourceRoot(getCharacterPackImportPreviewCacheRootDir());

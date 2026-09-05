@@ -30,6 +30,10 @@
       "to": "./characters"
     },
     {
+      "from": "resources/character-packs",
+      "to": "./character-packs"
+    },
+    {
       "from": "resources/sherpa",
       "to": "./sherpa"
     },

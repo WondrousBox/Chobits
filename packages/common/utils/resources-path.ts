@@ -2,7 +2,7 @@ import { app } from 'electron';
 
 import { getRealPath } from './env';
 
-export function getResourcePath(binName: 'sherpa' | 'characters' | 'resources' | 'plugins' | 'providers' | 'logs' | 'html'): string | undefined {
+export function getResourcePath(binName: 'sherpa' | 'characters' | 'character-packs' | 'resources' | 'plugins' | 'providers' | 'logs' | 'html'): string | undefined {
   switch (binName) {
     case 'sherpa':
       return getRealPath(`../sherpa`, `./resources/sherpa`);
@@ -14,6 +14,8 @@ export function getResourcePath(binName: 'sherpa' | 'characters' | 'resources' |
       return getRealPath(`../providers`, `./resources/providers`);
     case 'characters':
       return getRealPath(`../characters`, `./resources/characters`);
+    case 'character-packs':
+      return getRealPath(`../character-packs`, `./resources/character-packs`);
     case 'logs':
       return app.getPath('logs');
     case 'html':
