@@ -8,7 +8,7 @@
 	</p>
 	<p>
 		<a href="https://madewithlove.org.in"><img alt="Made with Love" src="https://img.shields.io/badge/Made%20with-Love-ff69b4.svg"></a>
-		<a href="https://github.com/chenxin199305/Chobits-Chi-Mascot"><img alt="GitHub" src="https://img.shields.io/badge/GitHub-Chobits-181717?logo=github"></a>
+		<a href="https://github.com/chenxin199305/Chobits-Chii-Mascot"><img alt="GitHub" src="https://img.shields.io/badge/GitHub-Chobits-181717?logo=github"></a>
 		<a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-green.svg"></a>
 	</p>
 	<p>
@@ -19,7 +19,7 @@
 	</p>
 </div>
 
-> 💖 このプロジェクトがお役に立ったら、ぜひ [GitHub](https://github.com/chenxin199305/Chobits-Chi-Mascot) で Star をお願いします —— あなたの応援が、ちぃをもっと多くの人に届けます！
+> 💖 このプロジェクトがお役に立ったら、ぜひ [GitHub](https://github.com/chenxin199305/Chobits-Chii-Mascot) で Star をお願いします —— あなたの応援が、ちぃをもっと多くの人に届けます！
 
 ## ✨ 機能一覧
 
@@ -68,7 +68,7 @@
 
 ```bash
 # 1. クローン
-git clone <your-repo-url> && cd Chobits-Chi-Mascot
+git clone <your-repo-url> && cd Chobits-Chii-Mascot
 
 # 2. 依存関係のインストール（postinstall で Electron 用ネイティブモジュールを自動リビルド）
 pnpm install

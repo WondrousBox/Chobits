@@ -8,7 +8,7 @@
 	</p>
 	<p>
 		<a href="https://madewithlove.org.in"><img alt="Made with Love" src="https://img.shields.io/badge/Made%20with-Love-ff69b4.svg"></a>
-		<a href="https://github.com/chenxin199305/Chobits-Chi-Mascot"><img alt="GitHub" src="https://img.shields.io/badge/GitHub-Chobits-181717?logo=github"></a>
+		<a href="https://github.com/chenxin199305/Chobits-Chii-Mascot"><img alt="GitHub" src="https://img.shields.io/badge/GitHub-Chobits-181717?logo=github"></a>
 		<a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-green.svg"></a>
 	</p>
 	<p>
@@ -19,7 +19,7 @@
 	</p>
 </div>
 
-> 💖 如果这个项目对你有帮助，欢迎在 [GitHub](https://github.com/chenxin199305/Chobits-Chi-Mascot) 点个 Star —— 你的支持能让更多人发现小叽！
+> 💖 如果这个项目对你有帮助，欢迎在 [GitHub](https://github.com/chenxin199305/Chobits-Chii-Mascot) 点个 Star —— 你的支持能让更多人发现小叽！
 
 ## ✨ 功能特性
 
@@ -68,7 +68,7 @@
 
 ```bash
 # 1. 克隆
-git clone <your-repo-url> && cd Chobits-Chi-Mascot
+git clone <your-repo-url> && cd Chobits-Chii-Mascot
 
 # 2. 安装依赖（postinstall 会自动为 Electron 重建原生模块）
 pnpm install
