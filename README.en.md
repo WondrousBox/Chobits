@@ -152,7 +152,7 @@ Linux notes: the sprite is a transparent, borderless window and requires a deskt
 
 You can place or update app screenshots in `test/screenshots/` to showcase key features.
 
-## 🙏 Acknowledgments & References
+## 🙏 Acknowledgments
 
 This project is inspired by or benefits from the following open-source projects:
 
