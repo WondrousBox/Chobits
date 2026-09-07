@@ -35,22 +35,6 @@ packages/workflow/
   src/                          公共入口、contracts、application、ports、runtime、nodes、SDK 和 testing
   fixtures/consumer/            仅使用 package exports 的隔离消费者
   scripts/                      build、边界检查、打包和 consumer runner
-  core/                         待在 Phase 11 归入 src 的 DAG、调度、状态机、事件和 registry 实现
-  nodes/                        待归位的通用节点与待删除的宿主业务节点转发
-  plugins/                      Phase 11 待删除的宿主应用 plugin 转发
-  runtime/                      Phase 11 待删除的宿主应用 runtime 转发
-  application-service.ts       定义、运行、取消和历史用例
-  engine.ts                    执行器、校验和运行生命周期
-  schema.ts                    定义和请求 schema
-  types.ts                     Phase 11 待删除的旧类型门面
-  store.ts                     Phase 11 待删除的 SQLite/预设 store 转发
-  ipc-adapter.ts               Phase 11 待删除的 Electron IPC main 转发
-  resource-event-adapter.ts    Phase 11 待删除的资源事件 adapter 转发
-  run-event-coordinator.ts     持久化、广播、进度和生命周期
-  run-persistence-queue.ts     有序持久化队列
-  run-history-retention.ts     数据库运行历史保留策略
-  sanitize.ts                  脱敏和有界快照
-  index.ts                     Phase 11 待删除的 Electron workflow host 转发
 
 packages/workflow-integrations/
   package.json                 私有宿主应用集成包元数据和源码 exports
@@ -70,16 +54,18 @@ electron/main/workflow/
 src/lib/workflow-client.ts    renderer transport 绑定
 ```
 
-当前边界中的优点：
+仓库根下仍存在 Phase 6-10 迁移期的顶层实现、转发和旧聚合入口，但它们不是可用 API。具体删除目标、源码归位顺序和数据迁移门槛只在 [工作流旧版兼容清理计划](../../docs/workflow/legacy-removal-plan.md) 维护，新增代码不得依赖这些路径。
+
+当前保证：
 
 - `pnpm workflow:check` 可以独立检查 manifest、生产导入、公共类型和依赖闭包，`pnpm workflow:build` 可以生成 Node ESM、declarations 和 source maps。
 - 所有公开 exports 的依赖闭包当前包含 53 个源码文件，只允许 Node 内置模块和 `zod`，不会加载 Electron、React、Drizzle 或宿主应用业务模块。
 - `contracts`、`application`、`core`、`ports`、`runtime`、`schema`、`sdk`、`node`、`nodes` 和 `testing` 均有显式 package 子路径。
-- definition、run、validation、event 和 error contract 已从兼容 `types.ts` 拆入公共目录，旧类型路径继续转发。
+- definition、run、validation、event 和 error contract 已从兼容 `types.ts` 拆入公共目录；旧类型转发仍是迁移期临时面。
 - `@chobits/workflow/testing` 提供 workspace 隔离且深拷贝数据的内存 store、fake clock 和 fake ID factory。
 - `pnpm workflow:release:check` 会验证 12 个 exports、ESM/declarations、`sideEffects`、版本、依赖闭包、source map 和生产深层导入。
 - `pnpm workflow:test:consumer` 会解析并检查真实 tarball，在系统临时目录离线安装，以严格 TypeScript 和 JavaScript 只通过公开 API 完成第三方节点/capability 注册、runtime 执行、事件订阅、持久化、取消和销毁。
-- `createWorkflowRegistry` 和 `createWorkflowRuntime` 为每个实例提供独立的节点、plugin、capability、store、clock、ID、limiter 和生命周期；旧默认 registry 只保留为兼容门面。
+- `createWorkflowRegistry` 和 `createWorkflowRuntime` 为每个实例提供独立的节点、plugin、capability、store、clock、ID、limiter 和生命周期；旧默认 registry 只保留到 Phase 11 清理完成。
 - runtime 接受 `scope/trigger/actor/context` 规范请求，并临时兼容映射旧 `defId/def/metadata` 请求。
 - 节点可声明 timeout、幂等 retry 和命名执行组；缺失 capability 会在执行前返回结构化校验错误。
 - `core/` 中的规划、调度和状态函数可以独立测试。
@@ -87,21 +73,16 @@ src/lib/workflow-client.ts    renderer transport 绑定
 - IPC、资源事件和运行事件已有 adapter 接口。
 - 资源读写、AI、local processing、OCR 和 HTML render 均通过私有 capability 注入。
 - 引擎不直接访问 Electron 或数据库。
-- 26 个宿主应用节点和 7 个 plugin 的真实实现均位于私有包；旧节点/plugin/store/adapter 路径保持兼容。
+- 26 个宿主应用节点和 7 个 plugin 的真实实现均位于私有包；旧节点/plugin/store/adapter 路径仍是迁移期转发。
 - 私有 composition 配置 `resource-io`、AI、FFmpeg、local ASR、OCR 和 rendering 跨 run 限流。
 - `pnpm workflow:integrations:check` 同时检查 26 个兼容节点、20 个 capability 节点、7 个 plugin、store 位置和公共包反向依赖。
 - `WorkflowRuntimeFacade` 是 scheduler、Pi workflow tool 和 Electron IPC 的共同应用入口；调用方不读取 engine、registry 或 store 实例。
 - 所有 `wf:*` IPC channel、请求、响应和事件集中在私有 client contract，renderer 页面只调用类型化 `workflowClient`。
-- `electron/main/workflow` 持有真实 composition root，公共包旧 `index.ts` 和 `ipc-adapter.ts` 只保留兼容转发。
+- `electron/main/workflow` 持有真实 composition root，公共包旧 `index.ts` 和 `ipc-adapter.ts` 仍是迁移期转发。
 - renderer 与 Electron workflow host 中已有公开替代项的深层源码导入均已迁移；release check 会阻止回退。
+- 当前 Electron `will-quit` 只 flush 持久化，资源/运行事件 listener 和 engine shutdown 尚未由 facade 统一管理；这是宿主生命周期待补齐项。
 
-Phase 11 前仍存在的临时兼容面：
-
-- 公开 contract 仍保留 `workspaceId`、resource input、宿主 execution context 字段和部分 `any` 字段。
-- runtime 仍映射 `defId/def/metadata`，并保留默认 registry、旧类型别名和宿主应用源码转发门面。
-- 公共 `src/` 入口仍有一部分反向导出顶层实现，物理源码尚未完全归位。
-
-这些内容不会保留到完整 `0.1.x`，而是在首次外部发布前按 Phase 11 清理。存量 definition 必须先显式迁移；AI、媒体和 OCR 的真实运行 fallback 不按源码兼容面直接删除。
+Phase 11 仍需处理 contract 收紧、旧请求映射、默认 registry、类型别名、转发入口、反向导出、源码归位和 definition 数据迁移。存量 definition 必须先显式迁移；AI、媒体和 OCR 的真实运行 fallback 不按源码兼容面直接删除。完整清单见上述清理计划。
 
 ## 公共入口
 
@@ -117,7 +98,7 @@ Phase 11 前仍存在的临时兼容面：
 - `@chobits/workflow/nodes`：End、Condition、JSON parse/stringify 和 TextOutput 通用节点。
 - `@chobits/workflow/testing`：内存 store 等测试实现。
 
-当前 manifest 版本为 `0.1.0`，但尚未外部发布。消费者只应使用 `package.json` 中声明的 exports；包内深层源码路径不属于兼容承诺，并由 consumer 测试确认无法导入。Phase 11 会在首次发布前收紧正式 exports 和 contract；首次发布后才按 SemVer 承诺兼容性。
+当前 manifest 版本为 `0.1.0`，但尚未外部发布。消费者只应使用 `package.json` 中声明的 exports；包内深层源码路径不属于兼容承诺，并由 consumer 测试确认无法导入。Phase 11 会在首次发布前收紧正式 contract；首次发布后才按 SemVer 承诺兼容性。
 
 ## 当前执行模型
 

@@ -16,20 +16,11 @@
 
 数据库 schema、宿主应用 preset ID 和业务 node ID 不跟随 npm package SemVer 自动迁移。它们有独立的数据兼容约束，任何变化都必须显式迁移。
 
-## 3. 首次发布前清理窗口
+## 3. 首次发布前基线
 
-此前 Phase 10 计划在完整 `0.1.x` 中保留旧源码兼容面。由于公共包尚未外部发布，该计划由 Phase 11 取代；以下内容不得进入首次发布基线：
+公共包尚未外部发布，Phase 10 的兼容面只是仓库内部迁移手段，不构成 `0.1.x` 的外部承诺。首次发布前必须完成 Phase 11；源码入口、请求字段、默认 registry、旧类型别名、宿主 context 字段和反向导出等清理范围只在 [工作流旧版兼容清理计划](./legacy-removal-plan.md) 维护，其他文档不重复列清单。
 
-- `defId/def/metadata` legacy run request 映射。
-- 默认全局 registry 和模块级注册函数。
-- 无前缀旧类型别名与 `types.ts` 兼容聚合门面。
-- `packages/workflow/index.ts`、业务节点/plugin/store/adapter 和 OCR runtime 转发文件。
-- 公共 `ExecutionContext` 中的宿主 services、FFmpeg、plugin resource 和资源目录字段。
-- `src/` 对顶层旧实现的反向导出。
-
-用户保存的 definition 不按源码兼容面处理。删除 schema 读取 fallback 前，必须为内置预设和存量 definition 写入显式版本并验证迁移结果。AI provider、媒体和 OCR 的运行 fallback 也必须通过独立行为覆盖决定，不能为了满足“零 legacy”文本检查而误删。
-
-完整范围和批次见 [工作流旧版兼容清理计划](./legacy-removal-plan.md)。
+存量 definition 与 preset 属于数据契约，不按源码兼容面处理。删除 schema 读取 fallback 前，必须先完成显式 `schemaVersion` 数据迁移并验证结果。AI provider、媒体和 OCR 的运行 fallback 需要按行为覆盖单独决定，不能为了满足“零 legacy”检查而误删现行业务容错。
 
 ## 4. 自动发布门槛
 
@@ -57,6 +48,8 @@ Phase 11 将把以下规则加入同一发布门槛：
 - 公共包不存在默认 registry、旧类型别名、宿主 context 字段和顶层实现反向导出。
 - 预设及存量 definition 迁移完成，`schemaVersion` 不再依赖缺失值 fallback。
 - 检查范围覆盖 `packages/ai`、`packages/workflow-integrations`、Electron 和 renderer 的全部 production source。
+
+当前 release checker 只证明技术打包、依赖和 consumer 验收通过，尚未强制 Phase 11 的零旧版兼容债务；在该规则加入前，检查通过不能解释为“可以发布”。
 
 `workflow:test:consumer` 会在系统临时目录中：
 

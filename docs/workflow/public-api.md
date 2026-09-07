@@ -10,7 +10,7 @@
 
 | 入口                            | 用途                                                               |
 | ------------------------------- | ------------------------------------------------------------------ |
-| `@chobits/workflow`             | 定义、运行结果、兼容聚合 API、脱敏和基础类型                       |
+| `@chobits/workflow`             | 定义、运行结果、脱敏和基础类型                                     |
 | `@chobits/workflow/application` | application service 与宿主使用的 `WorkflowRuntimeFacade`           |
 | `@chobits/workflow/contracts`   | 可序列化 definition、request、run、event、validation 和 error 类型 |
 | `@chobits/workflow/core`        | DAG planner、调度策略、状态机、事件和实例 registry                 |
@@ -88,7 +88,7 @@ const record = await runtime.run({
 await runtime.dispose();
 ```
 
-新代码必须使用 `WorkflowRunRequest` 的 `definitionId/definition/input/scope/trigger/actor/context/configOverrides` 字段。当前仓库内的 `defId/def/metadata` 仅是 Phase 11 删除前的临时迁移面，不会进入首次外部发布 contract。
+公共 runtime 新代码必须使用 `WorkflowRunRequest` 的 `definitionId/definition/input/scope/trigger/actor/context/configOverrides` 字段。当前宿主 `WorkflowRuntimeFacade` 和 IPC `run/save/validate/listRuns` 仍有 `metadata`、`defId`、`def` 等旧字段；它们是 Phase 11 删除前的私有迁移面，不会进入首次外部发布 contract。
 
 ## 4. 节点 SDK
 

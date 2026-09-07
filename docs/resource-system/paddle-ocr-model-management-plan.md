@@ -2,11 +2,13 @@
 
 更新时间：2026-06-26
 
+状态：PaddleOCR 的模型清单、runtime、宿主工作流 plugin 和节点已经落地。本文保留产品方案、运行约束和后续验收项；当前代码落点以第 13 节为准，迁移前的 `packages/workflow/*` 路径不再视为现状。
+
 ## 1. 背景与目标
 
-当前图片 OCR 入口已经存在：文件动作菜单会执行 `sample:ocr` 工作流，预设工作流中的 OCR 节点为 `image/ocr`，节点实现位于 `packages/workflow/nodes/ocr.ts`。现实现基于 Tesseract，插件检测依赖 `plugin:tesseract`，但运行时直接 `spawn('tesseract')`，安装路径与实际调用路径并不完全收敛。
+当前图片 OCR 入口包括 `sample:ocr` 工作流中的 `image/ocr`（Tesseract）和 `image/paddle-ocr`（PaddleOCR）。前者的节点实现位于 `packages/workflow-integrations/src/nodes/ocr/ocr.ts`，后者位于 `packages/workflow-integrations/src/nodes/ocr/paddle-ocr.ts`；PaddleOCR 的模型解析与运行时位于 `packages/ocr/`，由宿主 integrations 通过 capability 接入。
 
-计划引入 `ppu-paddle-ocr@6.0.0` 作为新的本地 OCR runtime。该库的 Node 入口支持通过 `PaddleOcrService({ model: { detection, recognition, charactersDictionary } })` 指定本地模型文件；如果不传模型路径，会自动从 `ppu-paddle-ocr-models` 下载并缓存到 `~/.cache/ppu-paddle-ocr`。
+已引入 `ppu-paddle-ocr@6.0.0` 作为新的本地 OCR runtime。该库的 Node 入口支持通过 `PaddleOcrService({ model: { detection, recognition, charactersDictionary } })` 指定本地模型文件；如果不传模型路径，会自动从 `ppu-paddle-ocr-models` 下载并缓存到 `~/.cache/ppu-paddle-ocr`，因此产品实现必须始终传入本地模型路径。
 
 本方案的核心目标：
 
@@ -47,19 +49,19 @@
 
 默认 v6 small 组件：
 
-| 组件 | 文件名 |
-| --- | --- |
-| Detection | `PP-OCRv6_small_det.ort` |
+| 组件        | 文件名                   |
+| ----------- | ------------------------ |
+| Detection   | `PP-OCRv6_small_det.ort` |
 | Recognition | `PP-OCRv6_small_rec.ort` |
-| Dictionary | `ppocrv6_dict.txt` |
+| Dictionary  | `ppocrv6_dict.txt`       |
 
 推荐首批支持的模型：
 
-| 模型 ID | 用途 | 组件 |
-| --- | --- | --- |
-| `ppocr-v6-small` | 默认，多语言，速度/准确率平衡 | `PP-OCRv6_small_det.ort`, `PP-OCRv6_small_rec.ort`, `ppocrv6_dict.txt` |
-| `ppocr-v6-tiny` | 更快，低资源设备 | `PP-OCRv6_tiny_det.ort`, `PP-OCRv6_tiny_rec.ort`, `ppocrv6_tiny_dict.txt` |
-| `ppocr-v6-medium` | 更高准确率，初始化和推理更重 | `PP-OCRv6_medium_det.ort`, `PP-OCRv6_medium_rec.ort`, `ppocrv6_dict.txt` |
+| 模型 ID           | 用途                          | 组件                                                                      |
+| ----------------- | ----------------------------- | ------------------------------------------------------------------------- |
+| `ppocr-v6-small`  | 默认，多语言，速度/准确率平衡 | `PP-OCRv6_small_det.ort`, `PP-OCRv6_small_rec.ort`, `ppocrv6_dict.txt`    |
+| `ppocr-v6-tiny`   | 更快，低资源设备              | `PP-OCRv6_tiny_det.ort`, `PP-OCRv6_tiny_rec.ort`, `ppocrv6_tiny_dict.txt` |
+| `ppocr-v6-medium` | 更高准确率，初始化和推理更重  | `PP-OCRv6_medium_det.ort`, `PP-OCRv6_medium_rec.ort`, `ppocrv6_dict.txt`  |
 
 ## 4. 现有 chobits 可复用能力
 
@@ -150,7 +152,7 @@
 
 ### 5.2 路径校验
 
-runtime 不读取外部 manifest，而是使用 `packages/workflow/runtime/paddle-ocr-models.ts` 中的模型规格解析三件套路径：
+runtime 不读取外部 manifest，而是使用 `packages/ocr/paddle-ocr-models.ts` 中的模型规格解析三件套路径：
 
 ```text
 ppocr-v6-small:
@@ -208,10 +210,7 @@ const service = new PaddleOcrService({
 
 await service.initialize();
 const imageBuffer = await fs.promises.readFile(imagePath);
-const result = await service.recognize(
-  imageBuffer.buffer.slice(imageBuffer.byteOffset, imageBuffer.byteOffset + imageBuffer.byteLength),
-  { flatten: true, noCache }
-);
+const result = await service.recognize(imageBuffer.buffer.slice(imageBuffer.byteOffset, imageBuffer.byteOffset + imageBuffer.byteLength), { flatten: true, noCache });
 ```
 
 实现要点：
@@ -222,14 +221,7 @@ const result = await service.recognize(
 - 并发默认保持 1。后续批量 OCR 可用 `batchRecognize()`，但仍由 workflow 并发控制。
 - OCR 结果建议同时返回结构化结果和纯文本。
 
-workflow 侧保留兼容导出：
-
-```text
-packages/workflow/runtime/paddle-ocr-models.ts
-packages/workflow/runtime/paddle-ocr-runtime.ts
-```
-
-这两个文件只 re-export `packages/ocr` 中的实现，避免旧引用失效；新的基础能力边界以 `packages/ocr` 为准。
+工作流通过 `packages/workflow-integrations/src/adapters/ocr.ts` 调用 `packages/ocr/paddle-ocr-runtime.ts`，并由 `packages/workflow-integrations/src/capabilities/ocr.ts` 暴露类型化 OCR capability。`packages/workflow/runtime/*` 的旧转发不属于新的能力边界，删除安排见 [工作流旧版兼容清理计划](../workflow/legacy-removal-plan.md)。
 
 ### 6.1 主进程服务调用
 
@@ -269,12 +261,12 @@ IPC 通道：
 
 ## 7. Workflow 插件与节点改造
 
-### 7.1 新增插件 `plugin:paddle-ocr`
+### 7.1 插件 `plugin:paddle-ocr`
 
-新增：
+当前实现：
 
 ```text
-packages/workflow/plugins/paddle-ocr.ts
+packages/workflow-integrations/src/plugins/paddle-ocr.ts
 ```
 
 职责：
@@ -287,10 +279,10 @@ packages/workflow/plugins/paddle-ocr.ts
 
 ### 7.2 节点策略
 
-建议先新增节点：
+当前节点实现：
 
 ```text
-packages/workflow/nodes/paddle-ocr.ts
+packages/workflow-integrations/src/nodes/ocr/paddle-ocr.ts
 ```
 
 节点 ID：
@@ -301,14 +293,14 @@ image/paddle-ocr
 
 配置：
 
-| key | 类型 | 默认 | 说明 |
-| --- | --- | --- | --- |
-| `model` | select | `ppocr-v6-small` | 模型资源名 |
-| `strategy` | select | `per-box` | `per-box` / `per-line` / `cross-line` |
-| `processingEngine` | select | `opencv` | `opencv` / `canvas-native` |
-| `maxSideLength` | number | 640 | 检测阶段最长边 |
-| `flatten` | boolean | true | 输出扁平结构 |
-| `noCache` | boolean | false | 单次识别跳过图片结果缓存 |
+| key                | 类型    | 默认             | 说明                                  |
+| ------------------ | ------- | ---------------- | ------------------------------------- |
+| `model`            | select  | `ppocr-v6-small` | 模型资源名                            |
+| `strategy`         | select  | `per-box`        | `per-box` / `per-line` / `cross-line` |
+| `processingEngine` | select  | `opencv`         | `opencv` / `canvas-native`            |
+| `maxSideLength`    | number  | 640              | 检测阶段最长边                        |
+| `flatten`          | boolean | true             | 输出扁平结构                          |
+| `noCache`          | boolean | false            | 单次识别跳过图片结果缓存              |
 
 输入：
 
@@ -320,7 +312,7 @@ image/paddle-ocr
 - `results`: array/object
 - `confidence`: number
 
-`sample:ocr` 更新为使用 `image/paddle-ocr`。旧 `image/ocr` 可暂时保留为 Tesseract 节点，避免破坏用户自定义工作流。
+`sample:ocr` 使用 `image/paddle-ocr`；`image/ocr` 作为已有 Tesseract 节点继续保留，node ID 是现行业务契约，不因 PaddleOCR 接入而删除。
 
 第二阶段再考虑：
 
@@ -357,16 +349,8 @@ Electron builder 需要增加 native/runtime 包白名单：
 
 ```json
 {
-  "asarUnpack": [
-    "node_modules/onnxruntime-node/**/*",
-    "node_modules/ppu-paddle-ocr/**/*",
-    "node_modules/ppu-ocv/**/*"
-  ],
-  "files": [
-    "node_modules/onnxruntime-node/**/*",
-    "node_modules/ppu-paddle-ocr/**/*",
-    "node_modules/ppu-ocv/**/*"
-  ]
+  "asarUnpack": ["node_modules/onnxruntime-node/**/*", "node_modules/ppu-paddle-ocr/**/*", "node_modules/ppu-ocv/**/*"],
+  "files": ["node_modules/onnxruntime-node/**/*", "node_modules/ppu-paddle-ocr/**/*", "node_modules/ppu-ocv/**/*"]
 }
 ```
 
@@ -399,7 +383,7 @@ Electron builder 需要增加 native/runtime 包白名单：
 
 ## 11. 实施步骤
 
-### 阶段 1：模型包与资源管理
+### 阶段 1：模型包与资源管理（已完成）
 
 1. 在 `resources/plugins/plugins.json` 新增 `plugin:paddle-ocr` engine 与 `ppocr-v6-small` / `ppocr-v6-tiny` / `ppocr-v6-medium` models。
 2. 每个 model 使用 `platforms[].files` 声明 det/rec/dict 三个文件。
@@ -407,7 +391,7 @@ Electron builder 需要增加 native/runtime 包白名单：
 4. 验证安装路径为 `{pluginsDir}/paddle-ocr/model/ppocr-v6-small`。
 5. 为每个文件补齐 `sizeBytes` 与 `sha256`，用于进度汇总和完整性校验。
 
-### 阶段 2：runtime 与节点
+### 阶段 2：runtime 与节点（已完成）
 
 1. 安装 `ppu-paddle-ocr` 与 `onnxruntime-node`。
 2. 新增 `paddle-ocr-runtime.ts`，实现模型解析、三件套校验、service cache。
@@ -415,7 +399,7 @@ Electron builder 需要增加 native/runtime 包白名单：
 4. 新增 `image/paddle-ocr` 节点。
 5. 更新 `sample:ocr` 使用 `image/paddle-ocr`，默认模型为 `ppocr-v6-small`。
 
-### 阶段 3：打包与验收
+### 阶段 3：打包与验收（待补齐跨平台实测）
 
 1. 更新 `electron-builder.json` 的 `asarUnpack` 与 `files`。
 2. 本地 dev 模式 OCR 一张中文/英文混合图。
@@ -423,7 +407,7 @@ Electron builder 需要增加 native/runtime 包白名单：
 4. Windows x64 验证 `onnxruntime-node` 与 `ppu-ocv`。
 5. 卸载/删除模型后，运行工作流应出现缺模型提示，而不是自动下载。
 
-### 阶段 4：体验增强
+### 阶段 4：体验增强（待实施）
 
 1. 节点配置动态展示可用模型与推荐策略。
 2. 支持 `v6-tiny` / `v6-medium` 下载。
@@ -439,28 +423,23 @@ Electron builder 需要增加 native/runtime 包白名单：
 - OCR runtime 日志能定位实际使用的模型名称和版本。
 - 打包产物中 `onnxruntime-node` 可加载，`PaddleOcrService.initialize()` 成功。
 
-## 13. 代码落点清单
+## 13. 当前代码落点
 
-预计新增：
+已实现：
 
-- `packages/workflow/runtime/paddle-ocr-runtime.ts`
-- `packages/workflow/plugins/paddle-ocr.ts`
-- `packages/workflow/nodes/paddle-ocr.ts`
+- `packages/ocr/paddle-ocr-models.ts`、`packages/ocr/paddle-ocr-runtime.ts`、`packages/ocr/service.ts`：模型规格、路径校验、service cache 和 OCR 服务入口。
+- `packages/workflow-integrations/src/plugins/paddle-ocr.ts`：PaddleOCR plugin 与缺模型检查。
+- `packages/workflow-integrations/src/nodes/ocr/paddle-ocr.ts`：`image/paddle-ocr` 节点；`packages/workflow-integrations/src/nodes/ocr/ocr.ts` 保留 `image/ocr` Tesseract 节点。
+- `packages/workflow-integrations/src/adapters/ocr.ts`、`packages/workflow-integrations/src/capabilities/ocr.ts`：工作流 OCR capability 适配。
+- `resources/plugins/plugins.json`：`plugin:paddle-ocr` 与 v6 small/tiny/medium 多文件模型清单。
+- `electron-builder.json`、`package.json`、`pnpm-lock.yaml`：native/runtime 依赖和打包白名单。
+- `packages/plugins/index.ts`、`src/pages/SettingsPage/PluginPage.tsx`、`src/pages/SettingsPage/PluginDownloadPage.tsx`：模型目录级删除和前端卸载入口。
 
-预计修改：
+后续仍需验证或单独决策：
 
-- `package.json`
-- `pnpm-lock.yaml`
-- `electron-builder.json`
-- `resources/plugins/plugins.json`
-- `resources/workflows/preset.json`
-- `packages/workflow/index.ts`
-- `packages/workflow/nodes/index.ts`
-
-已补充：
-
-- `packages/plugins/index.ts`：支持模型目录级删除。
-- `src/pages/SettingsPage/PluginPage.tsx` / `src/pages/SettingsPage/PluginDownloadPage.tsx`：删除模型时传入 `deleteFiles: true`。
+- 长期模型托管地址、版本策略和 packaged app 的跨平台加载。
+- OCR capability 的退出销毁是否纳入 Electron workflow composition 的统一 shutdown。
+- 是否把 OCR 结果自动保存为资源子文本，以及 Tesseract 节点的长期产品定位。
 
 ## 14. 仍需确认
 

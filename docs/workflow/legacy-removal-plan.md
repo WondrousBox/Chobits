@@ -23,6 +23,7 @@ Phase 11 尚未实施。本文档是删除范围、顺序和验收门槛，不�
 - 用户数据的兼容责任高于源码路径清理。没有完成存量 definition 审计和迁移时，不删除 schema 读取 fallback。
 - node ID、preset ID 和现行端口语义不是源码兼容债务。需要变化时必须提供显式定义迁移。
 - Phase 11 默认不修改数据库表字段。若实施中确认必须改表，先修改 `electron/main/db/schema.ts`，再执行 `pnpm db:generate` 并检查生成 migration。
+- 当前私有边界检查仍包含字符串匹配和静态 node/plugin mapping；Phase 11 必须改为基于 TypeScript AST 的依赖/声明检查，并从实际源码目录发现待检查模块，避免注释误报或新增节点漏检。
 
 ## 3. 可以删除的源码兼容项
 
@@ -72,7 +73,7 @@ Phase 11 尚未实施。本文档是删除范围、顺序和验收门槛，不�
 
 删除 `ValueType`、`PortSchema`、`NodeSpec`、`NodeConfig`、`NodeInstance`、`Edge`、`ExecutionStatus`、`NodeRunStatus`、`NodeRunState` 等无前缀旧别名，调用方统一使用对应 `Workflow*` 正式类型。`types.ts` 在所有导入迁移后删除，不再作为公共或仓库内部聚合门面。
 
-### 3.4 未使用 façade 与 no-op
+### 3.4 未使用 façade、no-op 与宿主生命周期
 
 删除 `electron/main/workflow/index.ts` 中没有 production 调用的旧 façade：
 
@@ -84,6 +85,8 @@ Phase 11 尚未实施。本文档是删除范围、顺序和验收门槛，不�
 - `listAllWorkflowDefinitions`
 
 保留实际生命周期入口 `initWorkflowSystem`、`getMainWorkflowRuntime` 和 `flushWorkflowPersistence`。删除无调用且不执行任何工作的 `WorkflowStore.flushStore()`。
+
+组合根还必须保存并执行以下 cleanup：资源事件 adapter、运行事件 coordinator 和 `ai:missing-provider` listener 的解绑函数，以及 runtime/engine 的 shutdown。当前 `will-quit` 只调用 `flushWorkflowPersistence()`；flush 会排空待写入队列，但不会停止 engine 或自动移除 listener，不能把它当作完整销毁流程。
 
 ## 4. 公共 ExecutionContext 收紧
 
@@ -143,6 +146,7 @@ AI 节点在 Pi runtime 不可用时仍可能调用 legacy `provider.chat` 等�
 
 - Start 节点把没有 `input.resource` 的整个 input 作为 resource，是待迁移的输入 fallback；完成调用方和预设审计后可以删除。
 - `resource` 输出不是可以直接删除的旧字段。当前预设仍有 4 条 edge 使用该端口，display/resource 节点也消费它。若要收紧，必须同步迁移预设、下游节点和已保存 definition。
+- Start 节点当前还在异步执行路径中调用同步的 `fs.existsSync()`；这是独立的事件循环阻塞问题，应在宿主节点优化中改为异步文件检查，不与 `resource` 契约清理混为一批。
 
 ### 7.3 运行环境容错
 
@@ -154,7 +158,7 @@ AI 节点在 Pi runtime 不可用时仍可能调用 legacy `provider.chat` 等�
 
 - 迁移 `packages/ai`、`@workflow/integrations` 和 Electron composition root 的深层导入。
 - 将公共、私有和 Electron helper 移入其最终所有者目录。
-- 扩展边界检查，覆盖全部 production source，而不只检查 renderer 和部分 Electron 路径。
+- 升级边界检查为 AST/依赖图检查，按实际 production source 自动发现模块，而不只依赖 renderer、部分 Electron 路径和手工 mapping。
 
 ### 批次 2：删除转发文件
 
@@ -189,18 +193,19 @@ AI 节点在 Pi runtime 不可用时仍可能调用 legacy `provider.chat` 等�
 ### 批次 7：零 legacy 发布门槛
 
 - release checker 拒绝旧路径、旧请求字段、默认 registry、旧类型别名和公共宿主字段。
-- 私有边界检查覆盖 `packages/ai`、`packages/workflow-integrations`、Electron、renderer 和测试 fixture 的允许依赖。
+- 私有边界检查覆盖 `packages/ai`、`packages/workflow-integrations`、Electron、renderer 和测试 fixture 的允许依赖，并验证组合根 cleanup/dispose 已接入。
 - 全部验收通过后再确定首次外部发布版本、registry、scope、凭据和 release notes。
 
 ## 9. 验收标准
 
 Phase 11 只有同时满足以下条件才算完成：
 
-- production、test、fixture 和文档对旧源码路径的引用为零。
+- production、test、fixture 和当前状态/使用说明不再引用旧源码路径；本清理计划可以保留待删除路径作为迁移目标清单。
 - `packages/workflow` 只保留 `src/` 中的一套公共实现，不存在兼容转发和反向导出旧实现。
 - runtime 只接受 `WorkflowRunRequest`，IPC/client 使用同一正式字段。
 - 每个 runtime 显式拥有 registry，不存在模块级默认 registry。
 - 公共 exports 不再暴露无前缀旧类型别名和宿主业务字段。
+- Electron composition root 保存并执行所有 adapter/listener cleanup，runtime shutdown 在应用退出前完成；`flush()` 只作为持久化步骤而不是销毁替代。
 - 内置预设和存量用户 definition 都有显式 `schemaVersion`，迁移结果通过回归后才删除 fallback。
 - node ID、preset ID、现行 `resource` 端口和用户运行结果没有静默变化。
 - AI legacy provider 路径只在替代行为矩阵全部通过后删除。

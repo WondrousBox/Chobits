@@ -9,9 +9,9 @@
 - Phase 7 已完成实例 registry/runtime、类型化 capability、通用运行请求、timeout/retry/idempotency、命名执行组限流和确定性测试工具。
 - Phase 8 已完成宿主应用工作流集成包、全部业务节点/plugin、资源读写、AI、local processing、OCR、rendering capability、SQLite/预设 store、composition 和执行组配置迁移。
 - Phase 9 已完成 Electron composition root、runtime facade 注入、共享 IPC contract 和类型安全 renderer client。
-- Phase 10 已完成 12 个 exports 冻结、通用节点子路径、生产深层导入迁移、release/tarball/type consumer 自动验收，并曾建立发布前兼容策略。
+- Phase 10 已完成 12 个 exports 冻结、通用节点子路径、生产深层导入迁移和 release/tarball/type consumer 自动验收；当时的兼容窗口仅用于仓库内部迁移。
 - Phase 11 待实施旧源码转发、legacy request、默认 registry、宿主 context 字段和数据读取 fallback 清理，并完成公共源码物理归位。
-- 当前公共包已达到技术发布边界，但首次外部发布必须等待 Phase 11 的“零旧版兼容债务”验收。
+- 当前公共包已达到技术打包和 consumer 验收边界，但这不等于可发布；首次外部发布必须等待 Phase 11 的“零旧版兼容债务”验收。
 - 详细实施批次见 [工作流系统优化实施计划](./implementation-plan.md)。
 
 ## 2. 架构决策
@@ -133,7 +133,7 @@ packages/workflow-integrations/
     composition.ts
 ```
 
-该包命名为 `@workflow/integrations` 并设置 `private: true`。名称保持产品中性，但实现仍属于当前宿主应用，不是公共内核的一部分。它负责：
+该包命名为 `@workflow/integrations` 并设置 `private: true`。名称保持产品中性，但实现仍属于当前 Electron 宿主应用，不是公共内核的一部分，也不是可脱离仓库复制安装的独立发布包。它负责：
 
 - workspace、folder、resource repositories。
 - AI provider、preset、secret、Pi runtime 和 usage。
@@ -151,6 +151,8 @@ Phase 8 已完整建立该私有包：
 - `composition.ts` 统一创建 capability resolver 与执行组 limiter；`resource-io`、AI、FFmpeg、local ASR、OCR 和 rendering 均有实际限制。
 - 私有边界检查强制公共源码不反向导入该包、业务兼容文件不重新承载实现、能力节点声明 token，且私有节点不再读取 `ExecutionContext.services`。
 - `ipc/` 集中维护宿主应用的 `wf:*` channel、请求、响应、事件和 transport-neutral renderer client；公共包只提供 `WorkflowRuntimeFacade`。
+
+当前 integrations 对 `packages/ai`、`packages/ocr`、`packages/common` 等兄弟目录存在相对路径依赖，这是宿主 monorepo 的内部布局约束，不属于可复用包 API。若未来要把 integrations 单独共享，必须先把这些依赖提升为有明确 manifest 的宿主包，或改为由 host 注入的 ports/capabilities。
 
 `@chobits/workflow/nodes` 已公开 End、Condition、JSON parse/stringify 和 TextOutput。当前 Start 节点仍在私有包中，因为既有 `core/start` 同时承担宿主应用 resource/folder 输入补全；外部消费者使用 SDK 定义自己的 Start。后续若提供公共 Start，应新增纯通用实现并通过兼容组合保留现有宿主应用行为，不能直接改变既有节点语义。
 
@@ -242,6 +244,12 @@ await runtime.dispose();
 - 导入公共包不会产生 Electron handler 注册等副作用。
 - 宿主控制 runtime 创建和销毁顺序。
 
+### 7.1 宿主组合根生命周期
+
+公共 runtime 的 `dispose()` 会停止新运行、取消活动运行并等待清理。当前 Electron facade 仍只暴露 `flushPersistence()`，而 `electron/main/workflow/composition-root.ts` 注册的资源事件、运行事件和 `ai:missing-provider` listener 没有统一保存解绑句柄；`will-quit` 目前只 flush 持久化队列，不会停止 engine 或移除这些 listener。这是宿主生命周期待补齐项，应在首次外部发布前由组合根提供明确的 shutdown/dispose 顺序。
+
+应用层使用一个主进程 runtime 是有意的架构选择，不等同于公共包只能有单例。workspace 隔离通过正式 `scope` 和 store 查询完成；只有在未来引入独立进程或不同权限域时，才需要额外创建 runtime 实例。
+
 ## 8. 运行请求
 
 Phase 7 已用规范 contract 将执行输入和宿主上下文分开：
@@ -276,7 +284,7 @@ interface WorkflowRunRequest {
 - AI tool -> `trigger.type = agent`
 - 编辑器和资源页 -> `trigger.type = manual`
 
-当前 `defId/def/metadata` 请求仍由兼容 adapter 映射。Phase 11 会先把 IPC、renderer 和触发方迁到 `definitionId/definition/context`，再删除该内存兼容映射；这项请求迁移本身不要求数据库升级。
+当前私有 IPC contract 的 `run/save/validate/listRuns` 仍使用 `defId/def/metadata` 等旧字段，由兼容 adapter 映射。Phase 11 会先把 IPC、renderer 和触发方统一迁到 `definitionId/definition/context`，再删除内存兼容映射；这项请求迁移本身不要求数据库升级。
 
 ## 9. Ports 与 Capabilities
 
@@ -422,7 +430,7 @@ IPC 是传输 adapter。公共包输出 runtime facade 和通用工作流类型�
 5. 执行、取消并订阅一次完整运行。
 6. 检查 tarball 不包含源码路径、缓存、数据库或宿主配置。
 
-Phase 10 已将这些要求实现为 `pnpm workflow:release:check` 和 `pnpm workflow:test:consumer`。tarball 检查解析实际 archive，类型 consumer 使用 `skipLibCheck: false`，深层 `src/dist` 导入必须由 exports 拒绝。Phase 11 还会增加零 legacy 检查。完整规则见 [工作流发布与版本策略](./release-and-versioning.md)。
+Phase 10 已将这些要求实现为 `pnpm workflow:release:check` 和 `pnpm workflow:test:consumer`。tarball 检查解析实际 archive，类型 consumer 使用 `skipLibCheck: false`，深层 `src/dist` 导入必须由 exports 拒绝。当前这些检查不覆盖全部旧版兼容债务，Phase 11 还会增加零 legacy 检查。完整规则见 [工作流发布与版本策略](./release-and-versioning.md)。
 
 ## 15. 数据与兼容策略
 

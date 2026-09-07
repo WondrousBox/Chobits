@@ -30,16 +30,16 @@ Phase 1 至 Phase 10 已将工作流从“主进程内可运行的功能集合�
 ### Phase 10 完成状态
 
 - `packages/workflow` 已完成独立 manifest/build、12 个受控 exports、公共 contract、实例 runtime 和真实 tarball JavaScript/TypeScript consumer。
-- 新 runtime/registry 已使用实例生命周期，旧模块级默认 registry 只作为宿主应用兼容门面保留。
+- 新 runtime/registry 已使用实例生命周期；迁移期仍保留的默认 registry、旧类型和转发入口只作为内部兼容面，完整清单见 [工作流旧版兼容清理计划](./legacy-removal-plan.md)。
 - 公开请求已支持通用 scope/context，但类型仍保留 workspace、resource input 和部分 `any` 兼容字段。
-- 26 个宿主应用节点、7 个 plugin、SQLite/预设 store、资源/AI/OCR/rendering adapters 已迁入私有包；旧业务路径只保留兼容转发。
+- 26 个宿主应用节点、7 个 plugin、SQLite/预设 store、资源/AI/OCR/rendering adapters 已迁入私有包；旧业务路径仍是迁移期转发，尚未达到首次发布前的清理门槛。
 - 公共 runtime 与工作流集成层均完成边界检查；宿主 composition 已配置 resource I/O、AI、FFmpeg、ASR、OCR 和 rendering 执行组。
 - 公共 `WorkflowRuntimeFacade` 已成为 Electron IPC、scheduler 和 Pi workflow tool 的共同应用入口，宿主通过显式注入提供实例。
-- Electron composition root 已迁入 `electron/main/workflow`；旧 `packages/workflow/index.ts` 和 `ipc-adapter.ts` 只保留兼容转发。
+- Electron composition root 已迁入 `electron/main/workflow`；旧 `packages/workflow/index.ts` 和 `ipc-adapter.ts` 仍是迁移期转发，尚未删除。
 - 19 个 invoke 通道和 4 个事件通道已集中到共享 IPC contract，renderer 通过类型安全 client 使用，不再分散维护 `wf:*` IPC 字符串。
 - production renderer 和 Electron workflow host 已迁移到公开 package exports；release check 阻止重新引入已有公开替代项的深层导入。
 - manifest、ESM/declarations、side effects、source map、依赖闭包、tarball 白名单和禁止深层导入均有自动验收。
-- Phase 10 当时建立了 `0.1.x` 兼容窗口；由于公共包尚未外部发布，Phase 11 将在首次发布前迁移调用方和数据并删除这些内部兼容面。
+- Phase 10 的 `0.1.x` 兼容窗口是历史决策。公共包尚未外部发布，当前策略是先完成 Phase 11 的调用方迁移、数据迁移和兼容面删除，再确定首次发布版本。
 
 ## 3. 目标架构
 
@@ -206,7 +206,7 @@ React / scheduler / AI tool / Electron IPC
 - scheduler 和 AI workflow tool 改为接收 runtime facade，继续由各自领域管理触发、等待、后台执行和结果格式。
 - 建立共享 IPC channel/request/result/event contract 和 renderer client。
 - React editor 只依赖定义、node manifest 和 client contract，不深层导入 runtime 内部文件。
-- 保留兼容门面，在调用方完成迁移前不一次性删除旧入口。
+- 迁移期保留兼容门面，但删除范围、顺序和验收只在 [工作流旧版兼容清理计划](./legacy-removal-plan.md) 维护。
 
 验收标准：
 
@@ -222,13 +222,13 @@ React / scheduler / AI tool / Electron IPC
 - 验证第三方节点、capability、store、运行、取消和事件订阅只依赖公开 exports。
 - 增加 package 边界、类型、exports、side effects 和依赖闭包测试。
 - 补齐 API、节点 SDK、adapter 和版本兼容文档。
-- 迁移 production 调用方；兼容门面按已声明窗口保留，并在兼容期结束且移除门槛满足后删除。
+- 迁移 production、test、fixture 和文档调用方；完成迁移后按清理计划删除内部兼容面。
 
 验收标准：
 
 - 独立消费者不引用宿主应用源码即可完成一轮工作流执行和取消。
 - tarball 不包含数据库、缓存、宿主配置或未声明内部源码。
-- 公共 API、版本策略和兼容窗口有明确文档，所有包化验收项通过。
+- 公共 API、版本策略和首次发布前清理门槛有明确文档，所有包化验收项通过。
 
 ### Phase 11：旧版兼容清理与源码归位（待实施）
 
@@ -238,6 +238,7 @@ React / scheduler / AI tool / Electron IPC
 - 删除业务节点、plugin、store、adapter、OCR runtime 和 host 入口转发文件。
 - IPC、renderer 和触发方统一使用 `definitionId/definition/context`，删除 legacy request。
 - 删除默认 registry、旧类型别名、未使用 façade 和 no-op。
+- 补齐 Electron composition 的 adapter/listener cleanup 与 runtime shutdown；`flush()` 只负责排空持久化队列。
 - 将 FFmpeg、plugin resource、资源目录和资源身份从公共 `ExecutionContext` 迁入私有 capability 或规范 `scope/context`。
 - 为内置预设和存量 definition 显式写入 `schemaVersion`，验证数据迁移后删除缺失版本 fallback。
 - 审计 AI provider 和 Start 输入 fallback；只删除已有完整替代覆盖的旧业务路径。
@@ -248,6 +249,7 @@ React / scheduler / AI tool / Electron IPC
 - 公共包只保留 `src/` 中的一套实现，仓库内旧源码路径引用为零。
 - production、test、fixture 和文档只使用正式请求、实例 registry 和 `Workflow*` 类型。
 - 公共 `ExecutionContext` 不固定承载宿主服务，能力全部通过明确 port/capability 注入。
+- Electron composition root 能在退出前解绑事件、停止 runtime，并区分 shutdown 与持久化 flush。
 - 预设与用户 definition 数据迁移不会改变 node ID、preset ID、edge、workspace 归属和运行结果。
 - `resource` 现行端口和环境容错不被误判为旧兼容；AI fallback 只有在行为矩阵通过后删除。
 - 全部工作流检查、消费者检查、类型检查、定向测试、lint、Prettier 和 diff 检查通过。
@@ -314,7 +316,7 @@ pnpm exec vitest run
 - [completed] Phase 7：registry/runtime 实例隔离、capability system、通用运行请求、timeout/retry/idempotency、命名执行组限制、测试 fakes 和 tarball runtime consumer 均已完成。
 - [completed] Phase 8：私有包、26 个业务节点、7 个 plugin、全部 capability adapters、SQLite/预设 store、composition、执行组和兼容边界均已完成。
 - [completed] Phase 9：公共 runtime facade、scheduler/Pi runtime 注入、Electron composition root、共享 IPC contract 和类型安全 renderer client 均已完成。
-- [completed] Phase 10：公开 nodes/exports、生产导入迁移、manifest/ESM/declaration/side-effects/tarball 验收、严格类型 consumer、版本文档和兼容窗口均已完成。
+- [completed] Phase 10：公开 nodes/exports、生产导入迁移、manifest/ESM/declaration/side-effects/tarball 验收、严格类型 consumer 和版本文档均已完成；其中兼容窗口仅是历史迁移决策。
 - [pending] Phase 11：旧版兼容清理、源码归位、ExecutionContext 去宿主化、definition 数据迁移、业务 fallback 审计和零 legacy 发布门槛。
 
 ## 8. Phase 6 实施记录
@@ -526,7 +528,7 @@ pnpm db:generate                            not run (no database schema changes)
 
 本节保留 Phase 10 完成时的决策和验证原貌。其中 `0.1.x` 兼容窗口是当时的发布方案；公共包在尚未外部发布的前提下已由 Phase 11 决策取代，不能再作为当前保留旧入口的依据。
 
-### 发布边界、消费者验收与兼容策略（已完成）
+### 发布边界与消费者验收（已完成）
 
 - 新增 `@chobits/workflow/nodes`，公开 End、Condition、JSON parse/stringify 和 TextOutput 五个无宿主依赖节点；宿主应用 resource-aware Start 继续留在私有包，不改变既有 `core/start` 语义。
 - production renderer 的工作流定义、draft、run 和 validation 类型统一迁到 `@chobits/workflow`；Electron workflow host 的 application、engine、registry、schema、sanitize、类型和通用节点改用公开 exports。
@@ -535,7 +537,7 @@ pnpm db:generate                            not run (no database schema changes)
 - 新增 tar archive 结构校验，拒绝越界路径、软链接、源码、fixture、script、cache、数据库和环境文件；包上限固定为 256 个文件、解压后 5 MiB。
 - 隔离 consumer 会离线安装真实 tarball，在 `skipLibCheck: false` 下编译 TypeScript，并验证第三方节点、capability、store、运行、取消、事件、持久化、dispose 和深层导入拒绝。
 - 将 Node declarations 所需的 `@types/node` 声明为 package dependency，消费者不需要依赖宿主应用根仓库提供类型环境。
-- 新增公共 API/节点 SDK/adapter 指南和发布/版本策略，明确 `0.1.x` 内不破坏 exports；legacy request、默认 registry 和宿主应用源码门面最早在 `0.2.0` 且满足生产导入清零、一次应用发布周期和迁移说明后移除。
+- 新增公共 API/节点 SDK/adapter 指南和发布/版本策略；迁移期旧入口的删除条件随后统一收敛到 Phase 11 清理计划。
 - 新增根命令 `pnpm workflow:release:check`。该命令和 consumer 只构建、打包并使用系统临时目录，不发布 package、不启动 Electron，也不执行数据库操作。
 
 Phase 10 完成验证：
@@ -556,7 +558,7 @@ pnpm dev                                    not run
 pnpm db:generate                            not run (no database schema changes)
 ```
 
-兼容源码门面在本阶段没有强制删除，因为此前承诺的兼容窗口刚建立。production 已不再通过 repository alias 使用公共类型或实现，保留门面也不会进入 tarball；按移除门槛处理比立即删除更符合版本兼容策略。
+兼容源码门面在本阶段没有强制删除，production 已不再通过 repository alias 使用公共类型或实现，保留门面也不会进入 tarball。它们现在只作为待清理的内部迁移面，不能被解释为首次发布后的兼容承诺。
 
 ## 13. Phase 1-5 已完成记录
 

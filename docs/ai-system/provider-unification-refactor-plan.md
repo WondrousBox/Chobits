@@ -4,6 +4,8 @@
 
 本文档用于指导 `packages/ai` 的 Provider 管理体系重构。目标不是一次性重写全部 AI 能力，而是把当前分散在多处的 Provider 元数据、模型清单、配置 schema、运行时适配逻辑，收敛成一套统一且可扩展的管理方式，为后续“内建 Provider + 预设 + 插件扩展 Provider”打下稳定基础。
 
+路径说明：工作流 AI 节点已迁入 `packages/workflow-integrations/src/nodes/ai/`。下文 Phase 记录中出现的 `packages/workflow/nodes/*` 是迁移前历史路径，仅用于说明当时的改造步骤。
+
 ## 0. 当前进度快照
 
 截至 2026-03-17，当前分支的 Provider 统一化状态如下：
@@ -52,8 +54,8 @@
   - 保存运行时适配逻辑，同时又重复保存默认模型、schema fallback 等信息。
 - 历史 provider/model 目录
   - 过去保存过 Provider 卡片、内建模型与旧枚举，现已删除。
-- `packages/workflow/nodes/ai-workflow-utils.ts`
-  - 直接读取 `resources/providers/*.models.json`，绕过 Provider registry。
+- `packages/workflow-integrations/src/nodes/ai/ai-workflow-utils.ts`（历史问题）
+  - 早期曾直接读取 `resources/providers/*.models.json`，绕过 Provider registry；该读取路径已在 Phase 3 收口。
 
 这会带来几个直接问题：
 
@@ -142,13 +144,7 @@ Renderer、Workflow、Pi runtime、后台任务、设置页，不允许再直接
 建议引入统一类型：
 
 ```ts
-export type ProviderProtocolKind =
-  | 'openai'
-  | 'openai-compatible'
-  | 'anthropic'
-  | 'gemini'
-  | 'ollama'
-  | 'custom';
+export type ProviderProtocolKind = 'openai' | 'openai-compatible' | 'anthropic' | 'gemini' | 'ollama' | 'custom';
 
 export type ProviderSource = 'builtin' | 'plugin';
 
@@ -449,11 +445,11 @@ export const openaiDefinition: ProviderDefinition = {
     label: 'OpenAI',
     description: '...',
     icon: 'providers/icons/openai.svg',
-    website: 'https://openai.com',
+    website: 'https://openai.com'
   },
   protocol: {
     kind: 'openai',
-    baseUrl: 'https://api.openai.com/v1',
+    baseUrl: 'https://api.openai.com/v1'
   },
   capabilities: {
     chat: true,
@@ -462,7 +458,7 @@ export const openaiDefinition: ProviderDefinition = {
     musicGeneration: false,
     speechSynthesis: false,
     transcribe: true,
-    modelListing: true,
+    modelListing: true
   },
   defaults: {
     models: {
@@ -472,8 +468,8 @@ export const openaiDefinition: ProviderDefinition = {
       // Optional audio-output defaults are declared only when the provider supports them.
       // musicGeneration: 'music-2.6',
       // speechSynthesis: 'speech-2.8-turbo',
-      transcribe: 'gpt-4o-mini-transcribe',
-    },
+      transcribe: 'gpt-4o-mini-transcribe'
+    }
   },
   schema: {
     id: 'openai',
@@ -482,16 +478,16 @@ export const openaiDefinition: ProviderDefinition = {
     fields: [
       { key: 'apiKey', label: 'API Key', type: 'password', required: true },
       { key: 'baseUrl', label: 'Base URL', type: 'text' },
-      { key: 'model', label: '默认模型', type: 'text' },
-    ],
+      { key: 'model', label: '默认模型', type: 'text' }
+    ]
   },
   models: {
     strategy: 'hybrid',
-    items: openaiModels,
+    items: openaiModels
   },
   runtime: {
-    mode: 'driver',
-  },
+    mode: 'driver'
+  }
 };
 ```
 
@@ -608,7 +604,7 @@ export function createProviderRuntime(definition: ProviderDefinition): ProviderR
   return {
     createAdapter(definition) {
       return new SpecialProviderAdapter(definition);
-    },
+    }
   };
 }
 ```
@@ -765,7 +761,7 @@ export function createProviderRuntime(definition: ProviderDefinition): ProviderR
 
 - `ipc-main.ts` 改为调用 `ProviderService`
 - `schema-loader.ts` 和 `models-loader.ts` 先变兼容壳，当前已删除
-- `workflow/nodes/ai-workflow-utils.ts` 删除对 `resources/providers/*.models.json` 的直接读取
+- `workflow-integrations/src/nodes/ai/ai-workflow-utils.ts` 删除对 `resources/providers/*.models.json` 的直接读取
 - `runtime/pi/model-resolver.ts`、`session-service.ts` 统一从 ProviderService 取 default models / schema / aliases
 
 完成标志：

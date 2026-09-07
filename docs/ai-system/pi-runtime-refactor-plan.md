@@ -5,6 +5,8 @@
 本文档保留原文件名，当前用途已经从“分波次迁移计划”切换为“最终收口说明”。
 Pi runtime 的主链路改造已经完成，后续继续演进时请直接以这里的当前状态为准，而不是再按旧的 Wave 历史记录理解实现。
 
+路径说明：本文早期 workflow 接线记录中的 `packages/workflow/nodes/*` 是私有 integrations 迁移前的历史落点；当前宿主工作流节点位于 `packages/workflow-integrations/src/nodes/ai/`。
+
 ## 完成情况评估
 
 以本文档描述的重构目标来看，当前可以判定为“架构收口已完成”：
@@ -105,7 +107,7 @@ Pi runtime 的主链路改造已经完成，后续继续演进时请直接以这
 
 ### 5. Workflow 与 Renderer 接线
 
-- `packages/workflow/nodes/ai-workflow-utils.ts`
+- `packages/workflow-integrations/src/nodes/ai/ai-workflow-utils.ts`
   - workflow 统一通过 preset-first helper 构造 request
   - 动态配置、模型列表、provider context 读取都已经接到 canonical preset 语义
 - `src/pages/ChatPage/hooks/useProvidersPresets.ts`
