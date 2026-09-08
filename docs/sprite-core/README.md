@@ -19,6 +19,7 @@
 > - `WindowController` 仅剩 timer orchestration / scheduler 抽象可继续收口
 > - `sprite:persona:addXP` / `changeFavor` / `unlockAchievement` 等 legacy 兼容入口后续可按调用面逐步下线
 > - 高阶 timed media / preview bridge follow-up
+> - Three.js VRM 展示后端：详见 [three-vrm 集成实施计划](./three-vrm-integration-plan.md)
 > - Purpose + Routine 连续动作编排：详见 [设计文档](./sprite-purpose-routine-orchestration-plan.md) 与 [实施方案](./sprite-purpose-routine-implementation-plan.md)
 >
 > **2026-04-30 更新**：Purpose + Routine 已完成 Phase 1-2.5 第一版：基础目的/队列/routine 运行时、预设 routine、`sprite:purpose:*` IPC、`playId` 动画完成等待、routine 生命周期展示锁、状态机动画展示锁已接入。
