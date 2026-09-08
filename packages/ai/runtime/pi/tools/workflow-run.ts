@@ -7,35 +7,35 @@ import type { PiSessionToolContext } from '../tool-context';
 import { waitForLongTaskOrBackground } from './long-task-control';
 import { createJsonToolResult } from './result';
 
-async function resolveWorkflowMetadata(toolContext: PiSessionToolContext, workflowInput?: Record<string, any>): Promise<Record<string, any>> {
-  const metadata: Record<string, any> = {};
+async function resolveWorkflowContext(toolContext: PiSessionToolContext, workflowInput?: Record<string, any>): Promise<Record<string, any>> {
+  const context: Record<string, any> = {};
   const resourceId = workflowInput?.resourceId;
 
   if (resourceId) {
     try {
       const resource = await toolContext.resourcesRepo.getById(resourceId);
       if (resource) {
-        if (resource.workspaceId) metadata.workspaceId = resource.workspaceId;
-        if (resource.folderId) metadata.folderId = resource.folderId;
+        if (resource.workspaceId) context.workspaceId = resource.workspaceId;
+        if (resource.folderId) context.folderId = resource.folderId;
       }
     } catch (error) {
-      console.warn('[workflowRunTool] Failed to resolve resource metadata:', error);
+      console.warn('[workflowRunTool] Failed to resolve resource context:', error);
     }
   }
 
-  if (!metadata.workspaceId) {
+  if (!context.workspaceId) {
     try {
       const { WorkspacesRepo } = await import('../../../../common/db');
       const workspace = await WorkspacesRepo.getDefault();
       if (workspace?.id) {
-        metadata.workspaceId = workspace.id;
+        context.workspaceId = workspace.id;
       }
     } catch (error) {
       console.warn('[workflowRunTool] Failed to resolve default workspace:', error);
     }
   }
 
-  return metadata;
+  return context;
 }
 
 interface WorkflowSummary {
@@ -212,9 +212,9 @@ export function createPiWorkflowRunTool(toolContext: PiSessionToolContext): Tool
 
       if (action === 'list') {
         try {
-          const metadata = await resolveWorkflowMetadata(toolContext);
+          const context = await resolveWorkflowContext(toolContext);
           if (!workflowRuntime) throw new Error('Workflow runtime is not available.');
-          const definitions = await workflowRuntime.listDefinitions(metadata.workspaceId);
+          const definitions = await workflowRuntime.listDefinitions(context.workspaceId);
           const workflows = definitions.filter((definition) => definition.id !== 'blank').map(extractWorkflowSummary);
           return createJsonToolResult({ success: true, workflows, total: workflows.length });
         } catch (error: any) {
@@ -228,9 +228,9 @@ export function createPiWorkflowRunTool(toolContext: PiSessionToolContext): Tool
         }
 
         try {
-          const metadata = await resolveWorkflowMetadata(toolContext);
+          const context = await resolveWorkflowContext(toolContext);
           if (!workflowRuntime) throw new Error('Workflow runtime is not available.');
-          const definitions = await workflowRuntime.listDefinitions(metadata.workspaceId);
+          const definitions = await workflowRuntime.listDefinitions(context.workspaceId);
           const normalizedQuery = query.toLowerCase();
           const results = definitions
             .filter((definition) => definition.id !== 'blank')
@@ -269,9 +269,9 @@ export function createPiWorkflowRunTool(toolContext: PiSessionToolContext): Tool
             return createJsonToolResult(guardResolution.details);
           }
 
-          const metadata = await resolveWorkflowMetadata(toolContext, workflowInput || {});
+          const context = await resolveWorkflowContext(toolContext, workflowInput || {});
           if (!workflowRuntime) throw new Error('Workflow runtime is not available.');
-          const definition = await workflowRuntime.getDefinition(workflowId, metadata.workspaceId);
+          const definition = await workflowRuntime.getDefinition(workflowId, context.workspaceId);
           if (!definition) {
             return createJsonToolResult({
               success: false,
@@ -281,11 +281,8 @@ export function createPiWorkflowRunTool(toolContext: PiSessionToolContext): Tool
           }
 
           const runInput: Record<string, any> = { ...(workflowInput || {}) };
-          if (configOverrides) {
-            runInput.__configOverrides__ = configOverrides;
-          }
 
-          console.log('[workflowRunTool] run metadata:', metadata);
+          console.log('[workflowRunTool] run context:', context);
 
           const onProgress = toolContext.reportProgress
             ? (progress: number, message?: string) => {
@@ -293,7 +290,18 @@ export function createPiWorkflowRunTool(toolContext: PiSessionToolContext): Tool
               }
             : undefined;
 
-          const runHandle = await workflowRuntime.startValidatedDefinition(definition, runInput, metadata, onProgress);
+          const runHandle = await workflowRuntime.start(
+            {
+              definition,
+              input: runInput,
+              ...(context.workspaceId ? { scope: { kind: 'workspace', id: String(context.workspaceId) } } : {}),
+              trigger: { type: 'agent', id: toolCallId },
+              ...(toolContext.conversationId ? { actor: { type: 'conversation', id: toolContext.conversationId } } : {}),
+              ...(Object.keys(context).length ? { context } : {}),
+              ...(configOverrides ? { configOverrides: configOverrides as Record<string, Record<string, unknown>> } : {})
+            },
+            onProgress
+          );
           const runPromise = runHandle.completionPromise;
 
           if (!shouldWait) {

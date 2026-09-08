@@ -1324,9 +1324,9 @@ export const InventoryGrid: React.FC<InventoryGridProps> = ({
                                 const item = mergedItems.find((i) => i.id === firstSelected);
                                 if (item) {
                                   await runWorkflow({
-                                    defId: wf.id,
+                                    definitionId: wf.id,
                                     input: { resource: item, resourceId: item.id },
-                                    metadata: {
+                                    context: {
                                       resourceId: item.id,
                                       resourceName: item.title || 'Unknown',
                                       thumbnailPath: item.thumbnailPath,
@@ -1341,9 +1341,9 @@ export const InventoryGrid: React.FC<InventoryGridProps> = ({
                                 // 其他模式（text/url/file）不需要资源，直接执行
                                 // 引擎会自动检测并弹出输入窗口
                                 await runWorkflow({
-                                  defId: wf.id,
+                                  definitionId: wf.id,
                                   input: {},
-                                  metadata: {
+                                  context: {
                                     workspaceId,
                                     folderId
                                   },
@@ -1445,9 +1445,9 @@ export const InventoryGrid: React.FC<InventoryGridProps> = ({
                               // 其他模式（text/url/file）不需要资源，直接执行
                               // 引擎会自动检测并弹出输入窗口
                               await runWorkflow({
-                                defId: wf.id,
+                                definitionId: wf.id,
                                 input: {},
-                                metadata: {
+                                context: {
                                   workspaceId,
                                   folderId
                                 },

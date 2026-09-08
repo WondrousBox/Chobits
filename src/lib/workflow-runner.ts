@@ -1,11 +1,15 @@
+import type { WorkflowRunRequest } from '@chobits/workflow';
 import { toast } from 'sonner';
 
 import { workflowClient } from './workflow-client';
 
 export interface RunWorkflowOptions {
-  defId: string;
+  definitionId: string;
   input?: Record<string, any>;
-  metadata?: Record<string, any>;
+  context?: Record<string, any>;
+  trigger?: WorkflowRunRequest['trigger'];
+  actor?: WorkflowRunRequest['actor'];
+  configOverrides?: WorkflowRunRequest['configOverrides'];
   onSuccess?: (runId: string) => void;
   onError?: (error: any) => void;
 }
@@ -70,13 +74,18 @@ async function installModelResource(pluginId: string, modelName: string, resourc
  * 统一运行工作流，自动处理输入参数缺失的情况
  */
 export async function runWorkflow(options: RunWorkflowOptions): Promise<void> {
-  const { defId, input = {}, metadata = {}, onSuccess, onError } = options;
+  const { definitionId, input = {}, context = {}, trigger = { type: 'manual' }, actor, configOverrides, onSuccess, onError } = options;
 
   try {
+    const { workspaceId, ...runContext } = context;
     const result = await workflowClient.run({
-      defId,
+      definitionId,
       input,
-      metadata
+      ...(workspaceId ? { scope: { kind: 'workspace', id: String(workspaceId) } } : {}),
+      trigger,
+      ...(actor ? { actor } : {}),
+      ...(Object.keys(runContext).length ? { context: runContext } : {}),
+      ...(configOverrides ? { configOverrides } : {})
     });
 
     console.log(result);
@@ -84,13 +93,13 @@ export async function runWorkflow(options: RunWorkflowOptions): Promise<void> {
     if (!result?.ok) {
       if (result?.error === 'input-required') {
         // 触发输入侧边栏（包含开始节点输入和配置输入）
-        // 传递原始的 input 和 metadata，以便在用户填写表单后保留所有上下文信息
+        // 传递原始的 input 和 context，以便在用户填写表单后保留所有上下文信息
         window.dispatchEvent(
           new CustomEvent('wf:start-input-required', {
             detail: {
-              defId,
+              definitionId,
               missingConfigs: result.missingConfigs,
-              metadata,
+              context,
               originalInput: input // 保留原始输入，包括 resource 对象等
             }
           })

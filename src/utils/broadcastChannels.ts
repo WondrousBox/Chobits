@@ -36,13 +36,13 @@ export type MediaSyncMessage =
 export type WorkflowEventMessage =
   | {
       type: 'definition-upserted';
-      def?: unknown;
+      definition?: unknown;
       id?: string;
       workspaceId: string;
     }
   | {
       type: 'run-started';
-      defId: string;
+      definitionId: string;
       resourceId?: string;
       workspaceId: string;
     };

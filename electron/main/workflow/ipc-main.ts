@@ -1,6 +1,6 @@
 import { sanitizeWorkflowRunLogEntry, sanitizeWorkflowRunRecord, type WorkflowDefinition } from '@chobits/workflow';
 import type { WorkflowRuntimeFacade } from '@chobits/workflow/application';
-import { workflowRunRequestSchema, workflowSaveRequestSchema, zodIssuesToWorkflowIssues } from '@chobits/workflow/schema';
+import { workflowDefinitionRequestSchema, workflowRunByIdRequestSchema, zodIssuesToWorkflowIssues } from '@chobits/workflow/schema';
 import { WORKFLOW_IPC_CHANNELS, type WorkflowIpcRegistrar, type WorkflowNodeFieldResult, type WorkflowSaveIpcResult } from '@workflow/integrations/client';
 
 export interface WorkflowIpcMainPorts {
@@ -19,12 +19,12 @@ export function registerWorkflowIpcHandlers(ipc: WorkflowIpcRegistrar, runtime: 
   ipc.handle(WORKFLOW_IPC_CHANNELS.getDefinition, (_event, payload) => runtime.getDefinition(payload.id, payload.workspaceId));
   ipc.handle(WORKFLOW_IPC_CHANNELS.saveDefinition, async (_event, payload): Promise<WorkflowSaveIpcResult> => {
     try {
-      const request = workflowSaveRequestSchema.safeParse(payload);
+      const request = workflowDefinitionRequestSchema.safeParse(payload);
       if (!request.success) {
         const issues = zodIssuesToWorkflowIssues(request.error.issues);
         return { ok: false, error: 'Workflow save request is invalid', validation: { ok: false, issues, errors: issues.map((issue) => issue.message) } };
       }
-      const result = await runtime.saveDefinition(request.data.def as WorkflowDefinition, request.data.workspaceId);
+      const result = await runtime.saveDefinition(request.data.definition as WorkflowDefinition, request.data.workspaceId);
       return result.ok ? { ok: true } : result;
     } catch (error) {
       return { ok: false, error: error instanceof Error ? error.message : String(error) };
@@ -38,9 +38,16 @@ export function registerWorkflowIpcHandlers(ipc: WorkflowIpcRegistrar, runtime: 
       return { ok: false, error: error instanceof Error ? error.message : String(error) };
     }
   });
-  ipc.handle(WORKFLOW_IPC_CHANNELS.validate, (_event, payload) => runtime.validateDefinition(payload.def));
+  ipc.handle(WORKFLOW_IPC_CHANNELS.validate, (_event, payload) => {
+    const request = workflowDefinitionRequestSchema.safeParse(payload);
+    if (!request.success) {
+      const issues = zodIssuesToWorkflowIssues(request.error.issues);
+      return { ok: false, issues, errors: issues.map((issue) => issue.message) };
+    }
+    return runtime.validateDefinition(request.data.definition as WorkflowDefinition);
+  });
   ipc.handle(WORKFLOW_IPC_CHANNELS.run, async (_event, payload) => {
-    const request = workflowRunRequestSchema.safeParse(payload);
+    const request = workflowRunByIdRequestSchema.safeParse(payload);
     if (!request.success) {
       const issues = zodIssuesToWorkflowIssues(request.error.issues, 'invalid-run-request');
       return {
@@ -50,7 +57,7 @@ export function registerWorkflowIpcHandlers(ipc: WorkflowIpcRegistrar, runtime: 
       };
     }
 
-    const result = await runtime.executeById(request.data.defId, request.data.input || {}, request.data.metadata);
+    const result = await runtime.execute(request.data);
     if (!result.ok) {
       return {
         ok: false,
@@ -69,7 +76,7 @@ export function registerWorkflowIpcHandlers(ipc: WorkflowIpcRegistrar, runtime: 
     return run ? sanitizeWorkflowRunRecord(run) : undefined;
   });
   ipc.handle(WORKFLOW_IPC_CHANNELS.listRuns, async (_event, payload) =>
-    (await runtime.listRuns(payload?.workspaceId, payload?.defId, payload?.limit, payload?.resourceId)).map(sanitizeWorkflowRunRecord)
+    (await runtime.listRuns(payload?.workspaceId, payload?.workflowId, payload?.limit, payload?.resourceId)).map(sanitizeWorkflowRunRecord)
   );
   ipc.handle(WORKFLOW_IPC_CHANNELS.deleteRun, async (_event, payload) => {
     await runtime.deleteRun(payload.runId, payload.workspaceId);

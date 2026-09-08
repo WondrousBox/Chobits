@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { createWorkflowRegistry } from '../packages/workflow/src/core';
-import { createEngine } from '../packages/workflow/src/node';
-import type { WorkflowNodeHandler, WorkflowPlugin } from '../packages/workflow/src/sdk';
-import { defineNode, definePlugin } from '../packages/workflow/src/sdk';
+import { createWorkflowRegistry } from '@chobits/workflow/core';
+import { createEngine } from '@chobits/workflow/node';
+import type { WorkflowNodeHandler, WorkflowPlugin } from '@chobits/workflow/sdk';
+import { defineNode, definePlugin } from '@chobits/workflow/sdk';
 
 const definition = {
   id: 'registry-isolation',
@@ -75,6 +75,19 @@ describe('workflow registry isolation', () => {
 
     await expect(registeredEngine.validate(definition, { checkRuntimeDependencies: false })).resolves.toEqual({ ok: true });
     await expect(emptyEngine.validate(definition, { checkRuntimeDependencies: false })).resolves.toMatchObject({
+      ok: false,
+      issues: [expect.objectContaining({ code: 'invalid-definition', nodeId: 'shared' })]
+    });
+  });
+
+  it('creates an isolated empty registry when none is provided', async () => {
+    const firstEngine = createEngine({});
+    const secondEngine = createEngine({});
+    firstEngine.registry.registerNode(isolatedNode('first'));
+
+    expect(firstEngine.registry).not.toBe(secondEngine.registry);
+    await expect(firstEngine.validate(definition, { checkRuntimeDependencies: false })).resolves.toEqual({ ok: true });
+    await expect(secondEngine.validate(definition, { checkRuntimeDependencies: false })).resolves.toMatchObject({
       ok: false,
       issues: [expect.objectContaining({ code: 'invalid-definition', nodeId: 'shared' })]
     });

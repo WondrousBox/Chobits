@@ -88,7 +88,7 @@ const record = await runtime.run({
 await runtime.dispose();
 ```
 
-公共 runtime 新代码必须使用 `WorkflowRunRequest` 的 `definitionId/definition/input/scope/trigger/actor/context/configOverrides` 字段。当前宿主 `WorkflowRuntimeFacade` 和 IPC `run/save/validate/listRuns` 仍有 `metadata`、`defId`、`def` 等旧字段；它们是 Phase 11 删除前的私有迁移面，不会进入首次外部发布 contract。
+公共 runtime 和宿主代码统一使用 `WorkflowRunRequest` 的 `definitionId/definition/input/scope/trigger/actor/context/configOverrides` 字段。Electron IPC、renderer、scheduler、Pi workflow tool 和 `WorkflowRuntimeFacade` 已迁到正式 request，`WorkflowLegacyRunRequest` 与归一化入口已经删除。
 
 ## 4. 节点 SDK
 
@@ -147,6 +147,8 @@ const ReadDocumentNode = defineNode({
 ### 宿主 Facade
 
 Electron IPC、scheduler 和 AI tool 等宿主入口应依赖 `WorkflowRuntimeFacade` 或自行定义更窄的 port。它们不能读取 runtime 内部 registry、engine 或 store，也不能把 transport 字符串放入公共内核。
+
+宿主 façade 的运行方法统一为 `execute(request)`、`start(request, onProgress?)` 和 `run(request, onProgress?)`。定义、输入、scope、trigger、actor、context 和配置覆盖均通过同一个 request 传递，不再提供参数列表式运行方法。
 
 ## 6. 生命周期与错误
 

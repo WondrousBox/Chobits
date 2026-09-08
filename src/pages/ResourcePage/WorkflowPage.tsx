@@ -101,7 +101,7 @@ const WorkflowPage: React.FC<{ workspaceId?: string }> = ({ workspaceId }) => {
       const results = await Promise.all(
         entries.map(async (d) => {
           try {
-            const res = await workflowClient.validate({ def: d });
+            const res = await workflowClient.validate({ definition: d });
             return [d.id, res] as const;
           } catch {
             return [d.id, { ok: false, errors: ['校验失败'] }] as const;
@@ -126,20 +126,20 @@ const WorkflowPage: React.FC<{ workspaceId?: string }> = ({ workspaceId }) => {
       const { type } = event.data;
       if (!matchesWorkflowWorkspace(workspaceId, event.data.workspaceId)) return;
       if (type === 'definition-upserted') {
-        const { def, id } = event.data;
+        const { definition, id } = event.data;
         setList((prev) => {
-          const idx = prev.findIndex((p) => p.id === (def as WorkflowBrief)?.id || p.id === id);
+          const idx = prev.findIndex((p) => p.id === (definition as WorkflowBrief)?.id || p.id === id);
           if (idx >= 0) {
             const next = prev.slice();
-            next[idx] = { ...next[idx], ...(def || {}), updatedAt: new Date().toISOString() } as WorkflowBrief;
+            next[idx] = { ...next[idx], ...(definition || {}), updatedAt: new Date().toISOString() } as WorkflowBrief;
             return next;
           }
-          if (def) return [{ ...(def as WorkflowBrief) }, ...prev];
+          if (definition) return [{ ...(definition as WorkflowBrief) }, ...prev];
           return prev;
         });
       } else if (type === 'run-started') {
-        const { defId } = event.data;
-        setRunsByWorkflow((prev) => ({ ...prev, [defId]: { workflowId: defId, status: 'queued', createdAt: Date.now() } }));
+        const { definitionId } = event.data;
+        setRunsByWorkflow((prev) => ({ ...prev, [definitionId]: { workflowId: definitionId, status: 'queued', createdAt: Date.now() } }));
       }
     };
 

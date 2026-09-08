@@ -71,6 +71,62 @@ function createEngine(): { engine: WorkflowEngine; emit<K extends keyof IEngineE
 }
 
 describe('WorkflowApplicationService', () => {
+  it('rejects invalid formal run requests before resolving a workspace', async () => {
+    const fake = createEngine();
+    const store = createStore();
+    const resolveWorkspaceId = vi.fn().mockResolvedValue('workspace-1');
+    const service = new WorkflowApplicationService(fake.engine, store, resolveWorkspaceId);
+
+    await expect(service.execute({})).resolves.toMatchObject({
+      ok: false,
+      error: 'invalid-run-request',
+      validation: { ok: false, issues: [expect.objectContaining({ code: 'invalid-run-request', path: ['definitionId'] })] }
+    });
+    expect(resolveWorkspaceId).not.toHaveBeenCalled();
+    expect(fake.engine.run).not.toHaveBeenCalled();
+  });
+
+  it('normalizes scope, context, trigger, actor, and config overrides from a run request', async () => {
+    const fake = createEngine();
+    const store = createStore();
+    vi.mocked(store.getDefinition).mockResolvedValue(definition());
+    const resolveWorkspaceId = vi.fn().mockResolvedValue('workspace-1');
+    const service = new WorkflowApplicationService(fake.engine, store, resolveWorkspaceId);
+
+    await expect(
+      service.execute({
+        definitionId: 'workflow-1',
+        input: { text: 'hello' },
+        scope: { kind: 'workspace', id: 'workspace-1' },
+        trigger: { type: 'manual', id: 'trigger-1' },
+        actor: { type: 'user', id: 'user-1' },
+        context: { source: 'test' },
+        configOverrides: { 'node-1': { original: false, runtime: true } }
+      })
+    ).resolves.toMatchObject({ ok: true });
+
+    expect(resolveWorkspaceId).toHaveBeenCalledWith('workspace-1');
+    expect(store.getDefinition).toHaveBeenCalledWith('workflow-1', 'workspace-1');
+    expect(fake.engine.validate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: 'workspace-1',
+        nodes: [expect.objectContaining({ config: { original: false, runtime: true } })]
+      })
+    );
+    expect(fake.engine.run).toHaveBeenCalledWith(
+      expect.any(Object),
+      { text: 'hello' },
+      {
+        source: 'test',
+        workspaceId: 'workspace-1',
+        scope: { kind: 'workspace', id: 'workspace-1' },
+        trigger: { type: 'manual', id: 'trigger-1' },
+        actor: { type: 'user', id: 'user-1' },
+        context: { source: 'test' }
+      }
+    );
+  });
+
   it('resolves workspace, prefers presets, and applies per-run config overrides without mutating the definition', async () => {
     const fake = createEngine();
     const store = createStore();

@@ -1,40 +1,40 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createEngine } from '../packages/workflow/engine'
-import { getNode, registerNode } from '../packages/workflow/registry'
-import type { NodeHandler } from '../packages/workflow/types'
+import { createWorkflowRegistry } from '@chobits/workflow/core';
 
-const TEST_NODE_ID = 'test/context-probe'
+import { createEngine } from '../packages/workflow/engine';
+import type { NodeHandler } from '../packages/workflow/types';
 
-const getResourceProjectDirsMock = vi.fn(async () => null)
+const TEST_NODE_ID = 'test/context-probe';
 
-if (!getNode(TEST_NODE_ID)) {
-  const handler: NodeHandler = {
-    spec: {
-      id: TEST_NODE_ID,
-      label: 'Context Probe',
-      inputs: [],
-      outputs: []
-    },
-    run: async ({ ctx }) => {
-      await ctx.getResourceProjectDirs?.('transcribe')
-      return {}
-    }
+const getResourceProjectDirsMock = vi.fn(async () => null);
+
+const handler: NodeHandler = {
+  spec: {
+    id: TEST_NODE_ID,
+    label: 'Context Probe',
+    inputs: [],
+    outputs: []
+  },
+  run: async ({ ctx }) => {
+    await ctx.getResourceProjectDirs?.('transcribe');
+    return {};
   }
-
-  registerNode(handler)
-}
+};
 
 describe('WorkflowEngine context bridging', () => {
   beforeEach(() => {
-    getResourceProjectDirsMock.mockReset()
-    getResourceProjectDirsMock.mockResolvedValue(null)
-  })
+    getResourceProjectDirsMock.mockReset();
+    getResourceProjectDirsMock.mockResolvedValue(null);
+  });
 
   it('passes workflow resource context into getResourceProjectDirs', async () => {
-    const engine = createEngine({
-      getResourceProjectDirs: getResourceProjectDirsMock
-    })
+    const engine = createEngine(
+      {
+        getResourceProjectDirs: getResourceProjectDirsMock
+      },
+      { registry: createWorkflowRegistry({ nodes: [handler] }) }
+    );
 
     const rec = await engine.run(
       {
@@ -52,14 +52,14 @@ describe('WorkflowEngine context bridging', () => {
         workspaceId: 'workspace-456',
         folderId: 'folder-789'
       }
-    )
+    );
 
-    expect(rec.status).toBe('completed')
-    expect(getResourceProjectDirsMock).toHaveBeenCalledTimes(1)
+    expect(rec.status).toBe('completed');
+    expect(getResourceProjectDirsMock).toHaveBeenCalledTimes(1);
     expect(getResourceProjectDirsMock).toHaveBeenCalledWith('transcribe', {
       resourceId: 'resource-123',
       workspaceId: 'workspace-456',
       folderId: 'folder-789'
-    })
-  })
-})
+    });
+  });
+});

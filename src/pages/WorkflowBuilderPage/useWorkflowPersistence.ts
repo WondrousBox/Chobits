@@ -45,7 +45,7 @@ export interface WorkflowPersistenceNotifier {
 }
 
 interface WorkflowDefinitionEventPublisher {
-  postMessage(message: { type: 'definition-upserted'; def: WorkflowDefinition; workspaceId: string }): void;
+  postMessage(message: { type: 'definition-upserted'; definition: WorkflowDefinition; workspaceId: string }): void;
 }
 
 interface UseWorkflowPersistenceOptions {
@@ -70,8 +70,8 @@ interface SaveAttempt {
 }
 
 const defaultClient: WorkflowPersistenceClient = {
-  validate: (definition) => workflowClient.validate({ def: definition }),
-  save: (definition, workspaceId) => workflowClient.saveDefinition({ def: definition, workspaceId })
+  validate: (definition) => workflowClient.validate({ definition }),
+  save: (definition, workspaceId) => workflowClient.saveDefinition({ definition, workspaceId })
 };
 
 const defaultPluginResources: WorkflowPluginResourceClient = {
@@ -232,7 +232,7 @@ export function useWorkflowPersistence({
         return;
       }
       try {
-        eventPublisher.postMessage({ type: 'definition-upserted', def: definition, workspaceId: draft.workspaceId! });
+        eventPublisher.postMessage({ type: 'definition-upserted', definition, workspaceId: draft.workspaceId! });
       } catch {
         // A closed cross-window channel must not change the save result.
       }

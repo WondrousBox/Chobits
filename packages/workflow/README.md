@@ -59,14 +59,14 @@ src/lib/workflow-client.ts    renderer transport 绑定
 当前保证：
 
 - `pnpm workflow:check` 可以独立检查 manifest、生产导入、公共类型和依赖闭包，`pnpm workflow:build` 可以生成 Node ESM、declarations 和 source maps。
-- 所有公开 exports 的依赖闭包当前包含 53 个源码文件，只允许 Node 内置模块和 `zod`，不会加载 Electron、React、Drizzle 或宿主应用业务模块。
+- 所有公开 exports 的依赖闭包当前包含 52 个源码文件，只允许 Node 内置模块和 `zod`，不会加载 Electron、React、Drizzle 或宿主应用业务模块。
 - `contracts`、`application`、`core`、`ports`、`runtime`、`schema`、`sdk`、`node`、`nodes` 和 `testing` 均有显式 package 子路径。
 - definition、run、validation、event 和 error contract 已从兼容 `types.ts` 拆入公共目录；旧类型转发仍是迁移期临时面。
 - `@chobits/workflow/testing` 提供 workspace 隔离且深拷贝数据的内存 store、fake clock 和 fake ID factory。
 - `pnpm workflow:release:check` 会验证 12 个 exports、ESM/declarations、`sideEffects`、版本、依赖闭包、source map 和生产深层导入。
 - `pnpm workflow:test:consumer` 会解析并检查真实 tarball，在系统临时目录离线安装，以严格 TypeScript 和 JavaScript 只通过公开 API 完成第三方节点/capability 注册、runtime 执行、事件订阅、持久化、取消和销毁。
-- `createWorkflowRegistry` 和 `createWorkflowRuntime` 为每个实例提供独立的节点、plugin、capability、store、clock、ID、limiter 和生命周期；旧默认 registry 只保留到 Phase 11 清理完成。
-- runtime 接受 `scope/trigger/actor/context` 规范请求，并临时兼容映射旧 `defId/def/metadata` 请求。
+- `createWorkflowRegistry` 和 `createWorkflowRuntime` 为每个实例提供独立的节点、plugin、capability、store、clock、ID、limiter 和生命周期；engine 未传 registry 时也会创建独立空实例，不存在默认全局 registry。
+- runtime 只接受包含 `definitionId/definition/input/scope/trigger/actor/context/configOverrides` 的正式请求，不再映射 `defId/def/metadata`。
 - 节点可声明 timeout、幂等 retry 和命名执行组；缺失 capability 会在执行前返回结构化校验错误。
 - `core/` 中的规划、调度和状态函数可以独立测试。
 - `WorkflowApplicationService` 通过 store port 组织用例。
@@ -76,20 +76,20 @@ src/lib/workflow-client.ts    renderer transport 绑定
 - 26 个宿主应用节点和 7 个 plugin 的真实实现均位于私有包；旧节点/plugin/store/adapter 路径仍是迁移期转发。
 - 私有 composition 配置 `resource-io`、AI、FFmpeg、local ASR、OCR 和 rendering 跨 run 限流。
 - `pnpm workflow:integrations:check` 同时检查 26 个兼容节点、20 个 capability 节点、7 个 plugin、store 位置和公共包反向依赖。
-- `WorkflowRuntimeFacade` 是 scheduler、Pi workflow tool 和 Electron IPC 的共同应用入口；调用方不读取 engine、registry 或 store 实例。
+- `WorkflowRuntimeFacade` 是 scheduler、Pi workflow tool 和 Electron IPC 的共同应用入口；运行统一使用 `execute/start/run(request)`，调用方不读取 engine、registry 或 store 实例。
 - 所有 `wf:*` IPC channel、请求、响应和事件集中在私有 client contract，renderer 页面只调用类型化 `workflowClient`。
 - `electron/main/workflow` 持有真实 composition root，公共包旧 `index.ts` 和 `ipc-adapter.ts` 仍是迁移期转发。
 - renderer 与 Electron workflow host 中已有公开替代项的深层源码导入均已迁移；release check 会阻止回退。
-- 当前 Electron `will-quit` 只 flush 持久化，资源/运行事件 listener 和 engine shutdown 尚未由 facade 统一管理；这是宿主生命周期待补齐项。
+- Electron `will-quit` 通过统一 dispose 停止 engine、落盘终态、flush 持久化、解绑资源/运行事件 listener，并清除 Pi runtime 引用。
 
-Phase 11 仍需处理 contract 收紧、旧请求映射、默认 registry、类型别名、转发入口、反向导出、源码归位和 definition 数据迁移。存量 definition 必须先显式迁移；AI、媒体和 OCR 的真实运行 fallback 不按源码兼容面直接删除。完整清单见上述清理计划。
+Phase 11 仍需处理旧类型别名、转发入口、反向导出、源码归位、ExecutionContext 收紧和 definition 数据迁移。存量 definition 必须先显式迁移；AI、媒体和 OCR 的真实运行 fallback 不按源码兼容面直接删除。完整清单见上述清理计划。
 
 ## 公共入口
 
 - `@chobits/workflow`：公共聚合入口。
 - `@chobits/workflow/contracts`：可序列化定义、运行、校验、事件和错误类型。
 - `@chobits/workflow/application`：定义、运行、取消和历史用例服务。
-- `@chobits/workflow/core`：DAG、调度、状态、事件和实例 registry；当前默认 registry 将在 Phase 11 删除。
+- `@chobits/workflow/core`：DAG、调度、状态、事件和实例 registry。
 - `@chobits/workflow/ports`：store 与 runtime service 接口。
 - `@chobits/workflow/runtime`：实例 runtime、capability resolver、clock/ID 默认实现和执行组 limiter。
 - `@chobits/workflow/schema`：定义解析、迁移和请求 schema。

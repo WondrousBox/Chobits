@@ -135,7 +135,7 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
       .then((defs) => {
         setWorkflows(defs || []);
       })
-      .catch(() => { });
+      .catch(() => {});
   }, [wsFilter]);
 
   // 预览面板状态
@@ -623,7 +623,12 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
         </div>
       </div>
 
-      <Dialog open={missingRepairOpen} onOpenChange={(open) => { if (!bulkRepairProgress) setMissingRepairOpen(open); }}>
+      <Dialog
+        open={missingRepairOpen}
+        onOpenChange={(open) => {
+          if (!bulkRepairProgress) setMissingRepairOpen(open);
+        }}
+      >
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>缺失关联目录</DialogTitle>
@@ -634,10 +639,7 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
                 正在{bulkRepairProgress.action === 'recreate' ? '重建' : '忽略'}... {bulkRepairProgress.done}/{bulkRepairProgress.total}
               </div>
               <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-                <div
-                  className="h-full bg-primary transition-all duration-200"
-                  style={{ width: `${(bulkRepairProgress.done / bulkRepairProgress.total) * 100}%` }}
-                />
+                <div className="h-full bg-primary transition-all duration-200" style={{ width: `${(bulkRepairProgress.done / bulkRepairProgress.total) * 100}%` }} />
               </div>
             </div>
           ) : (
@@ -811,15 +813,15 @@ const SelectionActionBar: React.FC<SelectionActionBarProps> = ({ selectedItems, 
       // 对每个选中的资源执行工作流
       for (const item of selectedResources) {
         await runWorkflow({
-          defId: wf.id,
+          definitionId: wf.id,
           input: { resource: item, resourceId: item.id },
-          metadata: {
+          context: {
             resourceId: item.id,
             resourceName: item.title || 'Unknown',
             thumbnailPath: item.thumbnailPath,
             workspaceId: item.workspaceId
           },
-          onSuccess: () => { }
+          onSuccess: () => {}
         });
       }
       toast.success(`已开始对 ${selectedResources.length} 个资源执行工作流: ${wf.name}`);

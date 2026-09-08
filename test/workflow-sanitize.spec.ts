@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
+import { createWorkflowRegistry } from '@chobits/workflow/core';
+
 import { createEngine } from '../packages/workflow/engine';
-import { registerNode } from '../packages/workflow/registry';
 import { MAX_WORKFLOW_LOG_ENTRIES, MAX_WORKFLOW_LOG_MESSAGE_LENGTH, sanitizeWorkflowRunRecord, sanitizeWorkflowValue } from '../packages/workflow/sanitize';
 import type { WorkflowRunRecord } from '../packages/workflow/types';
 
@@ -67,13 +68,17 @@ describe('workflow data sanitization', () => {
   });
 
   it('redacts and limits engine logs without changing internal run output', async () => {
-    registerNode({
-      spec: { id: 'test/sanitize-log', label: 'sanitize-log', inputs: [], outputs: [] },
-      async run({ input }) {
-        return { receivedFullValue: input.apiKey === 'internal-secret' };
-      }
+    const registry = createWorkflowRegistry({
+      nodes: [
+        {
+          spec: { id: 'test/sanitize-log', label: 'sanitize-log', inputs: [], outputs: [] },
+          async run({ input }) {
+            return { receivedFullValue: input.apiKey === 'internal-secret' };
+          }
+        }
+      ]
     });
-    const workflowEngine = createEngine({}, { completedRunTempTtlMs: 0 });
+    const workflowEngine = createEngine({}, { completedRunTempTtlMs: 0, registry });
     const rec = await workflowEngine.run(
       {
         id: 'test:sanitize-log',
@@ -100,13 +105,17 @@ describe('workflow data sanitization', () => {
   });
 
   it('retains only the newest bounded number of log entries', async () => {
-    registerNode({
-      spec: { id: 'test/log-volume', label: 'log-volume', inputs: [], outputs: [] },
-      async run() {
-        return {};
-      }
+    const registry = createWorkflowRegistry({
+      nodes: [
+        {
+          spec: { id: 'test/log-volume', label: 'log-volume', inputs: [], outputs: [] },
+          async run() {
+            return {};
+          }
+        }
+      ]
     });
-    const workflowEngine = createEngine({}, { completedRunTempTtlMs: 0 });
+    const workflowEngine = createEngine({}, { completedRunTempTtlMs: 0, registry });
     const rec = await workflowEngine.run({
       id: 'test:log-volume',
       name: 'log-volume',

@@ -9,10 +9,7 @@ const automationScheduler = getMainSchedulerService();
 let workflowRuntime: WorkflowRuntimeFacade | undefined;
 
 export type AutomationRuleTrigger =
-  | { type: 'schedule'; scheduledFor?: number; triggeredAt?: number }
-  | { type: 'manual' }
-  | { type: 'system_event'; eventType: string }
-  | { type: 'resource_event'; eventType: string; resource: any };
+  { type: 'schedule'; scheduledFor?: number; triggeredAt?: number } | { type: 'manual' } | { type: 'system_event'; eventType: string } | { type: 'resource_event'; eventType: string; resource: any };
 
 export interface AutomationRuleExecutionResult {
   ok: boolean;
@@ -113,7 +110,15 @@ export async function executeAutomationRule(
 
       console.log(`[Scheduler] Running workflow ${workflow.name} for rule ${rule.id}`);
       const inputs = buildWorkflowInputs(config.inputs || {}, trigger);
-      const record = await runtime.runDefinition(workflow, inputs, { workspaceId: rule.workspaceId ?? workflow.workspaceId });
+      const record = await runtime.run({
+        definition: workflow,
+        input: inputs,
+        ...(rule.workspaceId || workflow.workspaceId ? { scope: { kind: 'workspace', id: rule.workspaceId ?? workflow.workspaceId! } } : {}),
+        trigger: {
+          type: trigger.type === 'schedule' || trigger.type === 'manual' ? trigger.type : 'event',
+          id: rule.id
+        }
+      });
       if (record.status !== 'completed') {
         console.error(`[Scheduler] Workflow ${workflow.id} finished with status ${record.status}: ${record.error ?? 'unknown error'}`);
         return {

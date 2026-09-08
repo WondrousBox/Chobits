@@ -12,7 +12,7 @@ Phase 11 的目标是在 `@chobits/workflow` 首次向外部 package registry �
 2. 存量数据兼容：已保存 definition 和 preset 的 schema，完成显式数据迁移后删除读取 fallback。
 3. 现行业务容错：provider、媒体目录、文件名和 OCR 等运行 fallback，只能在替代路径覆盖完整后按独立业务变更处理。
 
-Phase 11 尚未实施。本文档是删除范围、顺序和验收门槛，不把计划中的目标写成当前事实。
+Phase 11 已开始实施。正式 IPC/run request、renderer 调用方、scheduler、Pi workflow tool、Electron runtime dispose、宿主 façade 运行入口、公共 runtime legacy request 删除和默认 registry 删除已经完成；旧源码转发、旧类型、宿主 context 字段和 definition 数据迁移仍未完成。
 
 ## 2. 清理原则
 
@@ -36,7 +36,7 @@ Phase 11 尚未实施。本文档是删除范围、顺序和验收门槛，不�
 - `packages/workflow/runtime/paddle-ocr-models.ts` 和 `paddle-ocr-runtime.ts`。
 - `packages/workflow/store.ts`、`html-screenshot-adapter.ts` 和 `resource-event-adapter.ts`。
 - `packages/workflow/index.ts` 和 `ipc-adapter.ts` 两个 Electron host 转发入口。
-- `packages/workflow/registry.ts` 旧聚合入口。
+- `packages/workflow/registry.ts` 旧聚合入口（已删除）。
 - `packages/workflow/nodes/index.ts` 与 `plugins/index.ts` 的旧聚合关系。
 
 删除前将测试和剩余调用方分别迁到 `@chobits/workflow` 已声明 exports、`@workflow/integrations` 或 `electron/main/workflow`。通用节点的真实实现先归入 `packages/workflow/src/nodes/`，不能随旧业务节点目录一起误删。
@@ -60,33 +60,26 @@ Phase 11 尚未实施。本文档是删除范围、顺序和验收门槛，不�
 
 `input` 本身是正式字段，不删除。`workspaceId` 在运行请求边界映射为 `scope: { kind: 'workspace', id }`；`resourceId`、`folderId` 等宿主信息进入 `context` 或对应私有 capability，不再扩展公共请求顶层字段。
 
+当前 Electron IPC、renderer `runWorkflow`、Workflow Builder、资源页、scheduler 和 Pi workflow tool 已使用正式字段；`WorkflowRuntimeFacade` 只保留 `execute/start/run(request)` 三个 request 运行入口。公共 `WorkflowRuntime` 的 `WorkflowLegacyRunRequest`、归一化函数和专用兼容测试已经删除，本节请求兼容面已完成清理。
+
 ### 3.3 默认 registry 与旧类型别名
 
-删除模块级共享状态：
+以下模块级共享状态已经删除：
 
 - `defaultWorkflowRegistry`。
 - `registerNode/getNode/listNodes`。
 - `registerPlugin/getPlugin/listPlugins`。
-- engine 的 `options.registry || defaultWorkflowRegistry` fallback；registry 改为显式必填依赖。
+- engine 的 `options.registry || defaultWorkflowRegistry` fallback。
 
-生产 composition 已使用实例 registry。实施时将仍依赖默认 registry 的测试改为每个测试创建独立实例。
+生产 composition 和旧测试均已迁到实例 registry。engine 未显式传 registry 时创建自己的空 registry，不再跨 engine 共享注册状态；公共 `core` 出口和 tarball consumer 会校验全局 registry 快捷 API 不可见。
 
-删除 `ValueType`、`PortSchema`、`NodeSpec`、`NodeConfig`、`NodeInstance`、`Edge`、`ExecutionStatus`、`NodeRunStatus`、`NodeRunState` 等无前缀旧别名，调用方统一使用对应 `Workflow*` 正式类型。`types.ts` 在所有导入迁移后删除，不再作为公共或仓库内部聚合门面。
+仍待删除 `ValueType`、`PortSchema`、`NodeSpec`、`NodeConfig`、`NodeInstance`、`Edge`、`ExecutionStatus`、`NodeRunStatus`、`NodeRunState` 等无前缀旧别名，调用方统一使用对应 `Workflow*` 正式类型。`types.ts` 在所有导入迁移后删除，不再作为公共或仓库内部聚合门面。
 
 ### 3.4 未使用 façade、no-op 与宿主生命周期
 
-删除 `electron/main/workflow/index.ts` 中没有 production 调用的旧 façade：
+已删除 `electron/main/workflow/index.ts` 中没有 production 调用的旧 façade：`executeWorkflow`、`startValidatedWorkflow`、`startWorkflow`、`runWorkflow`、`getWorkflow` 和 `listAllWorkflowDefinitions`。宿主 `WorkflowRuntimeFacade` 也已删除参数列表式的 `executeById/executeDefinition/runDefinition/startDefinition/startValidatedDefinition`，统一为 request 对象入口。保留实际生命周期入口 `initWorkflowSystem`、`getMainWorkflowRuntime`、`flushWorkflowPersistence` 和 `disposeWorkflowSystem`。删除无调用且不执行任何工作的 `WorkflowStore.flushStore()`。
 
-- `executeWorkflow`
-- `startValidatedWorkflow`
-- `startWorkflow`
-- `runWorkflow`
-- `getWorkflow`
-- `listAllWorkflowDefinitions`
-
-保留实际生命周期入口 `initWorkflowSystem`、`getMainWorkflowRuntime` 和 `flushWorkflowPersistence`。删除无调用且不执行任何工作的 `WorkflowStore.flushStore()`。
-
-组合根还必须保存并执行以下 cleanup：资源事件 adapter、运行事件 coordinator 和 `ai:missing-provider` listener 的解绑函数，以及 runtime/engine 的 shutdown。当前 `will-quit` 只调用 `flushWorkflowPersistence()`；flush 会排空待写入队列，但不会停止 engine 或自动移除 listener，不能把它当作完整销毁流程。
+组合根现已保存资源事件 adapter、运行事件 coordinator 和 `ai:missing-provider` listener 的解绑函数。`will-quit` 调用统一 `disposeWorkflowSystem()`；销毁时先停止 engine 并保留终态事件落盘，再 flush 持久化队列、解绑 listener，并清除 Pi runtime 引用。`flushWorkflowPersistence()` 仍只表示排空持久化队列，不能替代完整销毁。
 
 ## 4. 公共 ExecutionContext 收紧
 
@@ -166,10 +159,11 @@ AI 节点在 Pi runtime 不可用时仍可能调用 legacy `provider.chat` 等�
 - 删除 26 个业务节点转发、AI utils 转发、7 个 plugin 转发、5 个 host/store/adapter 转发、registry 转发和 2 个 OCR runtime 转发。
 - 重建通用节点公开入口，确认 node ID 与实现不变。
 
-### 批次 3：统一正式 API
+### 批次 3：统一正式 API（实施中）
 
-- IPC、renderer 和触发方统一为 `definitionId/definition/context`。
-- 删除 legacy request、默认 registry、无前缀类型别名、未使用 Electron façade 和 store no-op。
+- IPC、renderer、跨窗口事件、scheduler 和 Pi workflow tool 已统一为 `definitionId/definition/context` 与 request 对象入口。
+- 宿主 façade 已删除参数列表式旧运行方法；公共 legacy request、默认 registry 和全局快捷函数已经删除。
+- 删除无前缀类型别名、剩余未使用 façade 和 store no-op。
 - 更新 consumer、类型测试和所有工作流测试只使用正式 API。
 
 ### 批次 4：ExecutionContext 去宿主化

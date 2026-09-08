@@ -1,5 +1,6 @@
 import { type NodeConfig, type PortSchema, sanitizeWorkflowValue } from '@chobits/workflow';
 import { WorkflowApplicationService, type WorkflowRuntimeFacade } from '@chobits/workflow/application';
+import type { WorkflowRunRequest } from '@chobits/workflow/contracts';
 import { createWorkflowRegistry } from '@chobits/workflow/core';
 import { createEngine } from '@chobits/workflow/node';
 import { ConditionNode, EndNode, JsonParseNode, JsonStringifyNode, TextOutputNode } from '@chobits/workflow/nodes';
@@ -114,8 +115,9 @@ export function createMainWorkflowRuntime(options: MainWorkflowCompositionOption
       if (!window.isDestroyed()) window.webContents.send(channel, safePayload);
     });
   };
-  engine.on('ai:missing-provider', (payload: unknown) => broadcast(WORKFLOW_IPC_EVENT_CHANNELS.aiMissingProvider, payload));
-  attachWorkflowResourceEventAdapter({ engine, ...resourceWritePorts });
+  const handleMissingProvider = (payload: unknown): void => broadcast(WORKFLOW_IPC_EVENT_CHANNELS.aiMissingProvider, payload);
+  engine.on('ai:missing-provider', handleMissingProvider);
+  const detachResourceEvents = attachWorkflowResourceEventAdapter({ engine, ...resourceWritePorts });
 
   const runHistoryRetention = createWorkflowRunHistoryRetention((workspaceId, policy) => WorkflowStore.pruneRuns(workspaceId, policy));
   const persistence = createRunPersistenceQueue(async (record) => {
@@ -129,7 +131,7 @@ export function createMainWorkflowRuntime(options: MainWorkflowCompositionOption
     fail: AppEvent.SPRITE_WORKFLOW_FAIL,
     cancel: AppEvent.SPRITE_WORKFLOW_CANCEL
   };
-  attachWorkflowRunEventCoordinator({
+  const detachRunEvents = attachWorkflowRunEventCoordinator({
     engine,
     persistence,
     loadDefinition: (id, workspaceId) => application.getDefinition(id, workspaceId),
@@ -142,7 +144,25 @@ export function createMainWorkflowRuntime(options: MainWorkflowCompositionOption
     busy: { start: sendAppBusyStart, progress: sendAppBusyProgress, end: sendAppBusyEnd }
   });
 
-  const runtime = createFacade(application, registry, persistence.flush);
+  let disposePromise: Promise<void> | undefined;
+  const dispose = (): Promise<void> => {
+    if (disposePromise) return disposePromise;
+    disposePromise = (async () => {
+      try {
+        // Keep event listeners attached while active runs are canceled so their
+        // terminal snapshots are persisted before the queue is flushed.
+        await engine.dispose();
+        await persistence.flush();
+      } finally {
+        detachResourceEvents();
+        detachRunEvents();
+        engine.off('ai:missing-provider', handleMissingProvider);
+      }
+    })();
+    return disposePromise;
+  };
+
+  const runtime = createFacade(application, registry, persistence.flush, dispose);
   registerWorkflowIpcHandlers(options.ipc || electronWorkflowIpcRegistrar, runtime, { scanTaskResults });
   return runtime;
 }
@@ -153,7 +173,12 @@ async function resolveWorkflowWorkspaceId(workspaceId?: string): Promise<string>
   return resolved;
 }
 
-function createFacade(application: WorkflowApplicationService, registry: ReturnType<typeof createWorkflowRegistry>, flushPersistence: () => Promise<void>): WorkflowRuntimeFacade {
+function createFacade(
+  application: WorkflowApplicationService,
+  registry: ReturnType<typeof createWorkflowRegistry>,
+  flushPersistence: () => Promise<void>,
+  dispose: () => Promise<void>
+): WorkflowRuntimeFacade {
   const nodeFields = async (nodeId: string, config: NodeConfig | undefined, field: 'config' | 'inputs' | 'outputs'): Promise<PortSchema[] | null | undefined> => {
     const handler = registry.getNode(nodeId);
     if (!handler) return null;
@@ -166,8 +191,8 @@ function createFacade(application: WorkflowApplicationService, registry: ReturnT
     cancelRun: (runId, workspaceId) => application.cancelRun(runId, workspaceId),
     deleteDefinition: (id, workspaceId) => application.deleteDefinition(id, workspaceId),
     deleteRun: (runId, workspaceId) => application.deleteRun(runId, workspaceId),
-    executeById: (definitionId, input, metadata) => application.executeById(definitionId, input, metadata),
-    executeDefinition: (definition, input, metadata) => application.executeDefinition(definition, input, metadata),
+    dispose,
+    execute: (request: WorkflowRunRequest) => application.execute(request),
     flushPersistence,
     getDefinition: (id, workspaceId) => application.getDefinition(id, workspaceId),
     getNodeConfig: (nodeId, config) => nodeFields(nodeId, config, 'config'),
@@ -187,10 +212,9 @@ function createFacade(application: WorkflowApplicationService, registry: ReturnT
     listPlugins: async () => registry.listPlugins().map((plugin) => ({ id: plugin.id, label: plugin.label, installed: false })),
     listPresetDefinitions: () => application.listPresetDefinitions(),
     listRuns: (workspaceId, workflowId, limit, resourceId) => application.listRuns(workspaceId, workflowId, limit, resourceId),
-    runDefinition: (definition, input, metadata, onProgress) => application.runDefinition(definition, input, metadata, onProgress),
+    run: (request, onProgress) => application.run(request, onProgress),
     saveDefinition: (definition, workspaceId) => application.saveDefinition(definition, workspaceId),
-    startDefinition: (definition, input, metadata, onProgress) => application.startDefinition(definition, input, metadata, onProgress),
-    startValidatedDefinition: (definition, input, metadata, onProgress) => application.startValidatedDefinition(definition, input, metadata, onProgress),
+    start: (request, onProgress) => application.start(request, onProgress),
     validateDefinition: (definition) => application.validateDefinition(definition)
   };
 }

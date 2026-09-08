@@ -10,7 +10,7 @@
 - Phase 8 已完成宿主应用工作流集成包、全部业务节点/plugin、资源读写、AI、local processing、OCR、rendering capability、SQLite/预设 store、composition 和执行组配置迁移。
 - Phase 9 已完成 Electron composition root、runtime facade 注入、共享 IPC contract 和类型安全 renderer client。
 - Phase 10 已完成 12 个 exports 冻结、通用节点子路径、生产深层导入迁移和 release/tarball/type consumer 自动验收；当时的兼容窗口仅用于仓库内部迁移。
-- Phase 11 待实施旧源码转发、legacy request、默认 registry、宿主 context 字段和数据读取 fallback 清理，并完成公共源码物理归位。
+- Phase 11 已开始实施：正式宿主 request API、IPC/renderer/触发方字段、Electron dispose、公共 runtime legacy request 和默认 registry 已完成清理；旧源码转发、旧类型、宿主 context 字段和数据读取 fallback 仍待处理。
 - 当前公共包已达到技术打包和 consumer 验收边界，但这不等于可发布；首次外部发布必须等待 Phase 11 的“零旧版兼容债务”验收。
 - 详细实施批次见 [工作流系统优化实施计划](./implementation-plan.md)。
 
@@ -210,7 +210,7 @@ React UI / scheduler / AI tool / Electron IPC
 
 公共 API 采用实例模式，不使用模块级单例 registry 或 application service。
 
-当前实施状态：`createWorkflowRegistry`、`createWorkflowRuntime` 和 capability 生命周期均已完成。每个 production runtime 已拥有自己的 registry、application service、store、capability resolver、clock、ID factory、limiter 和活动运行；仍供测试或旧调用方使用的默认全局 registry 将由 Phase 11 删除。
+当前实施状态：`createWorkflowRegistry`、`createWorkflowRuntime` 和 capability 生命周期均已完成。每个 production runtime 都拥有自己的 registry、application service、store、capability resolver、clock、ID factory、limiter 和活动运行；engine 未传 registry 时创建独立空实例，不存在模块级默认 registry。
 
 ```ts
 const registry = createWorkflowRegistry();
@@ -284,7 +284,7 @@ interface WorkflowRunRequest {
 - AI tool -> `trigger.type = agent`
 - 编辑器和资源页 -> `trigger.type = manual`
 
-当前私有 IPC contract 的 `run/save/validate/listRuns` 仍使用 `defId/def/metadata` 等旧字段，由兼容 adapter 映射。Phase 11 会先把 IPC、renderer 和触发方统一迁到 `definitionId/definition/context`，再删除内存兼容映射；这项请求迁移本身不要求数据库升级。
+当前私有 IPC contract、renderer、Workflow Builder、资源页、scheduler、Pi workflow tool 和公共 runtime 已统一使用 `definitionId/definition/context` 与 request 对象入口，不再接收或映射 `defId/def/metadata`。本次请求迁移不要求数据库升级。
 
 ## 9. Ports 与 Capabilities
 

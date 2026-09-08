@@ -45,12 +45,6 @@ export const workflowDefinitionSchema = z.object({
   isPreset: z.boolean().optional()
 });
 
-export const workflowRunRequestSchema = z.object({
-  defId: z.string().trim().min(1),
-  input: stringRecordSchema.optional(),
-  metadata: stringRecordSchema.optional()
-});
-
 export const workflowRuntimeRunRequestSchema = z
   .object({
     definitionId: z.string().trim().min(1).optional(),
@@ -67,8 +61,18 @@ export const workflowRuntimeRunRequestSchema = z
     path: ['definitionId']
   });
 
-export const workflowSaveRequestSchema = z.object({
-  def: z.unknown().refine((value) => value !== undefined, { message: 'Workflow definition is required' }),
+export const workflowRunByIdRequestSchema = z.object({
+  definitionId: z.string().trim().min(1),
+  input: stringRecordSchema.optional(),
+  scope: z.object({ kind: z.string().trim().min(1), id: z.string().trim().min(1) }).optional(),
+  trigger: z.object({ type: z.string().trim().min(1), id: z.string().trim().min(1).optional() }).optional(),
+  actor: z.object({ type: z.string().trim().min(1), id: z.string().trim().min(1).optional() }).optional(),
+  context: stringRecordSchema.optional(),
+  configOverrides: z.record(z.string(), stringRecordSchema).optional()
+});
+
+export const workflowDefinitionRequestSchema = z.object({
+  definition: z.unknown().refine((value) => value !== undefined, { message: 'Workflow definition is required' }),
   workspaceId: z.string().trim().min(1).optional()
 });
 

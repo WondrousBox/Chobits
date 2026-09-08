@@ -613,7 +613,7 @@ export const ExplorerList: React.FC<ExplorerListProps> = ({
       .then((defs) => {
         setWorkflows(defs || []);
       })
-      .catch(() => { });
+      .catch(() => {});
   }, [workspaceId]);
 
   // 获取第一个选中的资源
@@ -1023,9 +1023,9 @@ export const ExplorerList: React.FC<ExplorerListProps> = ({
                                 const item = items.find((i) => i.id === firstSelectedId);
                                 if (item) {
                                   await runWorkflow({
-                                    defId: wf.id,
+                                    definitionId: wf.id,
                                     input: { resource: item, resourceId: item.id },
-                                    metadata: {
+                                    context: {
                                       resourceId: item.id,
                                       resourceName: item.title || 'Unknown',
                                       thumbnailPath: item.thumbnailPath,
@@ -1038,9 +1038,9 @@ export const ExplorerList: React.FC<ExplorerListProps> = ({
                                 }
                               } else {
                                 await runWorkflow({
-                                  defId: wf.id,
+                                  definitionId: wf.id,
                                   input: {},
-                                  metadata: { workspaceId, folderId },
+                                  context: { workspaceId, folderId },
                                   onSuccess: () => {
                                     toast.success(`已开始执行工作流: ${wf.name}`);
                                   }
@@ -1113,9 +1113,9 @@ export const ExplorerList: React.FC<ExplorerListProps> = ({
                           key={wf.id}
                           onSelect={async () => {
                             await runWorkflow({
-                              defId: wf.id,
+                              definitionId: wf.id,
                               input: {},
-                              metadata: { workspaceId, folderId },
+                              context: { workspaceId, folderId },
                               onSuccess: () => {
                                 toast.success(`已开始执行工作流: ${wf.name}`);
                               }
@@ -1209,8 +1209,18 @@ export const ExplorerList: React.FC<ExplorerListProps> = ({
             </div>
           )}
           <DialogFooter>
-            <Button size="sm" variant="outline" onClick={() => setConflictDiffOpen(false)}>关闭</Button>
-            <Button size="sm" onClick={() => { setConflictDiffOpen(false); handleResolveSelectedConflict('accept-disk'); }}>采用磁盘版本</Button>
+            <Button size="sm" variant="outline" onClick={() => setConflictDiffOpen(false)}>
+              关闭
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                setConflictDiffOpen(false);
+                handleResolveSelectedConflict('accept-disk');
+              }}
+            >
+              采用磁盘版本
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

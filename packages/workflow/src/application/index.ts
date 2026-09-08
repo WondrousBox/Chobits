@@ -1,5 +1,5 @@
 import type { WorkflowDefinitionSaveResult, WorkflowExecutionResult, WorkflowRunHandle } from '../../application-service.js';
-import type { NodeConfig, NodeSpec, PortSchema, ValidateResult, WorkflowDefinition, WorkflowRunLogEntry, WorkflowRunRecord } from '../../types.js';
+import type { NodeConfig, NodeSpec, PortSchema, ValidateResult, WorkflowDefinition, WorkflowRunLogEntry, WorkflowRunRecord, WorkflowRunRequest } from '../../types.js';
 
 export * from '../../application-service.js';
 
@@ -13,8 +13,8 @@ export interface WorkflowRuntimeFacade {
   cancelRun(runId: string, workspaceId?: string): Promise<boolean>;
   deleteDefinition(id: string, workspaceId?: string): Promise<void>;
   deleteRun(runId: string, workspaceId?: string): Promise<void>;
-  executeById(definitionId: string, input?: Record<string, unknown>, metadata?: Record<string, unknown>): Promise<WorkflowExecutionResult>;
-  executeDefinition(definition: WorkflowDefinition, input?: Record<string, unknown>, metadata?: Record<string, unknown>): Promise<WorkflowExecutionResult>;
+  dispose(): Promise<void>;
+  execute(request: WorkflowRunRequest): Promise<WorkflowExecutionResult>;
   flushPersistence(): Promise<void>;
   getDefinition(id: string, workspaceId?: string): Promise<WorkflowDefinition | undefined>;
   getNodeConfig(nodeId: string, config?: NodeConfig): Promise<PortSchema[] | null | undefined>;
@@ -28,19 +28,8 @@ export interface WorkflowRuntimeFacade {
   listPlugins(): Promise<WorkflowPluginManifest[]>;
   listPresetDefinitions(): Promise<WorkflowDefinition[]>;
   listRuns(workspaceId?: string, workflowId?: string, limit?: number, resourceId?: string): Promise<WorkflowRunRecord[]>;
-  runDefinition(
-    definition: WorkflowDefinition,
-    input?: Record<string, unknown>,
-    metadata?: Record<string, unknown>,
-    onProgress?: (progress: number, message?: string) => void
-  ): Promise<WorkflowRunRecord>;
+  run(request: WorkflowRunRequest, onProgress?: (progress: number, message?: string) => void): Promise<WorkflowRunRecord>;
   saveDefinition(definition: WorkflowDefinition, workspaceId?: string): Promise<WorkflowDefinitionSaveResult>;
-  startDefinition(definition: WorkflowDefinition, input?: Record<string, unknown>, metadata?: Record<string, unknown>, onProgress?: (progress: number, message?: string) => void): WorkflowRunHandle;
-  startValidatedDefinition(
-    definition: WorkflowDefinition,
-    input?: Record<string, unknown>,
-    metadata?: Record<string, unknown>,
-    onProgress?: (progress: number, message?: string) => void
-  ): Promise<WorkflowRunHandle>;
+  start(request: WorkflowRunRequest, onProgress?: (progress: number, message?: string) => void): Promise<WorkflowRunHandle>;
   validateDefinition(definition: WorkflowDefinition): Promise<ValidateResult>;
 }

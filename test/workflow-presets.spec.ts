@@ -4,6 +4,8 @@ import path from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
+import { createWorkflowRegistry } from '@chobits/workflow/core';
+
 vi.mock('electron', () => ({
   app: {
     getAppPath: () => process.cwd(),
@@ -55,7 +57,6 @@ import { TranscribeFastWhisperNode } from '../packages/workflow/nodes/transcribe
 import { TranscribeFunASRNode } from '../packages/workflow/nodes/transcribe-funasr';
 import { TranscribeParakeetNode } from '../packages/workflow/nodes/transcribe-parakeet';
 import { TranscribeWhisperNode } from '../packages/workflow/nodes/transcribe-whisper';
-import { registerNode } from '../packages/workflow/registry';
 import type { WorkflowDefinition } from '../packages/workflow/types';
 
 const presetNodes = [
@@ -74,13 +75,11 @@ const presetNodes = [
   ImageUnderstandNode,
   ImageGenerateNode
 ];
-presetNodes.forEach(registerNode);
-
 describe('workflow presets', () => {
   it('keeps every bundled preset structurally valid', async () => {
     const presetPath = path.join(process.cwd(), 'resources', 'workflows', 'preset.json');
     const definitions = JSON.parse(readFileSync(presetPath, 'utf8')) as WorkflowDefinition[];
-    const engine = createEngine({});
+    const engine = createEngine({}, { registry: createWorkflowRegistry({ nodes: presetNodes }) });
 
     for (const definition of definitions) {
       const result = await engine.validate(definition, { checkRuntimeDependencies: false });

@@ -6,7 +6,7 @@ import { createEngine, WorkflowEngine } from '../../engine.js';
 import { parseWorkflowRuntimeRunRequest } from '../../schema.js';
 import type { WorkflowValidationIssue } from '../contracts/errors.js';
 import type { WorkflowEngineEvents } from '../contracts/events.js';
-import type { WorkflowLegacyRunRequest, WorkflowRunRequest, WorkflowRunScope } from '../contracts/request.js';
+import type { WorkflowRunRequest, WorkflowRunScope } from '../contracts/request.js';
 import type { WorkflowRunRecord } from '../contracts/run.js';
 import type { ValidateResult } from '../contracts/validation.js';
 import type { WorkflowClock, WorkflowExecutionLimiter, WorkflowIdFactory } from '../ports/control.js';
@@ -16,7 +16,6 @@ import type { WorkflowCapabilityResolver } from '../sdk/capability.js';
 import { createWorkflowCapabilities } from './capabilities.js';
 import { randomWorkflowIdFactory, systemWorkflowClock } from './control.js';
 import { createWorkflowExecutionLimiter, type WorkflowExecutionGroupLimits } from './limiter.js';
-import { normalizeWorkflowRunRequest } from './request.js';
 
 export interface WorkflowRuntimeOptions {
   store: WorkflowApplicationStore;
@@ -92,7 +91,7 @@ export class WorkflowRuntime {
     this.engine.onTyped('run:status', this.persistRun);
   }
 
-  async execute(request: WorkflowRunRequest | WorkflowLegacyRunRequest): Promise<WorkflowExecutionResult> {
+  async execute(request: WorkflowRunRequest): Promise<WorkflowExecutionResult> {
     try {
       const handle = await this.start(request);
       const record = await handle.completionPromise;
@@ -117,7 +116,7 @@ export class WorkflowRuntime {
     }
   }
 
-  async start(request: WorkflowRunRequest | WorkflowLegacyRunRequest): Promise<WorkflowRunHandle> {
+  async start(request: WorkflowRunRequest): Promise<WorkflowRunHandle> {
     const prepared = await this.prepareRequest(request);
     this.assertActive();
     const handle = await this.application.startValidatedDefinition(prepared.definition, prepared.input, prepared.metadata);
@@ -126,11 +125,11 @@ export class WorkflowRuntime {
     return { ...handle, completionPromise: tracked };
   }
 
-  async run(request: WorkflowRunRequest | WorkflowLegacyRunRequest): Promise<WorkflowRunRecord> {
+  async run(request: WorkflowRunRequest): Promise<WorkflowRunRecord> {
     return (await this.start(request)).completionPromise;
   }
 
-  async validate(request: WorkflowRunRequest | WorkflowLegacyRunRequest): Promise<ValidateResult> {
+  async validate(request: WorkflowRunRequest): Promise<ValidateResult> {
     try {
       const prepared = await this.prepareRequest(request);
       return this.engine.validate(prepared.definition);
@@ -178,10 +177,9 @@ export class WorkflowRuntime {
     });
   };
 
-  private async prepareRequest(request: WorkflowRunRequest | WorkflowLegacyRunRequest): Promise<PreparedRuntimeRequest> {
+  private async prepareRequest(request: WorkflowRunRequest): Promise<PreparedRuntimeRequest> {
     this.assertActive();
-    const normalized = normalizeWorkflowRunRequest(request);
-    const parsed = parseWorkflowRuntimeRunRequest(normalized);
+    const parsed = parseWorkflowRuntimeRunRequest(request);
     if (!parsed.ok) throw new WorkflowRuntimeRequestError('invalid-run-request', 'Workflow run request is invalid', parsed.issues);
 
     const context = parsed.request.context || {};

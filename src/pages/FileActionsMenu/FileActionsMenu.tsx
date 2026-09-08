@@ -336,18 +336,18 @@ const FileActionsMenu: React.FC = () => {
 
   const actions = useMemo<ActionItem[]>(() => {
     const list: ActionItem[] = [];
-    const runWorkflow = async (defId: string, purpose: string, actionId: string): Promise<void> => {
+    const runWorkflow = async (definitionId: string, purpose: string, actionId: string): Promise<void> => {
       if (!primary) {
         console.warn(`[FileActionsMenu] no resource for ${purpose}`);
-        await emitPurposeEvent('fileAction:failed', { reason: 'no-resource', actionId, actionPurpose: purpose, workflowId: defId });
+        await emitPurposeEvent('fileAction:failed', { reason: 'no-resource', actionId, actionPurpose: purpose, workflowId: definitionId });
         throw new Error('no-resource');
       }
 
       let runError: Error | null = null;
       await runWorkflowUtil({
-        defId,
+        definitionId,
         input: { resource: primary, resourceId: primary.id },
-        metadata: {
+        context: {
           resourceId: primary.id,
           resourceName: primary.title || 'Unknown',
           thumbnailPath: primary.thumbnailPath,
@@ -361,7 +361,7 @@ const FileActionsMenu: React.FC = () => {
           void emitPurposeEvent('fileAction:workflow-started', {
             actionId,
             actionPurpose: purpose,
-            workflowId: defId,
+            workflowId: definitionId,
             workflowRunId: runId,
             runId
           });
@@ -372,7 +372,7 @@ const FileActionsMenu: React.FC = () => {
           void emitPurposeEvent('fileAction:failed', {
             actionId,
             actionPurpose: purpose,
-            workflowId: defId,
+            workflowId: definitionId,
             error: runError.message
           });
         }

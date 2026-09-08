@@ -77,9 +77,9 @@ describe('useWorkflowRunControl', () => {
     expect(probe.getAttribute('data-running')).toBe('true');
     expect(runner).toHaveBeenCalledWith(
       expect.objectContaining({
-        defId: 'workflow-1',
+        definitionId: 'workflow-1',
         input: { text: 'hello' },
-        metadata: { textLength: 5, workspaceId: 'workspace-1' }
+        context: { textLength: 5, workspaceId: 'workspace-1' }
       })
     );
 
@@ -89,7 +89,7 @@ describe('useWorkflowRunControl', () => {
     });
     expect(probe.getAttribute('data-running')).toBe('false');
     expect(notifySuccess).toHaveBeenCalledWith('工作流执行完成', '文本输入 (5 字符)');
-    expect(eventPublisher.postMessage).toHaveBeenCalledWith({ type: 'run-started', defId: 'workflow-1', workspaceId: 'workspace-1' });
+    expect(eventPublisher.postMessage).toHaveBeenCalledWith({ type: 'run-started', definitionId: 'workflow-1', workspaceId: 'workspace-1' });
 
     await act(async () => {
       root.unmount();

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { createWorkflowRegistry } from '../packages/workflow/core/registry';
+import { createWorkflowRegistry } from '@chobits/workflow/core';
 import type { WorkflowDefinition } from '../packages/workflow/src/contracts/definition';
 import type { WorkflowRunRecord } from '../packages/workflow/src/contracts/run';
 import type { WorkflowApplicationStore } from '../packages/workflow/src/ports/store';
@@ -129,40 +129,6 @@ describe('WorkflowRuntime Phase 7 contract', () => {
       }
     });
     expect(contexts).toEqual([{ workspaceId: 'workspace-canonical', resourceId: 'resource-1', folderId: 'folder-1' }]);
-    await runtime.dispose();
-  });
-
-  it('keeps legacy defId, input, and metadata requests compatible', async () => {
-    const contexts: Array<Record<string, unknown>> = [];
-    const legacyNode = defineNode({
-      spec: { id: 'fixture/legacy', label: 'Legacy', inputs: [], outputs: [{ key: 'ok', type: 'boolean' as const }] },
-      async run({ ctx }) {
-        contexts.push({ workspaceId: ctx.workspaceId, resourceId: ctx.resourceId, folderId: ctx.folderId });
-        return { ok: true };
-      }
-    });
-    const store = new InMemoryWorkflowApplicationStore({
-      definitions: [{ ...definition('fixture:legacy-definition', legacyNode.spec.id), workspaceId: 'workspace-legacy' }]
-    });
-    const runtime = createWorkflowRuntime({
-      store,
-      registry: createWorkflowRegistry({ nodes: [legacyNode] }),
-      engineOptions: { completedRunTempTtlMs: 0 }
-    });
-
-    const record = await runtime.run({
-      defId: 'fixture:legacy-definition',
-      input: { resource: { id: 'resource-legacy', folderId: 'folder-legacy' } },
-      metadata: { workspaceId: 'workspace-legacy', source: 'scheduler' }
-    });
-
-    expect(record.metadata).toMatchObject({
-      workspaceId: 'workspace-legacy',
-      resourceId: 'resource-legacy',
-      folderId: 'folder-legacy',
-      trigger: { type: 'schedule' }
-    });
-    expect(contexts).toEqual([{ workspaceId: 'workspace-legacy', resourceId: 'resource-legacy', folderId: 'folder-legacy' }]);
     await runtime.dispose();
   });
 

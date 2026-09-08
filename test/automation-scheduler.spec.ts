@@ -44,7 +44,7 @@ function createRule(patch?: Record<string, unknown>): any {
 function createWorkflowRuntime(): WorkflowRuntimeFacade {
   return {
     getDefinition: getWorkflowMock,
-    runDefinition: runWorkflowMock
+    run: runWorkflowMock
   } as unknown as WorkflowRuntimeFacade;
 }
 
@@ -105,16 +105,17 @@ describe('automation scheduler', () => {
     await scheduledCallback?.(new Date('2026-05-05T09:05:00Z'));
 
     expect(getWorkflowMock).toHaveBeenCalledWith('workflow-1', 'workspace-1');
-    expect(runWorkflowMock).toHaveBeenCalledWith(
-      workflow,
-      expect.objectContaining({
+    expect(runWorkflowMock).toHaveBeenCalledWith({
+      definition: workflow,
+      input: expect.objectContaining({
         source: 'rule',
         triggerType: 'schedule',
         scheduledFor: new Date('2026-05-05T09:05:00Z').getTime(),
         triggeredAt: expect.any(Number)
       }),
-      { workspaceId: 'workspace-1' }
-    );
+      scope: { kind: 'workspace', id: 'workspace-1' },
+      trigger: { type: 'schedule', id: 'rule-1' }
+    });
   });
 
   it('executes manual, system, and resource rules through scheduler audit and control', async () => {
@@ -156,36 +157,36 @@ describe('automation scheduler', () => {
     await expect(runAutomationRule(systemRule, { type: 'system_event', eventType: 'app_started' })).resolves.toEqual({ ok: true });
     await expect(runAutomationRule(resourceRule, { type: 'resource_event', eventType: 'resource_created', resource: { id: 'res-1', type: 'video' } })).resolves.toEqual({ ok: true });
 
-    expect(runWorkflowMock).toHaveBeenNthCalledWith(
-      1,
-      workflow,
-      expect.objectContaining({
+    expect(runWorkflowMock).toHaveBeenNthCalledWith(1, {
+      definition: workflow,
+      input: expect.objectContaining({
         source: 'manual',
         triggerType: 'manual'
       }),
-      { workspaceId: 'workspace-1' }
-    );
-    expect(runWorkflowMock).toHaveBeenNthCalledWith(
-      2,
-      workflow,
-      expect.objectContaining({
+      scope: { kind: 'workspace', id: 'workspace-1' },
+      trigger: { type: 'manual', id: 'manual-rule' }
+    });
+    expect(runWorkflowMock).toHaveBeenNthCalledWith(2, {
+      definition: workflow,
+      input: expect.objectContaining({
         source: 'system',
         triggerType: 'system_event',
         eventType: 'app_started'
       }),
-      { workspaceId: 'workspace-1' }
-    );
-    expect(runWorkflowMock).toHaveBeenNthCalledWith(
-      3,
-      workflow,
-      expect.objectContaining({
+      scope: { kind: 'workspace', id: 'workspace-1' },
+      trigger: { type: 'event', id: 'system-rule' }
+    });
+    expect(runWorkflowMock).toHaveBeenNthCalledWith(3, {
+      definition: workflow,
+      input: expect.objectContaining({
         source: 'resource',
         triggerType: 'resource_event',
         eventType: 'resource_created',
         resourceId: 'res-1'
       }),
-      { workspaceId: 'workspace-1' }
-    );
+      scope: { kind: 'workspace', id: 'workspace-1' },
+      trigger: { type: 'event', id: 'resource-rule' }
+    });
 
     expect(
       getAutomationSchedulerSnapshot()

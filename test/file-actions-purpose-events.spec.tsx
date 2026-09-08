@@ -341,8 +341,8 @@ describe('FileActionsMenu purpose events', () => {
 
     expect(harness.startPurpose).not.toHaveBeenCalled();
     expect(vi.mocked(runWorkflow).mock.calls[0][0]).toMatchObject({
-      defId: 'sample:transcribe',
-      metadata: {
+      definitionId: 'sample:transcribe',
+      context: {
         resourceId: 'resource-audio',
         resourceName: 'voice.mp3',
         workspaceId: 'workspace-1',
@@ -424,7 +424,7 @@ describe('FileActionsMenu purpose events', () => {
 
     expect(runWorkflow).toHaveBeenCalledWith(
       expect.objectContaining({
-        defId: 'sample:image-understand',
+        definitionId: 'sample:image-understand',
         input: expect.objectContaining({ resourceId: 'resource-image' })
       })
     );

@@ -8,7 +8,7 @@ import { onAbort } from './abort.js';
 import { planWorkflowDag } from './core/dag-planner.js';
 import { EngineEmitter } from './core/events.js';
 import { executeWorkflowSchedule } from './core/execution-scheduler.js';
-import { defaultWorkflowRegistry, type WorkflowRegistry } from './core/registry.js';
+import { createWorkflowRegistry, type WorkflowRegistry } from './core/registry.js';
 import {
   applyTerminalWorkflowOutput,
   cancelWorkflowRun,
@@ -203,7 +203,7 @@ export class WorkflowEngine extends EngineEmitter {
     options: WorkflowEngineOptions = {}
   ) {
     super();
-    this.registry = options.registry || defaultWorkflowRegistry;
+    this.registry = options.registry || createWorkflowRegistry();
     this.capabilities = options.capabilities || createWorkflowCapabilities();
     this.clock = options.clock || systemWorkflowClock;
     this.idFactory = options.idFactory || randomWorkflowIdFactory;

@@ -25,10 +25,3 @@ export interface WorkflowRunRequest {
   context?: Record<string, unknown>;
   configOverrides?: Record<string, Record<string, unknown>>;
 }
-
-export interface WorkflowLegacyRunRequest {
-  defId?: string;
-  def?: WorkflowDefinition;
-  input?: Record<string, unknown>;
-  metadata?: Record<string, unknown>;
-}

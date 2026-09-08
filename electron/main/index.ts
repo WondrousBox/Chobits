@@ -17,7 +17,7 @@ import { registerGlobalShortcuts, unregisterGlobalShortcuts } from './shortcuts'
 import { update } from './update';
 import { Env, getRuntimeDataDir } from './utils';
 import { getResourcePath } from './utils/resources-path';
-import { flushWorkflowPersistence, getMainWorkflowRuntime, initWorkflowSystem } from './workflow';
+import { disposeWorkflowSystem, getMainWorkflowRuntime, initWorkflowSystem } from './workflow';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -377,9 +377,9 @@ app.on('will-quit', (event) => {
   eventManager.emit(AppEvent.SPRITE_SYSTEM_QUIT);
   // Ensure shortcuts are fully unregistered on app quit
   unregisterGlobalShortcuts();
-  void flushWorkflowPersistence()
+  void disposeWorkflowSystem()
     .catch((error) => {
-      console.warn('[workflow] flush persistence failed', error);
+      console.warn('[workflow] shutdown failed', error);
     })
     .finally(() => {
       workflowPersistenceFlushed = true;

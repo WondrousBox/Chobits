@@ -18,15 +18,10 @@ export interface WorkflowRunResource {
 }
 
 export type WorkflowConfiguredInput =
-  | { type: 'resource' }
-  | { type: 'text'; value?: string }
-  | { type: 'file'; value?: string }
-  | { type: 'url'; value?: string }
-  | { type: 'folder'; value?: string }
-  | { type: string; value?: string };
+  { type: 'resource' } | { type: 'text'; value?: string } | { type: 'file'; value?: string } | { type: 'url'; value?: string } | { type: 'folder'; value?: string } | { type: string; value?: string };
 
 interface WorkflowRunEventPublisher {
-  postMessage(message: { type: 'run-started'; defId: string; resourceId?: string; workspaceId: string }): void;
+  postMessage(message: { type: 'run-started'; definitionId: string; resourceId?: string; workspaceId: string }): void;
 }
 
 type WorkflowRunner = (options: RunWorkflowOptions) => Promise<void>;
@@ -86,7 +81,7 @@ export function useWorkflowRunControl({ draft, nodes, eventPublisher, runner = r
   const configuredInput = useMemo(() => getWorkflowConfiguredInput(nodes, startNodeInputMode), [nodes, startNodeInputMode]);
 
   const execute = useCallback(
-    async (input: Record<string, any>, metadata: Record<string, any>, description: string, resourceId?: string): Promise<void> => {
+    async (input: Record<string, any>, context: Record<string, any>, description: string, resourceId?: string): Promise<void> => {
       if (!draft) return;
       const attempt = { scope: runScope, attempt: Symbol('workflow-run') };
       activeAttemptRef.current = attempt;
@@ -94,17 +89,17 @@ export function useWorkflowRunControl({ draft, nodes, eventPublisher, runner = r
 
       try {
         await runner({
-          defId: draft.id,
+          definitionId: draft.id,
           input,
-          metadata,
+          context,
           onSuccess: () => {
             notifySuccess('工作流执行完成', description);
             try {
               eventPublisher.postMessage({
                 type: 'run-started',
-                defId: draft.id,
+                definitionId: draft.id,
                 ...(resourceId ? { resourceId } : {}),
-                workspaceId: metadata.workspaceId || draft.workspaceId!
+                workspaceId: context.workspaceId || draft.workspaceId!
               });
             } catch {
               // A closed cross-window channel must not change the run result.

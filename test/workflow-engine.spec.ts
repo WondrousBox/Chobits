@@ -2,11 +2,12 @@ import fsPromises from 'node:fs/promises';
 
 import { describe, expect, it } from 'vitest';
 
+import { createWorkflowRegistry } from '@chobits/workflow/core';
+
 import type { WorkflowEngine } from '../packages/workflow/engine';
 import { createEngine } from '../packages/workflow/engine';
 import { ConditionNode } from '../packages/workflow/nodes/condition';
 import { EndNode } from '../packages/workflow/nodes/end';
-import { registerNode, registerPlugin } from '../packages/workflow/registry';
 import type { NodeHandler, WorkflowRunRecord } from '../packages/workflow/types';
 
 function node(id: string, run: NodeHandler['run'], inputs: NodeHandler['spec']['inputs'] = [], outputs: NodeHandler['spec']['outputs'] = []): NodeHandler {
@@ -16,27 +17,29 @@ function node(id: string, run: NodeHandler['run'], inputs: NodeHandler['spec']['
   };
 }
 
-registerNode(node('test/source', async ({ input }) => ({ value: input.value })));
-registerNode(node('test/left', async ({ input }) => ({ left: input.value })));
-registerNode(node('test/right', async ({ input }) => ({ right: input.value })));
-registerNode(node('test/terminal-a', async ({ input }) => ({ a: input.value })));
-registerNode(node('test/terminal-b', async ({ input }) => ({ b: input.value })));
-registerNode(node('test/terminal-result-a', async () => ({ result: 'a' })));
-registerNode(node('test/terminal-result-b', async () => ({ result: 'b' })));
-registerNode(
+const registry = createWorkflowRegistry();
+
+registry.registerNode(node('test/source', async ({ input }) => ({ value: input.value })));
+registry.registerNode(node('test/left', async ({ input }) => ({ left: input.value })));
+registry.registerNode(node('test/right', async ({ input }) => ({ right: input.value })));
+registry.registerNode(node('test/terminal-a', async ({ input }) => ({ a: input.value })));
+registry.registerNode(node('test/terminal-b', async ({ input }) => ({ b: input.value })));
+registry.registerNode(node('test/terminal-result-a', async () => ({ result: 'a' })));
+registry.registerNode(node('test/terminal-result-b', async () => ({ result: 'b' })));
+registry.registerNode(
   node('test/join', async ({ input }) => ({ joined: `${input.left}:${input.right}` }), [
     { key: 'left', type: 'string', required: true },
     { key: 'right', type: 'string', required: true }
   ])
 );
-registerNode(node('test/tmp-dir', async ({ ctx }) => ({ tmpDir: ctx.tmpDir })));
-registerNode(node('test/workspace-context', async ({ ctx }) => ({ workspaceId: ctx.workspaceId })));
-registerNode(
+registry.registerNode(node('test/tmp-dir', async ({ ctx }) => ({ tmpDir: ctx.tmpDir })));
+registry.registerNode(node('test/workspace-context', async ({ ctx }) => ({ workspaceId: ctx.workspaceId })));
+registry.registerNode(
   node('test/fail', async () => {
     throw new Error('expected failure');
   })
 );
-registerNode(
+registry.registerNode(
   node('test/slow', async ({ ctx }) => {
     await new Promise<void>((resolve, reject) => {
       const timer = setTimeout(resolve, 1000);
@@ -52,11 +55,11 @@ registerNode(
     return { done: true };
   })
 );
-registerNode(ConditionNode);
-registerNode(EndNode);
+registry.registerNode(ConditionNode);
+registry.registerNode(EndNode);
 
 function engine(): WorkflowEngine {
-  return createEngine({});
+  return createEngine({}, { registry });
 }
 
 describe('WorkflowEngine execution contract', () => {
@@ -333,7 +336,7 @@ describe('WorkflowEngine execution contract', () => {
   });
 
   it('cleans successful temporary directories when retention is disabled', async () => {
-    const workflowEngine = createEngine({}, { completedRunTempTtlMs: 0 });
+    const workflowEngine = createEngine({}, { completedRunTempTtlMs: 0, registry });
     const rec = await workflowEngine.run({
       id: 'test:no-temp-retention',
       name: 'no-temp-retention',
@@ -345,7 +348,7 @@ describe('WorkflowEngine execution contract', () => {
   });
 
   it('evicts old terminal runs and their logs from the in-memory cache', async () => {
-    const workflowEngine = createEngine({}, { completedRunTempTtlMs: 0, maxCachedRuns: 2 });
+    const workflowEngine = createEngine({}, { completedRunTempTtlMs: 0, maxCachedRuns: 2, registry });
     const records: WorkflowRunRecord[] = [];
     for (const value of ['first', 'second', 'third']) {
       records.push(
@@ -367,7 +370,7 @@ describe('WorkflowEngine execution contract', () => {
   it('limits parallel nodes using the workflow concurrency option', async () => {
     let active = 0;
     let maxActive = 0;
-    registerNode(
+    registry.registerNode(
       node('test/concurrency-probe', async () => {
         active += 1;
         maxActive = Math.max(maxActive, active);
@@ -400,7 +403,7 @@ describe('WorkflowEngine execution contract', () => {
 
   it('waits for an upstream execution level before running dependent nodes', async () => {
     const events: string[] = [];
-    registerNode(
+    registry.registerNode(
       node(
         'test/level-source',
         async () => {
@@ -413,7 +416,7 @@ describe('WorkflowEngine execution contract', () => {
         [{ key: 'value', type: 'string' }]
       )
     );
-    registerNode(
+    registry.registerNode(
       node(
         'test/level-dependent',
         async ({ input }) => {
@@ -441,13 +444,13 @@ describe('WorkflowEngine execution contract', () => {
 
   it('stops scheduling new batches after fail-fast while allowing started nodes to finish', async () => {
     const executed: string[] = [];
-    registerNode(
+    registry.registerNode(
       node('test/fail-fast-error', async () => {
         executed.push('failed');
         throw new Error('fail-fast');
       })
     );
-    registerNode(
+    registry.registerNode(
       node('test/fail-fast-sibling', async () => {
         executed.push('sibling:start');
         await new Promise((resolve) => setTimeout(resolve, 20));
@@ -455,7 +458,7 @@ describe('WorkflowEngine execution contract', () => {
         return {};
       })
     );
-    registerNode(
+    registry.registerNode(
       node('test/fail-fast-late', async () => {
         executed.push('late');
         return {};
@@ -483,7 +486,7 @@ describe('WorkflowEngine execution contract', () => {
   it('shares plugin preparation across concurrent nodes', async () => {
     let installChecks = 0;
     let preparations = 0;
-    registerPlugin({
+    registry.registerPlugin({
       id: 'test/concurrent-plugin',
       label: 'concurrent-plugin',
       async isInstalled() {
@@ -496,7 +499,7 @@ describe('WorkflowEngine execution contract', () => {
         await new Promise((resolve) => setTimeout(resolve, 10));
       }
     });
-    registerNode({
+    registry.registerNode({
       ...node('test/plugin-consumer', async () => ({})),
       spec: { id: 'test/plugin-consumer', label: 'plugin-consumer', inputs: [], outputs: [], requires: ['test/concurrent-plugin'] }
     });

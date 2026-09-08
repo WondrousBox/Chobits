@@ -49,7 +49,7 @@ const ResourceFooter: React.FC<ResourceFooterProps> = ({
       .then((defs) => {
         setWorkflows(defs || []);
       })
-      .catch(() => { });
+      .catch(() => {});
   }, [workspaceId]);
 
   // 获取选中的资源列表
@@ -121,15 +121,15 @@ const ResourceFooter: React.FC<ResourceFooterProps> = ({
       // 对每个选中的资源执行工作流
       for (const item of selectedResources) {
         await runWorkflow({
-          defId: wf.id,
+          definitionId: wf.id,
           input: { resource: item, resourceId: item.id },
-          metadata: {
+          context: {
             resourceId: item.id,
             resourceName: item.title || 'Unknown',
             thumbnailPath: item.thumbnailPath,
             workspaceId: item.workspaceId
           },
-          onSuccess: () => { }
+          onSuccess: () => {}
         });
       }
       toast.success(`已开始对 ${selectedResources.length} 个资源执行工作流: ${wf.name}`);

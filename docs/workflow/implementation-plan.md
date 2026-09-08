@@ -30,7 +30,7 @@ Phase 1 至 Phase 10 已将工作流从“主进程内可运行的功能集合�
 ### Phase 10 完成状态
 
 - `packages/workflow` 已完成独立 manifest/build、12 个受控 exports、公共 contract、实例 runtime 和真实 tarball JavaScript/TypeScript consumer。
-- 新 runtime/registry 已使用实例生命周期；迁移期仍保留的默认 registry、旧类型和转发入口只作为内部兼容面，完整清单见 [工作流旧版兼容清理计划](./legacy-removal-plan.md)。
+- 新 runtime/registry 已使用实例生命周期；默认 registry 已在 Phase 11 删除，迁移期仍保留的旧类型和转发入口清单见 [工作流旧版兼容清理计划](./legacy-removal-plan.md)。
 - 公开请求已支持通用 scope/context，但类型仍保留 workspace、resource input 和部分 `any` 兼容字段。
 - 26 个宿主应用节点、7 个 plugin、SQLite/预设 store、资源/AI/OCR/rendering adapters 已迁入私有包；旧业务路径仍是迁移期转发，尚未达到首次发布前的清理门槛。
 - 公共 runtime 与工作流集成层均完成边界检查；宿主 composition 已配置 resource I/O、AI、FFmpeg、ASR、OCR 和 rendering 执行组。
@@ -230,7 +230,7 @@ React / scheduler / AI tool / Electron IPC
 - tarball 不包含数据库、缓存、宿主配置或未声明内部源码。
 - 公共 API、版本策略和首次发布前清理门槛有明确文档，所有包化验收项通过。
 
-### Phase 11：旧版兼容清理与源码归位（待实施）
+### Phase 11：旧版兼容清理与源码归位（实施中）
 
 范围：
 
@@ -317,7 +317,7 @@ pnpm exec vitest run
 - [completed] Phase 8：私有包、26 个业务节点、7 个 plugin、全部 capability adapters、SQLite/预设 store、composition、执行组和兼容边界均已完成。
 - [completed] Phase 9：公共 runtime facade、scheduler/Pi runtime 注入、Electron composition root、共享 IPC contract 和类型安全 renderer client 均已完成。
 - [completed] Phase 10：公开 nodes/exports、生产导入迁移、manifest/ESM/declaration/side-effects/tarball 验收、严格类型 consumer 和版本文档均已完成；其中兼容窗口仅是历史迁移决策。
-- [pending] Phase 11：旧版兼容清理、源码归位、ExecutionContext 去宿主化、definition 数据迁移、业务 fallback 审计和零 legacy 发布门槛。
+- [in progress] Phase 11：已完成宿主正式 request API、IPC/renderer/触发方字段统一、宿主旧运行 façade 删除、公共 runtime legacy request 删除、默认 registry 删除、Electron dispose 和公共 core 出口收紧；旧源码归位、旧类型、ExecutionContext 去宿主化、definition 数据迁移、业务 fallback 审计和零 legacy 发布门槛仍待完成。
 
 ## 8. Phase 6 实施记录
 
@@ -627,6 +627,6 @@ git diff --check                            passed
 
 ### 下一步
 
-Phase 1 至 Phase 10 已全部完成，Phase 11 待实施。下一步先按 [工作流旧版兼容清理计划](./legacy-removal-plan.md) 完成七个批次，再确定首次外部发布版本、registry、package scope、凭据和 release notes。Phase 11 默认不修改数据库表结构，但会涉及内置预设和存量 definition JSON 的显式数据迁移；不会通过运行 `dev` 隐式升级。
+Phase 1 至 Phase 10 已全部完成，Phase 11 正在实施。宿主正式 request API、IPC/renderer/触发方字段统一、公共 runtime legacy request、默认 registry 和生命周期清理已经落地；下一步继续按 [工作流旧版兼容清理计划](./legacy-removal-plan.md) 删除旧类型和源码转发，再处理 ExecutionContext、definition 数据迁移、业务 fallback 审计与零 legacy 发布门槛。Phase 11 默认不修改数据库表结构；内置预设和存量 definition JSON 必须显式迁移，不会通过运行 `dev` 隐式升级。
 
 Phase 1-5 验收时记录过 onboarding/sprite、selected-text、scheduler storage、资源签名和 Electron mock 等仓库级历史基线，以及 `dist-electron`、`.vscode` 和历史源码 lint 问题。它们不属于工作流包化范围；Phase 6-10 使用独立 build、consumer 和定向回归区分该历史记录。

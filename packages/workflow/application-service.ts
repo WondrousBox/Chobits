@@ -1,7 +1,8 @@
 import type { WorkflowEngine } from './engine.js';
 import { calculateWorkflowProgress } from './progress.js';
+import { parseWorkflowRuntimeRunRequest } from './schema.js';
 import type { WorkflowApplicationStore } from './src/ports/store.js';
-import type { ExecutionStatus, NodeRunState, ValidateResult, WorkflowDefinition, WorkflowRunLogEntry, WorkflowRunRecord } from './types.js';
+import type { ExecutionStatus, NodeRunState, ValidateResult, WorkflowDefinition, WorkflowRunLogEntry, WorkflowRunRecord, WorkflowRunRequest, WorkflowValidationIssue } from './types.js';
 
 export type { WorkflowApplicationStore } from './src/ports/store.js';
 
@@ -24,6 +25,21 @@ export interface WorkflowExecutionResult {
 export type WorkflowDefinitionSaveResult = { ok: true; definition: WorkflowDefinition } | { ok: false; error: 'Workflow definition is invalid'; validation: ValidateResult };
 
 type PreparedExecution = { definition: WorkflowDefinition; failure?: never } | { definition?: never; failure: WorkflowExecutionResult };
+type PreparedRunRequest = {
+  definition: WorkflowDefinition;
+  input: Record<string, any>;
+  metadata: Record<string, any>;
+};
+
+class WorkflowApplicationRequestError extends Error {
+  constructor(
+    readonly code: 'invalid-run-request' | 'workflow-not-found',
+    readonly issues?: WorkflowValidationIssue[]
+  ) {
+    super(code);
+    this.name = 'WorkflowApplicationRequestError';
+  }
+}
 
 function applyConfigOverrides(definition: WorkflowDefinition, input: Record<string, any>): WorkflowDefinition {
   const overrides = input.__configOverrides__;
@@ -59,6 +75,32 @@ export class WorkflowApplicationService {
     private readonly resolveWorkspaceId: (workspaceId?: string) => Promise<string>
   ) {}
 
+  async execute(request: WorkflowRunRequest): Promise<WorkflowExecutionResult> {
+    try {
+      const prepared = await this.prepareRunRequest(request);
+      return this.executeDefinition(prepared.definition, prepared.input, prepared.metadata);
+    } catch (error) {
+      if (error instanceof WorkflowApplicationRequestError) {
+        return {
+          ok: false,
+          error: error.code,
+          ...(error.issues ? { validation: { ok: false, issues: error.issues, errors: error.issues.map((issue) => issue.message) } } : {})
+        };
+      }
+      throw error;
+    }
+  }
+
+  async start(request: WorkflowRunRequest, onProgress?: (progress: number, message?: string) => void): Promise<WorkflowRunHandle> {
+    const prepared = await this.prepareRunRequest(request);
+    return this.startValidatedDefinition(prepared.definition, prepared.input, prepared.metadata, onProgress);
+  }
+
+  async run(request: WorkflowRunRequest, onProgress?: (progress: number, message?: string) => void): Promise<WorkflowRunRecord> {
+    const handle = await this.start(request, onProgress);
+    return handle.completionPromise;
+  }
+
   private async prepareExecution(definition: WorkflowDefinition, input: Record<string, any>): Promise<PreparedExecution> {
     const executionDefinition = applyConfigOverrides(definition, input);
     const validation = await this.engine.validate(executionDefinition);
@@ -72,6 +114,32 @@ export class WorkflowApplicationService {
     }
 
     return { definition: executionDefinition };
+  }
+
+  private async prepareRunRequest(request: WorkflowRunRequest): Promise<PreparedRunRequest> {
+    const parsed = parseWorkflowRuntimeRunRequest(request);
+    if (!parsed.ok) throw new WorkflowApplicationRequestError('invalid-run-request', parsed.issues);
+
+    const normalized = parsed.request;
+    const context = normalized.context || {};
+    const requestedWorkspaceId = normalized.scope?.kind === 'workspace' ? normalized.scope.id : executionWorkspaceId(normalized.input || {}, context);
+    const workspaceId = await this.resolveWorkspaceId(requestedWorkspaceId);
+    const definition = normalized.definition || (normalized.definitionId ? await this.getDefinition(normalized.definitionId, workspaceId) : undefined);
+    if (!definition) throw new WorkflowApplicationRequestError('workflow-not-found');
+
+    const input = {
+      ...(normalized.input || {}),
+      ...(normalized.configOverrides ? { __configOverrides__: normalized.configOverrides } : {})
+    };
+    const metadata = {
+      ...context,
+      workspaceId,
+      ...(normalized.scope ? { scope: normalized.scope } : {}),
+      ...(normalized.trigger ? { trigger: normalized.trigger } : {}),
+      ...(normalized.actor ? { actor: normalized.actor } : {}),
+      context
+    };
+    return { definition: { ...definition, workspaceId }, input, metadata };
   }
 
   async executeDefinition(definition: WorkflowDefinition, input: Record<string, any> = {}, metadata?: Record<string, any>): Promise<WorkflowExecutionResult> {

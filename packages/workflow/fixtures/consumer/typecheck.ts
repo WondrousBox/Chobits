@@ -10,6 +10,10 @@ import { parseWorkflowDefinition } from '@chobits/workflow/schema';
 import { defineCapability, defineNode } from '@chobits/workflow/sdk';
 import { FakeWorkflowClock, FakeWorkflowIdFactory, InMemoryWorkflowApplicationStore } from '@chobits/workflow/testing';
 
+type AssertNever<T extends never> = T;
+type LegacyFacadeRunMethod = Extract<keyof WorkflowRuntimeFacade, 'executeById' | 'executeDefinition' | 'runDefinition' | 'startDefinition' | 'startValidatedDefinition'>;
+type _NoLegacyFacadeRunMethods = AssertNever<LegacyFacadeRunMethod>;
+
 const formatter = defineCapability<{ format(value: string): string }>('consumer.formatter');
 const node = defineNode({
   spec: {
@@ -49,6 +53,9 @@ const engine = createEngine({}, { registry, capabilities });
 void parseWorkflowDefinition(definition);
 void planWorkflowDag(definition);
 const execution: Promise<WorkflowExecutionResult> = runtime.execute(request);
+declare const facade: WorkflowRuntimeFacade;
+const facadeExecution: Promise<WorkflowExecutionResult> = facade.execute(request);
 void execution;
+void facadeExecution;
 void engine;
 void ({} as WorkflowRuntimeFacade);

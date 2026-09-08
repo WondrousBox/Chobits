@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { createWorkflowRegistry } from '../packages/workflow/core/registry';
+import { createWorkflowRegistry } from '@chobits/workflow/core';
 import { ResourceLoadNode as CompatibilityResourceLoadNode } from '../packages/workflow/nodes/resource-load';
 import { createWorkflowCapabilities } from '../packages/workflow/src/runtime/capabilities';
 import { createWorkflowRuntime } from '../packages/workflow/src/runtime/runtime';

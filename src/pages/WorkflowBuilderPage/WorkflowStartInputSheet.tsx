@@ -24,8 +24,8 @@ type MissingConfig = {
 };
 
 type IncomingPayload = {
-  defId: string;
-  metadata?: Record<string, any>;
+  definitionId: string;
+  context?: Record<string, any>;
   missingConfigs?: MissingConfig[];
   originalInput?: Record<string, any>; // 保留原始输入，包括 resource 对象等
 };
@@ -41,8 +41,8 @@ const WORKFLOW_START_INPUT_STORAGE_KEY = 'workflow:start-input';
 
 export default function WorkflowStartInputSheet(): JSX.Element {
   const [open, setOpen] = useState(false);
-  const [defId, setDefId] = useState<string>('');
-  const [metadata, setMetadata] = useState<Record<string, any>>({});
+  const [definitionId, setDefinitionId] = useState<string>('');
+  const [context, setContext] = useState<Record<string, any>>({});
   const [originalInput, setOriginalInput] = useState<Record<string, any>>({}); // 保留原始输入
   const [missingConfigs, setMissingConfigs] = useState<MissingConfig[]>([]);
   const [configValues, setConfigValues] = useState<Record<string, Record<string, any>>>({});
@@ -107,15 +107,15 @@ export default function WorkflowStartInputSheet(): JSX.Element {
   // 监听工作流开始节点需要输入的事件
   useEffect(() => {
     const handleStartInputRequired = (_e: any, payload: IncomingPayload): void => {
-      setDefId(payload.defId);
-      setMetadata(payload.metadata || {});
+      setDefinitionId(payload.definitionId);
+      setContext(payload.context || {});
       setOriginalInput(payload.originalInput || {}); // 保存原始输入
       setMissingConfigs(payload.missingConfigs || []);
       setOpen(true);
 
-      // 根据 defId 和当前缺失配置从本地缓存恢复上次设置
-      if (payload.defId) {
-        loadStoredConfig(payload.defId, payload.missingConfigs || []);
+      // 根据 definitionId 和当前缺失配置从本地缓存恢复上次设置
+      if (payload.definitionId) {
+        loadStoredConfig(payload.definitionId, payload.missingConfigs || []);
       } else {
         setRememberConfig(false);
         setConfigValues({});
@@ -297,8 +297,6 @@ export default function WorkflowStartInputSheet(): JSX.Element {
           }
         }
       }
-
-      input = { ...input, __configOverrides__: configValues };
     }
 
     // 处理本地记住配置
@@ -307,22 +305,22 @@ export default function WorkflowStartInputSheet(): JSX.Element {
       const parsed =
         (raw
           ? (JSON.parse(raw) as Record<
-            string,
-            {
-              remember: boolean;
-              configValues: Record<string, Record<string, any>>;
-            }
-          >)
+              string,
+              {
+                remember: boolean;
+                configValues: Record<string, Record<string, any>>;
+              }
+            >)
           : {}) || {};
 
       if (rememberConfig) {
-        parsed[defId] = {
+        parsed[definitionId] = {
           remember: true,
           configValues
         };
       } else {
-        if (parsed[defId]) {
-          delete parsed[defId];
+        if (parsed[definitionId]) {
+          delete parsed[definitionId];
         }
       }
 
@@ -340,32 +338,33 @@ export default function WorkflowStartInputSheet(): JSX.Element {
         ...input // 用户填写的配置会覆盖原始 input 中对应的字段
       };
 
-      // 构建最终的 metadata，优先保留原始 metadata 中的所有值
+      // 构建最终的 context，优先保留原始 context 中的所有值
       const data = {
-        // 首先保留原始 metadata 中的所有值（包括 workspaceId 和 folderId）
-        ...metadata,
+        // 首先保留原始 context 中的所有值（包括 workspaceId 和 folderId）
+        ...context,
         // 添加输入模式相关的元数据（不覆盖已有的值）
-        ...(input.text && !metadata.textLength ? { textLength: input.text.length } : {}),
-        ...(input.url && !metadata.url ? { url: input.url } : {}),
-        ...(input.file && !metadata.filePath ? { filePath: input.file } : {}),
-        // 只有在用户明确输入新的 folderId 时才更新，否则保留原始 metadata 中的值
+        ...(input.text && !context.textLength ? { textLength: input.text.length } : {}),
+        ...(input.url && !context.url ? { url: input.url } : {}),
+        ...(input.file && !context.filePath ? { filePath: input.file } : {}),
+        // 只有在用户明确输入新的 folderId 时才更新，否则保留原始 context 中的值
         ...(input.folderId
           ? {
-            folderId: input.folderId,
-            // 优先使用用户选择的文件夹对应的 workspaceId，如果没有则保留原始 metadata 中的 workspaceId
-            workspaceId: input.workspaceId || metadata.workspaceId
-          }
+              folderId: input.folderId,
+              // 优先使用用户选择的文件夹对应的 workspaceId，如果没有则保留原始 context 中的 workspaceId
+              workspaceId: input.workspaceId || context.workspaceId
+            }
           : {}),
         ...(missingConfigs.length > 0 ? { configOverridesCount: Object.keys(configValues).length } : {})
       };
 
       console.log('finalInput', finalInput);
-      console.log('metadata', data);
+      console.log('context', data);
 
       await runWorkflow({
-        defId,
+        definitionId,
         input: finalInput, // 使用合并后的 input
-        metadata: data,
+        context: data,
+        ...(missingConfigs.length > 0 ? { configOverrides: configValues } : {}),
         onSuccess: () => {
           toast.success('工作流已开始执行');
           setOpen(false);

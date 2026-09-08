@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
+import { createWorkflowRegistry } from '@chobits/workflow/core';
+
 import { createEngine } from '../packages/workflow/engine';
 import { ConditionNode } from '../packages/workflow/nodes/condition';
-import { registerNode } from '../packages/workflow/registry';
-import { CURRENT_WORKFLOW_SCHEMA_VERSION, parseWorkflowDefinition, workflowRunRequestSchema, workflowSaveRequestSchema } from '../packages/workflow/schema';
+import { CURRENT_WORKFLOW_SCHEMA_VERSION, parseWorkflowDefinition, workflowDefinitionRequestSchema, workflowRunByIdRequestSchema } from '../packages/workflow/schema';
 import type { NodeHandler, WorkflowDefinition } from '../packages/workflow/types';
 
 function handler(id: string, inputs: NodeHandler['spec']['inputs'], outputs: NodeHandler['spec']['outputs'], config?: NodeHandler['spec']['config']): NodeHandler {
@@ -15,11 +16,19 @@ function handler(id: string, inputs: NodeHandler['spec']['inputs'], outputs: Nod
   };
 }
 
-registerNode(handler('validation/string-source', [], [{ key: 'value', type: 'string' }]));
-registerNode(handler('validation/number-source', [], [{ key: 'value', type: 'number' }]));
-registerNode(handler('validation/string-target', [{ key: 'value', type: 'string', required: true }], []));
-registerNode(handler('validation/config-target', [], [], [{ key: 'count', type: 'number' }]));
-registerNode(ConditionNode);
+const registry = createWorkflowRegistry({
+  nodes: [
+    handler('validation/string-source', [], [{ key: 'value', type: 'string' }]),
+    handler('validation/number-source', [], [{ key: 'value', type: 'number' }]),
+    handler('validation/string-target', [{ key: 'value', type: 'string', required: true }], []),
+    handler('validation/config-target', [], [], [{ key: 'count', type: 'number' }]),
+    ConditionNode
+  ]
+});
+
+function validationEngine(): ReturnType<typeof createEngine> {
+  return createEngine({}, { registry });
+}
 
 function definition(patch: Partial<WorkflowDefinition> = {}): WorkflowDefinition {
   return {
@@ -52,19 +61,27 @@ describe('workflow definition schema', () => {
   });
 
   it('validates workflow run request shape', () => {
-    expect(workflowRunRequestSchema.safeParse({ defId: '', input: [] }).success).toBe(false);
-    expect(workflowRunRequestSchema.safeParse({ defId: 'workflow-1', input: { text: 'hello' } }).success).toBe(true);
+    expect(workflowRunByIdRequestSchema.safeParse({ definitionId: '', input: [] }).success).toBe(false);
+    expect(
+      workflowRunByIdRequestSchema.safeParse({
+        definitionId: 'workflow-1',
+        input: { text: 'hello' },
+        trigger: { type: 'manual' },
+        actor: { type: 'user', id: 'user-1' },
+        configOverrides: { node: { model: 'test' } }
+      }).success
+    ).toBe(true);
   });
 
   it('requires a definition in workflow save requests', () => {
-    expect(workflowSaveRequestSchema.safeParse({ workspaceId: 'workspace-1' }).success).toBe(false);
-    expect(workflowSaveRequestSchema.safeParse({ def: definition(), workspaceId: 'workspace-1' }).success).toBe(true);
+    expect(workflowDefinitionRequestSchema.safeParse({ workspaceId: 'workspace-1' }).success).toBe(false);
+    expect(workflowDefinitionRequestSchema.safeParse({ definition: definition(), workspaceId: 'workspace-1' }).success).toBe(true);
   });
 });
 
 describe('workflow graph validation', () => {
   it('returns a structured issue for a missing definition', async () => {
-    const result = await createEngine({}).validate(undefined as unknown as WorkflowDefinition, { checkRuntimeDependencies: false });
+    const result = await validationEngine().validate(undefined as unknown as WorkflowDefinition, { checkRuntimeDependencies: false });
 
     expect(result).toEqual({
       ok: false,
@@ -74,7 +91,7 @@ describe('workflow graph validation', () => {
   });
 
   it('accepts a compatible, fully connected definition', async () => {
-    await expect(createEngine({}).validate(definition(), { checkRuntimeDependencies: false })).resolves.toEqual({ ok: true });
+    await expect(validationEngine().validate(definition(), { checkRuntimeDependencies: false })).resolves.toEqual({ ok: true });
   });
 
   it.each([
@@ -139,14 +156,14 @@ describe('workflow graph validation', () => {
       code: 'invalid-input-default'
     }
   ])('reports $name as a structured issue', async ({ patch, code }) => {
-    const result = await createEngine({}).validate(definition(patch as Partial<WorkflowDefinition>), { checkRuntimeDependencies: false });
+    const result = await validationEngine().validate(definition(patch as Partial<WorkflowDefinition>), { checkRuntimeDependencies: false });
 
     expect(result.ok).toBe(false);
     expect(result.issues).toEqual(expect.arrayContaining([expect.objectContaining({ code })]));
   });
 
   it('rejects duplicate dynamic port keys', async () => {
-    const result = await createEngine({}).validate(
+    const result = await validationEngine().validate(
       definition({
         nodes: [
           {

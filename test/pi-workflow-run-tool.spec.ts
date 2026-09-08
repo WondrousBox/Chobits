@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 const getWorkflowMock = vi.hoisted(() => vi.fn());
-const startValidatedWorkflowMock = vi.hoisted(() => vi.fn());
+const startWorkflowMock = vi.hoisted(() => vi.fn());
 
 vi.mock('../packages/ai/runtime/pi/skills', () => ({
   resolveGuardedToolExecution: vi.fn()
@@ -21,7 +21,7 @@ describe('workflowRunTool resource outputs', () => {
       ],
       edges: []
     });
-    startValidatedWorkflowMock.mockResolvedValue({
+    startWorkflowMock.mockResolvedValue({
       runId: 'run-1',
       workflowId: 'sample:transcribe',
       completionPromise: Promise.resolve({
@@ -63,7 +63,7 @@ describe('workflowRunTool resource outputs', () => {
       resolved: {},
       workflowRuntime: {
         getDefinition: getWorkflowMock,
-        startValidatedDefinition: startValidatedWorkflowMock
+        start: startWorkflowMock
       }
     };
     const tool = createPiWorkflowRunTool(toolContext as any);
@@ -89,5 +89,15 @@ describe('workflowRunTool resource outputs', () => {
       parentResourceId: 'video-1',
       role: 'subtitle'
     });
+    expect(startWorkflowMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        definition: expect.objectContaining({ id: 'sample:transcribe' }),
+        input: { resourceId: 'video-1' },
+        scope: { kind: 'workspace', id: 'workspace-1' },
+        trigger: { type: 'agent', id: 'call-1' },
+        context: { workspaceId: 'workspace-1', folderId: 'folder-1' }
+      }),
+      undefined
+    );
   });
 });

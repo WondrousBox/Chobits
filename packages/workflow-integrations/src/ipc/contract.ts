@@ -8,7 +8,8 @@ import type {
   WorkflowDefinition,
   WorkflowExecutionResult,
   WorkflowRunLogEntry,
-  WorkflowRunRecord
+  WorkflowRunRecord,
+  WorkflowRunRequest
 } from '@chobits/workflow';
 import type { WorkflowPluginManifest } from '@chobits/workflow/application';
 
@@ -66,10 +67,10 @@ export interface WorkflowIpcRequestMap {
   [WORKFLOW_IPC_CHANNELS.listNodes]: undefined;
   [WORKFLOW_IPC_CHANNELS.listPlugins]: undefined;
   [WORKFLOW_IPC_CHANNELS.listPresets]: undefined;
-  [WORKFLOW_IPC_CHANNELS.listRuns]: { defId?: string; limit?: number; resourceId?: string; workspaceId?: string } | undefined;
-  [WORKFLOW_IPC_CHANNELS.run]: { defId: string; input?: Record<string, unknown>; metadata?: Record<string, unknown> };
-  [WORKFLOW_IPC_CHANNELS.saveDefinition]: { def: WorkflowDefinition; workspaceId?: string };
-  [WORKFLOW_IPC_CHANNELS.validate]: { def: WorkflowDefinition };
+  [WORKFLOW_IPC_CHANNELS.listRuns]: { workflowId?: string; limit?: number; resourceId?: string; workspaceId?: string } | undefined;
+  [WORKFLOW_IPC_CHANNELS.run]: { definitionId: string } & Pick<WorkflowRunRequest, 'input' | 'scope' | 'trigger' | 'actor' | 'context' | 'configOverrides'>;
+  [WORKFLOW_IPC_CHANNELS.saveDefinition]: { definition: WorkflowDefinition; workspaceId?: string };
+  [WORKFLOW_IPC_CHANNELS.validate]: { definition: WorkflowDefinition };
 }
 
 export interface WorkflowIpcResultMap {

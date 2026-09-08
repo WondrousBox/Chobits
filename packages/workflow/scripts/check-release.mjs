@@ -101,6 +101,28 @@ function checkProductionImports() {
   }
 }
 
+function checkRemovedRuntimeCompatibility() {
+  const removedFiles = ['registry.ts', path.join('src', 'runtime', 'request.ts')];
+  for (const relativeFile of removedFiles) {
+    if (fs.existsSync(path.join(packageRoot, relativeFile))) errors.push(`removed compatibility file was restored: ${relativeFile}`);
+  }
+
+  const forbiddenPatterns = [
+    ['WorkflowLegacyRunRequest', /\bWorkflowLegacyRunRequest\b/],
+    ['normalizeWorkflowRunRequest', /\bnormalizeWorkflowRunRequest\b/],
+    ['defaultWorkflowRegistry', /\bdefaultWorkflowRegistry\b/],
+    ['global registerNode', /export\s+(?:const|function)\s+registerNode\b/],
+    ['global registerPlugin', /export\s+(?:const|function)\s+registerPlugin\b/]
+  ];
+  const publicSources = [...listTypeScriptFiles(path.join(packageRoot, 'src')), path.join(packageRoot, 'engine.ts'), path.join(packageRoot, 'core', 'registry.ts')];
+  for (const sourcePath of publicSources) {
+    const source = fs.readFileSync(sourcePath, 'utf8');
+    for (const [label, pattern] of forbiddenPatterns) {
+      if (pattern.test(source)) errors.push(`${relativeToRepo(sourcePath)} restores removed API: ${label}`);
+    }
+  }
+}
+
 async function checkDistribution() {
   const importTargets = [];
   for (const [key, entry] of Object.entries(manifest.exports)) {
@@ -136,6 +158,7 @@ function listFiles(directory) {
 
 checkManifest();
 checkProductionImports();
+checkRemovedRuntimeCompatibility();
 if (checkDist) await checkDistribution();
 
 if (errors.length > 0) {

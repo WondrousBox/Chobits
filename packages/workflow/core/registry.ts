@@ -70,29 +70,3 @@ function validateExecutionPolicy(handler: NodeHandler): void {
 export function createWorkflowRegistry(options?: WorkflowRegistryOptions): WorkflowRegistry {
   return new WorkflowRegistry(options);
 }
-
-export const defaultWorkflowRegistry = createWorkflowRegistry();
-
-export function registerNode(handler: NodeHandler): void {
-  defaultWorkflowRegistry.registerNode(handler);
-}
-
-export function getNode(id: string): NodeHandler | undefined {
-  return defaultWorkflowRegistry.getNode(id);
-}
-
-export function listNodes(): NodeHandler[] {
-  return defaultWorkflowRegistry.listNodes();
-}
-
-export function registerPlugin(plugin: Plugin): void {
-  defaultWorkflowRegistry.registerPlugin(plugin);
-}
-
-export function getPlugin(id: string): Plugin | undefined {
-  return defaultWorkflowRegistry.getPlugin(id);
-}
-
-export function listPlugins(): Plugin[] {
-  return defaultWorkflowRegistry.listPlugins();
-}

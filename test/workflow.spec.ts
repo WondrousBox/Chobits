@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { createEngine } from '../packages/workflow/engine';
-import { registerNode } from '../packages/workflow/registry';
+import { createWorkflowRegistry } from '@chobits/workflow/core';
 
-registerNode({
+import { createEngine } from '../packages/workflow/engine';
+import type { NodeHandler } from '../packages/workflow/types';
+
+const basicPassThroughNode: NodeHandler = {
   spec: {
     id: 'test/basic-pass-through',
     label: 'Basic pass through',
@@ -13,11 +15,11 @@ registerNode({
   async run({ input }) {
     return { result: input.value };
   }
-});
+};
 
 describe('WorkflowEngine basic', () => {
   it('runs without Electron or database infrastructure', async () => {
-    const engine = createEngine({});
+    const engine = createEngine({}, { registry: createWorkflowRegistry({ nodes: [basicPassThroughNode] }) });
     const rec = await engine.run({
       id: 'test:basic',
       name: 'Basic',

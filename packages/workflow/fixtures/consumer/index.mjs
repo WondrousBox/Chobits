@@ -133,6 +133,11 @@ await assert.rejects(import('@chobits/workflow/src/index.js'), (error) => error 
 for (const subpath of ['application', 'contracts', 'core', 'node', 'nodes', 'ports', 'runtime', 'schema', 'sdk', 'testing']) {
   const entry = await import(`@chobits/workflow/${subpath}`);
   assert.equal(typeof entry, 'object');
+  if (subpath === 'core') {
+    for (const legacyExport of ['defaultWorkflowRegistry', 'registerNode', 'getNode', 'listNodes', 'registerPlugin', 'getPlugin', 'listPlugins']) {
+      assert.equal(legacyExport in entry, false);
+    }
+  }
 }
 
 console.log('workflow tarball consumer passed');
