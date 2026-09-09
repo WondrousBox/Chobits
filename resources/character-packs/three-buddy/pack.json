@@ -24,7 +24,7 @@
   },
   "capabilities": {
     "hasVoice": false,
-    "hasCustomAnimations": false,
+    "hasCustomAnimations": true,
     "has3DModel": true,
     "supportedLanguages": ["zh-CN"],
     "dimensionExtensions": []

@@ -254,7 +254,7 @@ const AIAssistantInner: React.FC = () => {
             data-assistant-entrance={entranceRunning ? 'running' : entranceComplete ? 'complete' : 'waiting'}
             style={{ width: targetWidth, height: targetHeight, clipPath: entranceComplete ? 'inset(0 0 0 0)' : 'inset(100% 0 0 0)', opacity: entranceComplete ? 1 : 0 }}
           >
-            <Renderer width={targetWidth} height={targetHeight} walkDirection={walkDirection} onFirstFrame={reportFirstFrame} />
+            <Renderer width={targetWidth} height={targetHeight} walkDirection={walkDirection} isDragging={isDragging} onFirstFrame={reportFirstFrame} />
           </div>
         </Dropzone>
         {entranceComplete && <StatusIndicator isDragging={isDragging} isWalking={isWalking} />}

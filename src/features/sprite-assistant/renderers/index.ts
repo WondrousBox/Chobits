@@ -9,6 +9,7 @@ export interface SpriteRendererProps {
   width?: number;
   height?: number;
   walkDirection?: 'left' | 'right' | null;
+  isDragging?: boolean;
   onFirstFrame?: () => void;
 }
 

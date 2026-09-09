@@ -90,7 +90,23 @@ function uint16Buffer(values) {
 const positionBuffer = floatBuffer(positions);
 const normalBuffer = floatBuffer(normals);
 const indexBuffer = uint16Buffer(indices);
-const binaryBuffer = Buffer.concat([positionBuffer, normalBuffer, indexBuffer]);
+const blinkBuffer = floatBuffer(positions.map((value, index) => (index % 3 === 1 ? -value * 0.9 : 0)));
+const mouthOpenBuffer = floatBuffer(positions.map((value, index) => (index % 3 === 1 ? value * 1.8 : 0)));
+const smileBuffer = floatBuffer(
+  positions.map((value, index) => {
+    if (index % 3 === 0) return Math.sign(value) * 0.12;
+    if (index % 3 === 1) return Math.abs(value) * 0.35;
+    return 0;
+  })
+);
+const frownBuffer = floatBuffer(
+  positions.map((value, index) => {
+    if (index % 3 === 0) return Math.sign(value) * 0.08;
+    if (index % 3 === 1) return -Math.abs(value) * 0.3;
+    return 0;
+  })
+);
+const binaryBuffer = Buffer.concat([positionBuffer, normalBuffer, indexBuffer, blinkBuffer, mouthOpenBuffer, smileBuffer, frownBuffer]);
 
 const materials = [
   { name: 'Body Coral', pbrMetallicRoughness: { baseColorFactor: [0.92, 0.25, 0.22, 1], metallicFactor: 0.05, roughnessFactor: 0.72 } },
@@ -102,10 +118,14 @@ const materials = [
   { name: 'Accent Gold', pbrMetallicRoughness: { baseColorFactor: [1, 0.72, 0.12, 1], metallicFactor: 0.35, roughnessFactor: 0.42 } }
 ].map((material) => ({ ...material, doubleSided: true }));
 
-const meshes = materials.map((material, materialIndex) => ({
-  name: material.name,
-  primitives: [{ attributes: { POSITION: 0, NORMAL: 1 }, indices: 2, material: materialIndex }]
-}));
+const meshes = materials.map((material, materialIndex) => {
+  const targets = materialIndex === 0 ? [{ POSITION: 4 }, { POSITION: 5 }, { POSITION: 6 }] : materialIndex === 4 || materialIndex === 5 ? [{ POSITION: 3 }] : undefined;
+  return {
+    name: material.name,
+    primitives: [{ attributes: { POSITION: 0, NORMAL: 1 }, indices: 2, material: materialIndex, ...(targets ? { targets } : {}) }],
+    ...(targets ? { weights: targets.map(() => 0) } : {})
+  };
+});
 
 const nodes = [];
 function addNode(name, options = {}) {
@@ -170,11 +190,11 @@ addVisual(spine, 'Chest Accent', 6, [0, 0.21, 0.132], [0.16, 0.15, 0.02]);
 addVisual(neck, 'Neck', 3, [0, 0.04, 0], [0.13, 0.13, 0.13]);
 addVisual(head, 'Head', 3, [0, 0.14, 0], [0.38, 0.35, 0.3]);
 addVisual(head, 'Hair', 2, [0, 0.31, -0.015], [0.41, 0.11, 0.32]);
-addVisual(head, 'Left Eye White', 4, [-0.1, 0.17, 0.156], [0.1, 0.085, 0.022]);
-addVisual(head, 'Right Eye White', 4, [0.1, 0.17, 0.156], [0.1, 0.085, 0.022]);
-addVisual(head, 'Left Pupil', 5, [-0.1, 0.17, 0.171], [0.038, 0.052, 0.018]);
-addVisual(head, 'Right Pupil', 5, [0.1, 0.17, 0.171], [0.038, 0.052, 0.018]);
-addVisual(head, 'Mouth', 0, [0, 0.065, 0.163], [0.12, 0.025, 0.018]);
+const leftEyeWhite = addVisual(head, 'Left Eye White', 4, [-0.1, 0.17, 0.156], [0.1, 0.085, 0.022]);
+const rightEyeWhite = addVisual(head, 'Right Eye White', 4, [0.1, 0.17, 0.156], [0.1, 0.085, 0.022]);
+const leftPupil = addVisual(head, 'Left Pupil', 5, [-0.1, 0.17, 0.171], [0.038, 0.052, 0.018]);
+const rightPupil = addVisual(head, 'Right Pupil', 5, [0.1, 0.17, 0.171], [0.038, 0.052, 0.018]);
+const mouth = addVisual(head, 'Mouth', 0, [0, 0.065, 0.163], [0.12, 0.025, 0.018]);
 addVisual(leftUpperArm, 'Left Upper Arm Mesh', 0, [-0.15, 0, 0], [0.31, 0.12, 0.13]);
 addVisual(leftLowerArm, 'Left Lower Arm Mesh', 3, [-0.14, 0, 0], [0.28, 0.105, 0.115]);
 addVisual(leftHand, 'Left Hand Mesh', 6, [-0.055, 0, 0], [0.12, 0.13, 0.14]);
@@ -233,7 +253,41 @@ const gltf = {
         modification: 'allowModificationRedistribution',
         otherLicenseUrl: 'https://opensource.org/license/mit'
       },
-      humanoid: { humanBones }
+      humanoid: { humanBones },
+      expressions: {
+        preset: {
+          aa: {
+            morphTargetBinds: [{ node: mouth, index: 0, weight: 1 }]
+          },
+          blink: {
+            morphTargetBinds: [leftEyeWhite, rightEyeWhite, leftPupil, rightPupil].map((node) => ({ node, index: 0, weight: 1 }))
+          },
+          happy: {
+            morphTargetBinds: [{ node: mouth, index: 1, weight: 1 }]
+          },
+          angry: {
+            materialColorBinds: [{ material: 3, type: 'color', targetValue: [1, 0.48, 0.42, 1] }]
+          },
+          sad: {
+            morphTargetBinds: [{ node: mouth, index: 2, weight: 1 }],
+            materialColorBinds: [{ material: 3, type: 'color', targetValue: [0.62, 0.72, 0.92, 1] }]
+          },
+          relaxed: {
+            materialColorBinds: [{ material: 1, type: 'color', targetValue: [0.08, 0.7, 0.55, 1] }]
+          },
+          surprised: {
+            morphTargetBinds: [{ node: mouth, index: 0, weight: 0.85 }]
+          }
+        }
+      },
+      lookAt: {
+        offsetFromHeadBone: [0, 0.14, 0.08],
+        type: 'bone',
+        rangeMapHorizontalInner: { inputMaxValue: 20, outputScale: 8 },
+        rangeMapHorizontalOuter: { inputMaxValue: 20, outputScale: 8 },
+        rangeMapVerticalDown: { inputMaxValue: 14, outputScale: 6 },
+        rangeMapVerticalUp: { inputMaxValue: 14, outputScale: 6 }
+      }
     }
   },
   scene: 0,
@@ -245,12 +299,25 @@ const gltf = {
   bufferViews: [
     { buffer: 0, byteOffset: 0, byteLength: positionBuffer.length, target: 34962 },
     { buffer: 0, byteOffset: positionBuffer.length, byteLength: normalBuffer.length, target: 34962 },
-    { buffer: 0, byteOffset: positionBuffer.length + normalBuffer.length, byteLength: indexBuffer.length, target: 34963 }
+    { buffer: 0, byteOffset: positionBuffer.length + normalBuffer.length, byteLength: indexBuffer.length, target: 34963 },
+    { buffer: 0, byteOffset: positionBuffer.length + normalBuffer.length + indexBuffer.length, byteLength: blinkBuffer.length, target: 34962 },
+    { buffer: 0, byteOffset: positionBuffer.length + normalBuffer.length + indexBuffer.length + blinkBuffer.length, byteLength: mouthOpenBuffer.length, target: 34962 },
+    { buffer: 0, byteOffset: positionBuffer.length + normalBuffer.length + indexBuffer.length + blinkBuffer.length + mouthOpenBuffer.length, byteLength: smileBuffer.length, target: 34962 },
+    {
+      buffer: 0,
+      byteOffset: positionBuffer.length + normalBuffer.length + indexBuffer.length + blinkBuffer.length + mouthOpenBuffer.length + smileBuffer.length,
+      byteLength: frownBuffer.length,
+      target: 34962
+    }
   ],
   accessors: [
     { bufferView: 0, componentType: 5126, count: positions.length / 3, type: 'VEC3', min: [-0.5, -0.5, -0.5], max: [0.5, 0.5, 0.5] },
     { bufferView: 1, componentType: 5126, count: normals.length / 3, type: 'VEC3' },
-    { bufferView: 2, componentType: 5123, count: indices.length, type: 'SCALAR' }
+    { bufferView: 2, componentType: 5123, count: indices.length, type: 'SCALAR' },
+    { bufferView: 3, componentType: 5126, count: positions.length / 3, type: 'VEC3', min: [0, -0.45, 0], max: [0, 0.45, 0] },
+    { bufferView: 4, componentType: 5126, count: positions.length / 3, type: 'VEC3', min: [0, -0.9, 0], max: [0, 0.9, 0] },
+    { bufferView: 5, componentType: 5126, count: positions.length / 3, type: 'VEC3', min: [-0.12, 0.175, 0], max: [0.12, 0.175, 0] },
+    { bufferView: 6, componentType: 5126, count: positions.length / 3, type: 'VEC3', min: [-0.08, -0.15, 0], max: [0.08, -0.15, 0] }
   ]
 };
 

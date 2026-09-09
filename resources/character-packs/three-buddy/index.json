@@ -10,6 +10,7 @@
       },
       "source": {
         "kind": "three",
+        "localPath": "motions/idle.vrma",
         "type": "model/vrm-animation"
       },
       "width": 280,
@@ -20,6 +21,71 @@
       "playsInline": true,
       "loop": true,
       "autoIdle": false
+    },
+    {
+      "meta": {
+        "id": "three-buddy-walk",
+        "title": "Three Buddy walk",
+        "primaryTrigger": "walk",
+        "deletable": false
+      },
+      "source": {
+        "kind": "three",
+        "localPath": "motions/walk.vrma",
+        "type": "model/vrm-animation"
+      },
+      "width": 280,
+      "height": 400,
+      "padding": 40,
+      "autoplay": true,
+      "muted": true,
+      "playsInline": true,
+      "loop": true,
+      "autoIdle": false
+    },
+    {
+      "meta": {
+        "id": "three-buddy-welcome",
+        "title": "Three Buddy welcome",
+        "primaryTrigger": "welcome",
+        "deletable": false
+      },
+      "source": {
+        "kind": "three",
+        "localPath": "motions/welcome.vrma",
+        "type": "model/vrm-animation"
+      },
+      "width": 280,
+      "height": 400,
+      "padding": 40,
+      "autoplay": true,
+      "muted": true,
+      "playsInline": true,
+      "loop": false,
+      "durationMs": 1400,
+      "autoIdle": true
+    },
+    {
+      "meta": {
+        "id": "three-buddy-thinking",
+        "title": "Three Buddy thinking",
+        "primaryTrigger": "thinking",
+        "deletable": false
+      },
+      "source": {
+        "kind": "three",
+        "localPath": "motions/thinking.vrma",
+        "type": "model/vrm-animation"
+      },
+      "width": 280,
+      "height": 400,
+      "padding": 40,
+      "autoplay": true,
+      "muted": true,
+      "playsInline": true,
+      "loop": false,
+      "durationMs": 2000,
+      "autoIdle": true
     }
   ]
 }
