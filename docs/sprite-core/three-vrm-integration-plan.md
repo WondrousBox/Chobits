@@ -15,6 +15,16 @@
 
 本文档定义 Chobits 集成 `@pixiv/three-vrm` 的架构边界、角色包协议、运行时数据流、分阶段任务、测试范围和验收标准。
 
+本次方案的前提不是把现有 renderer 改成单一 VRM renderer，而是让三种展示模式在同一个版本中并存：
+
+| 产品模式 | 实现后端                                     | 本次处理                               |
+| -------- | -------------------------------------------- | -------------------------------------- |
+| `video`  | `VideoSprite` / HTML5 video                  | 保持现有行为和资源协议                 |
+| `live2d` | 现有 Live2D renderer                         | 保持现有入口、模型、动作和交互语义     |
+| `three`  | `ThreeSprite` 兼容入口，内部改为 `three-vrm` | 替换当前占位 Three.js 场景，不删除模式 |
+
+这里的 `three` 是产品级 renderer mode，VRM 是它的模型格式，不把 `vrm` 单独做成第四种模式。
+
 实施进度：
 
 - [ ] Phase 0：依赖与类型版本对齐
@@ -32,16 +42,18 @@
 仓库已经具备以下 3D 基础：
 
 - `package.json` 已包含 `three`。
-- `src/features/sprite-assistant/renderers/ThreeSprite.tsx` 已创建透明 Three.js 场景，但目前只渲染旋转方块。
+- `src/features/sprite-assistant/renderers/ThreeSprite.tsx` 已创建透明 Three.js 场景，但目前只渲染旋转方块；它是本次要替换的实现入口。
 - `src/features/sprite-assistant/renderers/index.ts` 已有 `video | three` 渲染模式概念，但通过编译期常量固定选择。
 - `CharacterPackCapabilities` 已声明 `has3DModel`，角色包管理页也会展示 3D 标记。
 - 角色包已支持安装、激活、签名校验、资源目录约束和运行时热切换。
+
+当前 checkout 中没有检索到名为 `Live2D`/`live2d` 的精灵 renderer 文件。实施前必须确认 Live2D 是通过其他 package、分支或未命名组件接入的；如果它在完整产品代码中存在，必须先记录其入口、manifest 字段、IPC 事件和资源协议，再接入统一路由。不能因为当前搜索不到就删除、重命名或用 video 替代它。
 
 当前缺少的不是 Three.js 场景本身，而是从角色包到渲染器的完整契约：
 
 - 角色包没有声明 VRM 模型文件的位置。
 - 动画资源模型默认按视频设计，不能明确表达 VRMA 动作。
-- 当前 renderer 不能随激活角色包动态选择。
+- 当前 renderer 不能随激活角色包动态选择，也没有三模式兼容路由。
 - `ThreeSprite` 没有模型加载、动作混合、表情、口型和完整资源释放。
 - 角色包切换事件没有同步 3D presentation 配置到 `SpriteStateContext`。
 
@@ -59,7 +71,8 @@
 
 新增职责限制在 presentation 层：
 
-- `RendererRouter`：选择 `VideoSprite` 或 `VrmSprite`。
+- `RendererRouter`：选择 `VideoSprite`、现有 Live2D renderer 或 `ThreeSprite`/`VrmSprite`。
+- `ThreeSprite`：保留既有模块路径和公共 props，作为 three 模式兼容 façade；VRM 实现放在其内部或由它 re-export。
 - `VrmSprite`：管理 Three.js scene、camera、renderer 和首帧。
 - `VrmModelLoader`：加载、优化和释放 VRM。
 - `VrmMotionController`：加载 VRMA、创建 clip、交叉淡化并报告完成。
@@ -80,16 +93,19 @@ SpriteState / trigger          │
                          │
                          v
                   RendererRouter
-                 /              \
-          VideoSprite          VrmSprite
-                                 ├─ VRM model
-                                 ├─ VRMA motion
-                                 └─ expression controllers
+              /        |          \
+       VideoSprite  Live2DSprite  ThreeSprite
+                                  └─ VrmSprite
+                                     ├─ VRM model
+                                     ├─ VRMA motion
+                                     └─ expression controllers
 ```
 
 ## 3. 目标
 
 - 视频角色包保持现有行为，不要求迁移。
+- Live2D 角色包保持现有行为，不要求迁移。
+- 同一个构建产物同时支持 `video`、`live2d` 和 `three` 三种模式；模式切换只替换展示后端，不改变 `SpriteManager` 的 trigger、playlist、movement、persona 和完成事件语义。
 - 角色包可以声明一个自包含 `.vrm` 模型。
 - 激活 3D 角色包后，不重启应用即可切换到 VRM 渲染器。
 - 继续复用现有 `idle`、`walk`、`talk`、`welcome`、`thinking` 等 trigger。
@@ -107,8 +123,10 @@ SpriteState / trigger          │
 - 第一版不使用 WebGPU，继续使用 `THREE.WebGLRenderer`。
 - 第一版不支持外部纹理形式的 `.gltf`；只接受自包含 `.vrm` 和 `.vrma` 二进制文件。
 - 第一版不实现摄像头面捕、全身动捕或音素级识别。
+- 第一版不重写 Live2D renderer，不把 Live2D motion 转换成 VRMA，也不改变其已有资源格式。
 - 第一版不改变 persona、XP、好感度和 capability 数据库结构。
-- 第一版不把渲染器选择做成全局用户偏好；由激活角色包决定展示后端。
+- 第一版不把渲染器选择做成全局用户偏好；由激活角色包和兼容的 presentation 声明决定展示后端。
+- 第一版不删除 `ThreeSprite.tsx`、`VideoSprite.tsx` 或现有 Live2D 入口；允许内部重构和 façade，但保留公开导入路径或提供等价 re-export。
 
 ## 5. 依赖策略
 
@@ -153,7 +171,8 @@ three:        0.170.x
 在 `packages/sprite-core/types.ts` 增加：
 
 ```ts
-export type SpriteRendererKind = 'video' | 'vrm';
+/** 产品级 renderer mode；VRM 属于 three mode 的模型格式。 */
+export type SpriteRendererKind = 'video' | 'live2d' | 'three';
 
 export type SpriteAnimationSource =
   | {
@@ -163,7 +182,13 @@ export type SpriteAnimationSource =
       type?: string;
     }
   | {
-      kind: 'vrm';
+      kind: 'live2d';
+      src?: string;
+      localPath?: string;
+      type?: string;
+    }
+  | {
+      kind: 'three';
       localPath?: string;
       type?: 'model/vrm-animation';
     };
@@ -171,10 +196,22 @@ export type SpriteAnimationSource =
 
 兼容规则：
 
-- `source.kind` 缺失时一律按 `video` 处理。
-- VRM source 的 `localPath` 表示 VRMA 动作文件，不表示角色模型。
-- VRM 动作可以不提供 `localPath`，此时展示模型 rest pose，并允许 renderer 叠加程序化 idle。
-- 不使用 MIME type 猜测 renderer，`kind` 是唯一明确判据。
+- 对 generic/旧视频输入，`source.kind` 缺失时按 `video` 处理；legacy Live2D 必须先由 adapter 补成 `kind: 'live2d'`，不能让通用 fallback 把它误判成 video。
+- 现有 `video` source 的字段和默认行为不变。
+- `live2d` source 由现有 Live2D adapter 解释；不得把它按 video URL 或 VRMA 解析。
+- `three` source 的 `localPath` 表示 VRMA 动作文件，不表示角色模型。
+- `three` 动作可以不提供 `localPath`，此时展示 VRM rest pose，并允许 renderer 叠加程序化 idle。
+- 不使用 MIME type 猜测 renderer，`kind` 是唯一明确判据；最终是否允许播放还要和 active presentation 做兼容性校验。
+
+兼容性规则：
+
+```text
+presentation.renderer === 'video'  -> 只接受 video source，旧 source.kind 缺失也视为 video
+presentation.renderer === 'live2d' -> 只接受 live2d source，旧 Live2D source 由 adapter normalize
+presentation.renderer === 'three'  -> 只接受 three source，模型格式当前限定为 VRM/VRMA
+```
+
+source 和 presentation 不匹配时，不能把资源交给错误 renderer。应丢弃当前动作并记录可诊断 warning，继续使用当前模式的 idle/fallback；不能因为一个 VRMA 加载失败就把 Live2D 或 video 角色全局切换掉。
 
 将以下重复的匿名 source 类型统一替换为 `SpriteAnimationSource`：
 
@@ -212,7 +249,24 @@ resolvedAssets.model3d 存在
 模型文件通过扩展名、路径和存在性校验
 ```
 
-不能仅凭 `has3DModel` 创建 `VrmSprite`。
+不能仅凭 `has3DModel` 创建 `ThreeSprite`/`VrmSprite`。
+
+角色包可以增加可选的 presentation 声明：
+
+```ts
+export interface CharacterPackPresentationDeclaration {
+  renderer?: SpriteRendererKind;
+}
+```
+
+旧角色包没有这个字段时，不改变既有模式。主进程按以下优先级归一化：
+
+1. 明确的 `presentation.renderer`，但必须通过该模式的资源校验。
+2. 既有 Live2D manifest/资源声明，由 Live2D adapter 识别。
+3. `capabilities.has3DModel === true` 且 `assets.model3d` 有效，选择 `three`。
+4. 其他情况选择 `video`。
+
+如果显式声明的模式缺少资源或资源不兼容，返回导入错误或运行时降级到该角色包声明的 fallback；不能静默把 Live2D 角色变成 video，也不能把 VRM 动作交给 Live2D。
 
 ### 6.3 Presentation 快照
 
@@ -224,10 +278,21 @@ export type SpritePresentationConfig =
       renderer: 'video';
     }
   | {
-      renderer: 'vrm';
+      renderer: 'live2d';
       model: {
         localPath: string;
+        type: 'model/live2d' | string;
+      };
+    }
+  | {
+      renderer: 'three';
+      model: {
+        localPath: string;
+        format: 'vrm';
         type: 'model/vrm';
+      };
+      motion?: {
+        format: 'vrma';
       };
       camera?: {
         targetY?: number;
@@ -245,7 +310,7 @@ export type SpritePresentationConfig =
 export const SPRITE_PRESENTATION_CHANGED_CHANNEL = 'sprite:presentation-changed';
 ```
 
-主进程负责从当前 active pack 构建该 DTO；renderer 不自行拼接角色包目录。
+主进程负责从当前 active pack 构建该 DTO；renderer 不自行拼接角色包目录。`renderer: 'three'` 的 `model.format` 是 VRM，不能改成 `renderer: 'vrm'`，这样可以保证三种产品模式的路由稳定。
 
 ### 6.4 角色包示例
 
@@ -254,8 +319,8 @@ export const SPRITE_PRESENTATION_CHANGED_CHANNEL = 'sprite:presentation-changed'
 ```json
 {
   "formatVersion": 1,
-  "id": "example-vrm-character",
-  "name": "Example VRM Character",
+  "id": "example-three-character",
+  "name": "Example Three Character",
   "version": "1.0.0",
   "author": "Example Publisher",
   "description": "VRM desktop character",
@@ -268,6 +333,9 @@ export const SPRITE_PRESENTATION_CHANGED_CHANNEL = 'sprite:presentation-changed'
     "preview": {
       "avatar": "preview/avatar.png"
     }
+  },
+  "presentation": {
+    "renderer": "three"
   },
   "capabilities": {
     "hasCustomAnimations": true,
@@ -285,12 +353,12 @@ export const SPRITE_PRESENTATION_CHANGED_CHANNEL = 'sprite:presentation-changed'
   "items": [
     {
       "meta": {
-        "id": "idle-vrm",
+        "id": "idle-three",
         "title": "Idle",
         "primaryTrigger": "idle"
       },
       "source": {
-        "kind": "vrm",
+        "kind": "three",
         "localPath": "./motions/idle.vrma",
         "type": "model/vrm-animation"
       },
@@ -301,12 +369,12 @@ export const SPRITE_PRESENTATION_CHANGED_CHANNEL = 'sprite:presentation-changed'
     },
     {
       "meta": {
-        "id": "wave-vrm",
+        "id": "wave-three",
         "title": "Wave",
         "primaryTrigger": "welcome"
       },
       "source": {
-        "kind": "vrm",
+        "kind": "three",
         "localPath": "./motions/wave.vrma",
         "type": "model/vrm-animation"
       },
@@ -328,23 +396,30 @@ export const SPRITE_PRESENTATION_CHANGED_CHANNEL = 'sprite:presentation-changed'
 
 修改 `packages/sprite-core/character-pack-manager.ts`：
 
+- 保留现有 Live2D 资源字段、normalize、trust 和导入行为；先由 Live2D adapter 输出标准化 presentation。
 - `normalizePackAssets()` 接受 `assets.model3d`。
 - `resolveCharacterPackAssets()` 解析 `resolvedAssets.model3d`。
 - `collectOutsidePackAssetPaths()` 检查 `model3d` 是否越过包目录。
+- 新增 `resolvePackPresentation()`，统一把 legacy Live2D、显式 presentation、3D capability 和旧 video pack 映射为 `video | live2d | three`。
 - 导入预检增加 `missing-model3d-asset` warning 或 blocking error。
 - active pack 构建 presentation 前再次验证文件存在。
 
 建议校验规则：
 
-| 条件                                     | 处理                         |
-| ---------------------------------------- | ---------------------------- |
-| `has3DModel !== true` 且未声明 `model3d` | 按视频角色包处理             |
-| 声明 `model3d` 但 `has3DModel !== true`  | warning，不启用 VRM renderer |
-| `has3DModel === true` 但没有 `model3d`   | blocking error               |
-| `model3d` 越过角色包目录                 | blocking error               |
-| `model3d` 不存在或不是文件               | blocking error               |
-| 模型扩展名不是 `.vrm`                    | blocking error               |
-| VRM animation 指向包外路径               | 丢弃该动画并报告 warning     |
+| 条件                                      | 处理                           |
+| ----------------------------------------- | ------------------------------ |
+| `has3DModel !== true` 且未声明 `model3d`  | 按视频角色包处理               |
+| 声明 `model3d` 但 `has3DModel !== true`   | warning，不启用 three renderer |
+| `has3DModel === true` 但没有 `model3d`    | blocking error                 |
+| `model3d` 越过角色包目录                  | blocking error                 |
+| `model3d` 不存在或不是文件                | blocking error                 |
+| 模型扩展名不是 `.vrm`                     | blocking error                 |
+| VRM animation 指向包外路径                | 丢弃该动画并报告 warning       |
+| 显式 `live2d` 但缺少现有 Live2D 资源      | blocking error                 |
+| `live2d` source 出现在 `three` pack       | 丢弃该动画并报告 warning       |
+| `three` source 出现在 `video/live2d` pack | 丢弃该动画并报告 warning       |
+
+资源校验失败的影响范围必须限制在当前角色包或当前 animation entry。不能因为 3D 包坏了而改变其他已安装 video/Live2D 角色的可用性。
 
 ### 7.2 资源协议
 
@@ -383,6 +458,18 @@ export const SPRITE_PRESENTATION_CHANGED_CHANNEL = 'sprite:presentation-changed'
 
 ## 8. Renderer 架构
 
+### 8.0 三模式并存边界
+
+renderer router 是唯一决定 React 展示组件的地方。它只消费已经归一化的 `SpritePresentationConfig`，不读取角色包文件、不根据 MIME 猜测模式，也不修改主进程的动画选择。
+
+| `presentation.renderer` | 组件                                | 初始化条件                 | 失败影响               |
+| ----------------------- | ----------------------------------- | -------------------------- | ---------------------- |
+| `video`                 | `VideoSprite`                       | 既有 video source          | 只影响当前视频播放     |
+| `live2d`                | 现有 Live2D 组件/adapter            | 既有 Live2D model + motion | 只影响当前 Live2D 角色 |
+| `three`                 | `ThreeSprite` façade -> `VrmSprite` | 有效 VRM model，动作可选   | 只影响当前 three 角色  |
+
+三种组件都必须继续接收相同的外层能力：尺寸、行走方向、首帧回调、播放命令、入口动画和 pointer/drag 交互。模式差异只存在于组件内部资源和帧循环，不得复制 `SpriteManager` 的业务状态机。
+
 ### 8.1 动态路由
 
 将 `src/features/sprite-assistant/renderers/index.ts` 改名为 `index.tsx`，并从模块加载时的常量选择改为普通 React 组件：
@@ -391,15 +478,19 @@ export const SPRITE_PRESENTATION_CHANGED_CHANNEL = 'sprite:presentation-changed'
 export function Renderer(props: SpriteRendererProps): JSX.Element | null {
   const { presentation } = useSpriteState();
 
-  if (presentation.renderer === 'vrm') {
-    return <VrmSprite {...props} presentation={presentation} />;
+  switch (presentation.renderer) {
+    case 'live2d':
+      return <Live2DSprite {...props} presentation={presentation} />;
+    case 'three':
+      return <ThreeSprite {...props} presentation={presentation} />;
+    case 'video':
+    default:
+      return <VideoSprite {...props} />;
   }
-
-  return <VideoSprite {...props} />;
 }
 ```
 
-删除 `ASSISTANT_RENDERER_MODE`。旧角色包缺少 presentation 时默认 `{ renderer: 'video' }`。
+删除 `ASSISTANT_RENDERER_MODE` 对“选哪一种模式”的全局决定作用，但保留兼容导出或迁移 shim，避免其他调用方编译失败。旧角色包缺少 presentation 时，先经过 `resolvePackPresentation()`：可识别的 legacy Live2D 保持 `live2d`，其余旧 pack 默认 `{ renderer: 'video' }`；不能默认改成 three。
 
 `SpriteStateProvider` 需要：
 
@@ -407,6 +498,8 @@ export function Renderer(props: SpriteRendererProps): JSX.Element | null {
 - 订阅 `sprite:presentation-changed`。
 - presentation 变化时原子替换模型配置。
 - 不在 React 组件里重复调用角色包列表 API 来推断 renderer。
+
+模式切换必须先卸载旧 renderer，再挂载新 renderer；不能让 video 的 `<video>`、Live2D canvas 和 Three.js canvas 同时覆盖同一展示层。卸载顺序由 router 控制，旧 renderer 的资源释放完成后才允许新 renderer 报告首帧。
 
 ### 8.2 文件组织
 
@@ -422,16 +515,31 @@ src/features/sprite-assistant/renderers/vrm/
   vrm-dispose.ts
 ```
 
+保留并调整现有入口：
+
+```text
+src/features/sprite-assistant/renderers/VideoSprite.tsx   # 不删除
+src/features/sprite-assistant/renderers/ThreeSprite.tsx   # 保留 public export，内部委托 VrmSprite
+<existing-live2d-renderer>                                # 由 Phase 0 定位并保留 public export
+```
+
 职责：
 
-| 文件                           | 职责                                               |
-| ------------------------------ | -------------------------------------------------- |
-| `VrmSprite.tsx`                | React 生命周期、容器、首帧、状态和 controller 编排 |
-| `vrm-model-loader.ts`          | GLTFLoader plugin、加载、优化、模型基本校验        |
-| `vrm-motion-controller.ts`     | VRMA cache、AnimationMixer、淡入淡出、完成事件     |
-| `vrm-expression-controller.ts` | expression 权重、眨眼、注视和口型                  |
-| `vrm-camera.ts`                | Box3 自动取景和 pack camera override               |
-| `vrm-dispose.ts`               | action、texture、geometry、renderer 和异步竞态清理 |
+| 文件                           | 职责                                                             |
+| ------------------------------ | ---------------------------------------------------------------- |
+| `VrmSprite.tsx`                | three mode 的 React 生命周期、容器、首帧、状态和 controller 编排 |
+| `vrm-model-loader.ts`          | GLTFLoader plugin、加载、优化、模型基本校验                      |
+| `vrm-motion-controller.ts`     | VRMA cache、AnimationMixer、淡入淡出、完成事件                   |
+| `vrm-expression-controller.ts` | expression 权重、眨眼、注视和口型                                |
+| `vrm-camera.ts`                | Box3 自动取景和 pack camera override                             |
+| `vrm-dispose.ts`               | action、texture、geometry、renderer 和异步竞态清理               |
+
+`ThreeSprite.tsx` 有两种允许的实现方式：
+
+1. 保留文件并把原 cube 实现替换为 `<VrmSprite />`，这是推荐方案。
+2. 保留文件作为稳定 façade，内部 re-export `VrmSprite`，并把旧 cube 代码放入仅用于兼容回退的 `LegacyThreeSprite`，直到所有调用方完成迁移。
+
+不允许直接删除 `ThreeSprite.tsx` 或把它从 router 中移除；这样会让原有 three mode 调用方失效。
 
 ### 8.3 Three.js 生命周期
 
@@ -754,8 +862,10 @@ type VrmLoadErrorCode = 'resource-forbidden' | 'resource-not-found' | 'unsupport
 - 单个 VRMA 加载失败：保持当前或 idle 动作，不卸载整个模型。
 - `webglcontextlost`：停止渲染循环并阻止默认销毁；恢复后重建 renderer 和模型。
 - 所有失败都必须释放助手出场等待状态。
+- three mode 失败时不能自动把当前角色改成 Live2D 或 video，除非该角色包显式声明并通过校验的 fallback；否则展示 three mode 的错误占位。
+- video 或 Live2D 失败时不能触发全局 renderer mode 变化，其他模式仍必须可用。
 
-正式版本建议允许 3D 角色包声明视频 fallback；在该协议落地前，错误占位比偷偷加载内置视频角色更清晰，避免角色人格与外观不一致。
+正式版本建议允许角色包按模式声明 fallback；在该协议落地前，错误占位比偷偷加载其他模式的内置角色更清晰，避免角色人格与外观不一致。
 
 ## 13. 文件级实施计划
 
@@ -768,6 +878,8 @@ type VrmLoadErrorCode = 'resource-forbidden' | 'resource-not-found' | 'unsupport
 
 任务：
 
+- 找到当前产品实际使用的 Live2D renderer；记录其组件入口、manifest 字段、model/motion 资源协议、首帧回调、销毁方法和 IPC 事件。
+- 为 `video`、`live2d`、`three` 建立三套最小 fixture/回归用例；如果 Live2D 代码不在当前 checkout，先补接口 fixture，不伪造已实现状态。
 - 对齐 `three` 和 `@types/three` 的 minor 版本。
 - 安装 `@pixiv/three-vrm`。
 - 建立最小 import 编译测试。
@@ -786,6 +898,7 @@ type VrmLoadErrorCode = 'resource-forbidden' | 'resource-not-found' | 'unsupport
 - `packages/sprite-core/character-service.ts`
 - `packages/sprite-core/character-pack-manager.ts`
 - `packages/sprite-core/character-pack-integrity.ts`（如 digest payload 有字段白名单）
+- Live2D adapter 所在文件（Phase 0 定位后，只增加 normalize 适配，不重写其实现）
 - `packages/sprite-core/types.ts`
 - `packages/sprite-core/animation-registry.ts`
 - `packages/sprite-core/handler/sprite-assets.ts`
@@ -796,9 +909,9 @@ type VrmLoadErrorCode = 'resource-forbidden' | 'resource-not-found' | 'unsupport
 任务：
 
 - 增加 `assets.model3d` 和 resolved asset。
-- 增加 `SpriteRendererKind`、`SpriteAnimationSource`、`SpritePresentationConfig`。
+- 增加 `SpriteRendererKind = 'video' | 'live2d' | 'three'`、`SpriteAnimationSource`、`SpritePresentationConfig`。
 - 扩展路径 normalize、序列化、越界校验和导入提示。
-- 在初始状态和角色切换时下发 presentation。
+- 在初始状态和角色切换时下发 presentation；旧 pack 没有 presentation 时保留原 video/Live2D 归一化结果。
 - 给 VRM/VRMA 增加资源 MIME 和 active pack root 注册。
 - 添加一个只用于自动化测试的最小 VRM fixture；不要把无明确再分发授权的模型提交到仓库。
 
@@ -816,7 +929,9 @@ type VrmLoadErrorCode = 'resource-forbidden' | 'resource-not-found' | 'unsupport
 - `src/features/sprite-assistant/context/sprite-state-context.ts`
 - `src/features/sprite-assistant/context/sprite-state-runtime.ts`
 - `src/features/sprite-assistant/renderers/index.ts` -> `src/features/sprite-assistant/renderers/index.tsx`
-- `src/features/sprite-assistant/renderers/ThreeSprite.tsx`（删除或迁移）
+- `src/features/sprite-assistant/renderers/ThreeSprite.tsx`（保留入口，内部替换实现）
+- `src/features/sprite-assistant/renderers/VideoSprite.tsx`（回归验证，不改现有播放语义）
+- `<existing-live2d-renderer>`（回归验证，不改现有资源语义）
 - `src/features/sprite-assistant/renderers/vrm/VrmSprite.tsx`
 - `src/features/sprite-assistant/renderers/vrm/vrm-model-loader.ts`
 - `src/features/sprite-assistant/renderers/vrm/vrm-camera.ts`
@@ -825,7 +940,8 @@ type VrmLoadErrorCode = 'resource-forbidden' | 'resource-not-found' | 'unsupport
 
 任务：
 
-- 动态选择 video/vrm renderer。
+- 动态选择 video/live2d/three renderer。
+- 用 VRM 实现替换现有 `ThreeSprite` 的 cube 场景，但保留 `ThreeSprite` 文件和 public export。
 - 完成透明背景、灯光、自动取景和 ResizeObserver。
 - 每帧调用 `vrm.update(delta)`。
 - 仅在有效模型帧后报告 first frame。
@@ -838,6 +954,8 @@ type VrmLoadErrorCode = 'resource-forbidden' | 'resource-not-found' | 'unsupport
 - 自包含 VRM 在透明助手窗口中正确显示。
 - MToon 材质颜色、透明区域和 spring bone 正常。
 - 2D/3D 角色可热切换。
+- video、Live2D、three 三种角色可以在同一个构建中独立激活和切换。
+- 旧 video 和 Live2D 角色的截图、首帧、交互、动画完成和资源释放回归通过。
 - 连续切换角色不会持续增加 WebGL context、texture 和 geometry 数量。
 
 ### Phase 3：VRMA 动作
@@ -934,11 +1052,16 @@ test/vrm-presentation.spec.ts
 test/vrm-motion-controller.spec.ts
 test/vrm-expression-controller.spec.ts
 test/vrm-camera.spec.ts
+test/sprite-renderer-router.spec.ts
+test/sprite-renderer-mode-compatibility.spec.ts
 ```
 
 覆盖：
 
 - 旧 video source 的兼容 normalize。
+- 旧 video pack 没有 presentation 时仍归一化为 `video`。
+- 既有 Live2D pack/source 仍归一化为 `live2d`，其字段不被 three 逻辑改写。
+- `ThreeSprite` 仍可被原有 import 路径加载，VRM 只替换其内部实现。
 - VRM model 和 motion 相对路径解析。
 - traversal、绝对路径和 symlink escape。
 - renderer kind 选择。
@@ -952,7 +1075,10 @@ test/vrm-camera.spec.ts
 
 覆盖：
 
-- presentation 从 video 切到 vrm 时组件切换。
+- presentation 在 video/live2d/three 三种模式之间切换时组件选择正确。
+- video -> live2d -> three -> video 连续切换不会保留旧 canvas、video 或 WebGL context。
+- presentation 从 video 切到 three 时 `ThreeSprite` façade 正确委托到 `VrmSprite`。
+- Live2D 组件仍收到原有 props、motion 和首帧回调。
 - VRM 首帧前不触发 `onFirstFrame`。
 - 加载失败会 fail-open。
 - props 尺寸变化不重新加载模型。
@@ -961,18 +1087,35 @@ test/vrm-camera.spec.ts
 
 Three.js/WebGL API 在 jsdom 中使用边界 mock；模型实际解析交给 browser/Electron integration test。
 
-### 14.3 Electron 集成测试
+### 14.3 三模式回归矩阵
+
+每次涉及 router、`SpriteStateContext`、AIAssistant 尺寸或资源协议的改动，都必须运行以下矩阵：
+
+| 场景                       | video | live2d | three/VRM |
+| -------------------------- | ----- | ------ | --------- |
+| 初始状态首帧               | 通过  | 通过   | 通过      |
+| trigger 播放和完成事件     | 通过  | 通过   | 通过      |
+| loop / playlist / autoIdle | 通过  | 通过   | 通过      |
+| 窗口 resize / padding      | 通过  | 通过   | 通过      |
+| 拖拽、点击、双击和气泡     | 通过  | 通过   | 通过      |
+| 角色热切换                 | 通过  | 通过   | 通过      |
+| unmount / reload 资源释放  | 通过  | 通过   | 通过      |
+
+Live2D 没有出现在当前 checkout 时，Phase 0 至少要以真实产品入口或稳定 adapter fixture 完成这一列，不能把空实现标记为通过。
+
+### 14.4 Electron 集成测试
 
 覆盖：
 
 - `res://` 能读取打包内和 installed pack 内的 VRM/VRMA。
+- 旧 video 和 Live2D 资源仍按原协议读取。
 - 未注册 root 返回 403。
 - 模型外部资源引用被拒绝。
 - 角色包切换会下发 presentation 和新 idle animation。
 - 动作完成经 IPC 回到 SpriteManager，并正确切回 idle。
 - 助手窗口 resize 后 canvas backing store 和 CSS size 一致。
 
-### 14.4 视觉和像素验证
+### 14.5 视觉和像素验证
 
 桌面与小尺寸视口至少验证：
 
@@ -982,8 +1125,9 @@ Three.js/WebGL API 在 jsdom 中使用边界 mock；模型实际解析交给 bro
 - MToon 正反面、发丝、眼睛和半透明材质正确。
 - 入场遮罩与模型首帧衔接，不出现空白扫描。
 - 2D/3D 热切换没有旧 canvas 残影。
+- video/live2d/three 连续热切换没有旧 DOM、旧 canvas 或错误模式残影。
 
-### 14.5 性能基线
+### 14.6 性能基线
 
 使用固定测试模型记录：
 
@@ -1005,8 +1149,10 @@ Three.js/WebGL API 在 jsdom 中使用边界 mock；模型实际解析交给 bro
 ### 15.1 必须满足
 
 - [ ] 现有默认 WebM 角色包无需修改即可运行。
-- [ ] VRM 角色包能通过 manifest 声明模型和 VRMA 动作。
-- [ ] 角色激活后无需重启即可在 video/vrm 之间切换。
+- [ ] 现有 Live2D 角色包无需迁移即可运行；其 renderer、动作和交互语义无回归。
+- [ ] VRM 角色包能通过 manifest 声明模型和 VRMA 动作，并归一化为 `three` mode。
+- [ ] 角色激活后无需重启即可在 video/live2d/three 之间切换。
+- [ ] 当前 `ThreeSprite` 调用方无需改 import；其内部由 VRM 实现接管。
 - [ ] VRM 模型在透明 Electron 窗口中稳定显示。
 - [ ] `vrm.update(delta)`、mixer 和表达控制器按正确顺序更新。
 - [ ] `idle`、`walk` 和一个非循环 trigger 动作可正确播放。
@@ -1014,6 +1160,7 @@ Three.js/WebGL API 在 jsdom 中使用边界 mock；模型实际解析交给 bro
 - [ ] `onFirstFrame` 只在有效模型帧后报告，失败路径会 fail-open。
 - [ ] 模型、动作和角色包切换不存在可复现的异步覆盖竞态。
 - [ ] 组件卸载和角色切换后 GPU 资源得到释放。
+- [ ] video、Live2D 和 three 的失败处理互相隔离，一个模式失败不会全局切换 renderer。
 - [ ] 包外路径、外部资源引用和不支持的模型格式被拒绝。
 - [ ] 角色包内没有本机绝对路径或个人敏感信息。
 
@@ -1028,13 +1175,14 @@ Three.js/WebGL API 在 jsdom 中使用边界 mock；模型实际解析交给 bro
 
 实现期间保持以下回滚边界：
 
-- 缺少 `presentation` 时强制回退为 `{ renderer: 'video' }`。
-- `VideoSprite` 不依赖 `three-vrm` 类型或实现。
+- 缺少 `presentation` 时由兼容 normalizer 决定：legacy Live2D 保持 `{ renderer: 'live2d' }`，其他旧 pack 回退为 `{ renderer: 'video' }`。
+- `VideoSprite` 和 Live2D renderer 不依赖 `three-vrm` 类型或实现。
+- `ThreeSprite` 保留稳定导出；VRM 只作为 three mode 的新实现。若 VRM 临时关闭，three mode 仍可以使用兼容的旧 Three.js façade 或明确错误占位，不影响 video/Live2D。
 - Phase 1 的角色包字段全部为可选字段，不改变旧 manifest。
-- VRM renderer 可以通过单一 runtime feature flag 暂时禁用，但该 flag 只用于灰度和故障回退，不作为长期 renderer 选择来源。
-- 出现严重 GPU 或跨平台问题时，可以停止识别 `assets.model3d`，旧视频角色功能仍完整可用。
+- three/VRM renderer 可以通过单一 runtime feature flag 暂时禁用，但该 flag 只用于灰度和故障回退，不作为长期 renderer 选择来源。
+- 出现严重 GPU 或跨平台问题时，可以停止识别 `assets.model3d`，旧 video 和 Live2D 角色功能仍完整可用。
 
-不要通过恢复全局 `ASSISTANT_RENDERER_MODE = 'video'` 作为长期回滚方案，因为它会再次绕过角色包事实来源。
+不要通过恢复全局 `ASSISTANT_RENDERER_MODE = 'video'` 作为长期回滚方案，因为它会再次绕过角色包事实来源，也会让 Live2D 和 three mode 失效。回滚必须按 renderer 分支进行。
 
 ## 17. 实施约束与待确认项
 
@@ -1043,9 +1191,10 @@ Three.js/WebGL API 在 jsdom 中使用边界 mock；模型实际解析交给 bro
 - 使用 WebGLRenderer，不使用 WebGPU。
 - 使用 VRMA，不自研通用 humanoid retargeter。
 - 模型属于角色包级资源，动作属于 animation entry。
-- renderer 由 active pack presentation 决定。
+- renderer 由 active pack presentation 决定，取值为 `video | live2d | three`。
+- VRM 是 three mode 的实现格式，不作为第四种 renderer。
 - 第一版仅接受自包含 VRM/VRMA。
-- 视频和 VRM 共享 trigger、playlist、movement 和完成事件语义。
+- video、Live2D 和 three/VRM 共享 trigger、playlist、movement 和完成事件语义。
 
 实施前需要准备的外部输入：
 
