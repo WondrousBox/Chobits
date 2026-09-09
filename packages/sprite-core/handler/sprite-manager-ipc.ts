@@ -73,6 +73,7 @@ import {
   installCharacterPackFromArchive,
   listCharacterPacks,
   removeCharacterPack,
+  resolveCharacterPackPresentation,
   saveCharacterPackEditorDraft
 } from '../character-pack-manager';
 import { type CharacterPersonaRuntimeSyncResult, reloadCharacterPersonaRuntime, syncCharacterPersonaRuntime } from '../character-runtime';
@@ -97,7 +98,7 @@ import type {
   SpriteMovementPreviewConfig,
   SpriteTriggerRequest
 } from '../types';
-import { isBubbleWindowMode, MESSAGE_IPC_CHANNELS, SPRITE_EFFECT_IPC_CHANNELS } from '../types';
+import { isBubbleWindowMode, MESSAGE_IPC_CHANNELS, SPRITE_EFFECT_IPC_CHANNELS, SPRITE_PRESENTATION_CHANGED_CHANNEL } from '../types';
 import { WindowController } from '../window-controller';
 import type { WindowControllerAvoidRegion } from '../window-controller-model';
 import { notifySpriteCapabilityChanged } from './capability-events';
@@ -358,6 +359,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
         subState: initial.subState,
         personaSnapshot: initial.personaState
       });
+      targetWindow.webContents.send(SPRITE_PRESENTATION_CHANGED_CHANNEL, initial.presentation);
       if (initial.currentAnimation) {
         targetWindow.webContents.send('sprite:play', initial.currentAnimation);
       }
@@ -521,6 +523,14 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     return sprites.length;
   }
 
+  async function syncActivePresentation(pack?: CharacterPackSummary | null): Promise<void> {
+    const activePack = pack === undefined ? await getActiveCharacterPack() : pack;
+    if (activePack) {
+      deps.addAllowedResourceRoot(activePack.rootDir);
+    }
+    mgr.setPresentation(resolveCharacterPackPresentation(activePack));
+  }
+
   setSpriteAssetsChangeHandler((event) => {
     void loadAndApplyRuntimeAnimations({ refreshCurrentState: true }).catch((err) => {
       console.error('[SpriteManagerIPC] Failed to reload animations after sprite asset change:', event, err);
@@ -532,6 +542,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     personaSlot: { slotId: string; restored: boolean; switched: boolean };
     animationsLoaded: number;
   }> {
+    await syncActivePresentation();
     const runtime = await syncCharacterRuntime({ reload: true });
     const personaSlot = await syncActivePersonaStateSlot({ forceReload: false });
     initCharacterDimensions();
@@ -1589,6 +1600,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
   });
   deps.addAllowedResourceRoot(getCharacterPackImportPreviewCacheRootDir());
   const activePack = await getActiveCharacterPack();
+  await syncActivePresentation(activePack);
   initCharacterService(activePack?.rootDir ?? spritesDir, { source: activePack?.source ?? 'builtin' });
   await syncCharacterRuntime();
   const initialPersonaSlot = resolveActivePersonaSlot();

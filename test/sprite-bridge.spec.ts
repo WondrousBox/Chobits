@@ -40,7 +40,7 @@ vi.mock('electron', () => ({
 }));
 
 import { spriteBridge } from '../packages/sprite-core/preload/sprite-bridge';
-import { MESSAGE_IPC_CHANNELS } from '../packages/sprite-core/types';
+import { MESSAGE_IPC_CHANNELS, SPRITE_PRESENTATION_CHANGED_CHANNEL } from '../packages/sprite-core/types';
 
 describe('sprite preload bridge', () => {
   afterEach(() => {
@@ -108,6 +108,23 @@ describe('sprite preload bridge', () => {
         }
       }
     });
+  });
+
+  it('subscribes and unsubscribes presentation updates on the shared channel', () => {
+    const callback = vi.fn();
+    const presentation = {
+      renderer: 'three' as const,
+      model: { localPath: 'models/avatar.vrm', format: 'vrm' as const, type: 'model/vrm' as const }
+    };
+
+    const cleanup = spriteBridge.onPresentation(callback);
+    electronHarness.emit(SPRITE_PRESENTATION_CHANGED_CHANNEL, presentation);
+    cleanup();
+    electronHarness.emit(SPRITE_PRESENTATION_CHANGED_CHANNEL, { renderer: 'video' });
+
+    expect(callback).toHaveBeenCalledTimes(1);
+    expect(callback).toHaveBeenCalledWith(presentation);
+    expect(electronHarness.off).toHaveBeenCalledWith(SPRITE_PRESENTATION_CHANGED_CHANNEL, expect.any(Function));
   });
 
   it('forwards movement avoid regions through the movement IPC contract', async () => {

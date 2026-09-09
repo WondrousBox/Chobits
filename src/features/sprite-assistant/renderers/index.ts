@@ -1,6 +1,7 @@
-import type { ComponentType } from 'react';
+import { createElement } from 'react';
 
-import { ASSISTANT_RENDERER_MODE } from '../constants';
+import { useSpriteState } from '../context/hooks';
+import { Live2DRendererSlot } from './Live2DRendererSlot';
 import ThreeSprite from './ThreeSprite';
 import VideoSprite from './VideoSprite';
 
@@ -11,4 +12,18 @@ export interface SpriteRendererProps {
   onFirstFrame?: () => void;
 }
 
-export const Renderer: ComponentType<SpriteRendererProps> = ASSISTANT_RENDERER_MODE === 'three' ? ThreeSprite : VideoSprite;
+export function Renderer(props: SpriteRendererProps): JSX.Element {
+  const { presentation } = useSpriteState();
+  const key = presentation.renderer === 'video' ? 'video' : `${presentation.renderer}:${presentation.model?.localPath ?? ''}`;
+
+  if (presentation.renderer === 'live2d') {
+    return createElement(Live2DRendererSlot, { ...props, presentation, key });
+  }
+  if (presentation.renderer === 'three') {
+    return createElement(ThreeSprite, { ...props, presentation, key });
+  }
+  return createElement(VideoSprite, { ...props, key });
+}
+
+export type { Live2DRendererComponent } from './live2d-renderer-registry';
+export { registerLive2DRenderer } from './live2d-renderer-registry';

@@ -1,4 +1,4 @@
-import type { SpritePlayCommand } from '@packages/sprite-core/types';
+import { getSpriteAnimationSourceKind, type SpritePlayCommand } from '@packages/sprite-core/types';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { useSpriteState } from '../context/hooks';
@@ -90,6 +90,7 @@ export default function VideoSprite({ walkDirection, onFirstFrame }: { walkDirec
   const desiredPresentation = useMemo<VideoPresentation | null>(() => {
     const source = currentAnimation?.source;
     if (!source) return null;
+    if (getSpriteAnimationSourceKind(source) !== 'video') return null;
 
     const playback = currentAnimation?.playback;
     const { url, type } = resolveSpriteSrc(source as any);
@@ -129,6 +130,8 @@ export default function VideoSprite({ walkDirection, onFirstFrame }: { walkDirec
   useLayoutEffect(() => {
     if (!desiredPresentation) {
       pendingSwitchRef.current = null;
+      // This existing double-buffer state must be cleared together when no video source is active.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setActivePresentation(null);
       setSlotPresentations({ front: null, back: null });
       return;

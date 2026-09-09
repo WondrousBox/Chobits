@@ -1,4 +1,14 @@
-import type { SpriteConfig, SpriteInitialState, SpritePlayCommand, SpriteStateSnapshot, SpriteWalkState } from '@packages/sprite-core/types';
+import {
+  DEFAULT_SPRITE_PRESENTATION,
+  getSpriteAnimationSourceKind,
+  normalizeSpritePresentationConfig,
+  type SpriteConfig,
+  type SpriteInitialState,
+  type SpritePlayCommand,
+  type SpritePresentationConfig,
+  type SpriteStateSnapshot,
+  type SpriteWalkState
+} from '@packages/sprite-core/types';
 
 import type { SpriteStateContextValue } from './sprite-state-context';
 import { DEFAULT_SPRITE_CONFIG, mergePlayCommandIntoSpriteConfig, resolveInitialSpriteConfig, resolveWalkState } from './sprite-state-sync';
@@ -19,6 +29,7 @@ export interface SpriteStateRuntimeBridge {
   onPlay(cb: (data: SpritePlayCommand) => void): () => void;
   onWalk(cb: (data: SpriteWalkState) => void): () => void;
   onConfig(cb: (data: SpriteConfig) => void): () => void;
+  onPresentation(cb: (data: SpritePresentationConfig) => void): () => void;
 }
 
 export function createDefaultSpriteStateContextValue(): SpriteStateContextValue {
@@ -27,6 +38,7 @@ export function createDefaultSpriteStateContextValue(): SpriteStateContextValue 
     subState: null,
     personaState: null,
     currentAnimation: null,
+    presentation: DEFAULT_SPRITE_PRESENTATION,
     walkDirection: null,
     isWalking: false,
     isDragging: false,
@@ -36,12 +48,15 @@ export function createDefaultSpriteStateContextValue(): SpriteStateContextValue 
 }
 
 export function applyInitialSpriteState(value: SpriteStateContextValue, initial: SpriteInitialState): SpriteStateContextValue {
+  const presentation = normalizeSpritePresentationConfig(initial.presentation);
+  const currentAnimation = initial.currentAnimation && getSpriteAnimationSourceKind(initial.currentAnimation.source) === presentation.renderer ? initial.currentAnimation : null;
   return {
     ...value,
     spriteState: initial.state ?? 'idle',
     subState: initial.subState ?? null,
     personaState: initial.personaState ?? null,
-    currentAnimation: initial.currentAnimation ?? null,
+    currentAnimation,
+    presentation,
     spriteConfig: resolveInitialSpriteConfig(initial),
     ready: true
   };
@@ -57,6 +72,18 @@ export function applySpriteStateSnapshot(value: SpriteStateContextValue, data: S
 }
 
 export function applySpritePlayCommand(value: SpriteStateContextValue, data: SpritePlayCommand): SpriteStateContextValue {
+  const sourceKind = getSpriteAnimationSourceKind(data.source);
+  if (sourceKind !== value.presentation.renderer) {
+    console.warn('[SpriteRenderer] Ignoring animation for a different presentation backend', {
+      animationId: data.animationId,
+      sourceKind,
+      renderer: value.presentation.renderer
+    });
+    return {
+      ...value,
+      currentAnimation: null
+    };
+  }
   return {
     ...value,
     currentAnimation: data,
@@ -80,6 +107,15 @@ export function applySpriteConfig(value: SpriteStateContextValue, data: SpriteCo
       config: { ...value.spriteConfig, ...data },
       currentAnimation: value.currentAnimation
     })
+  };
+}
+
+export function applySpritePresentation(value: SpriteStateContextValue, data: SpritePresentationConfig): SpriteStateContextValue {
+  const presentation = normalizeSpritePresentationConfig(data);
+  return {
+    ...value,
+    presentation,
+    currentAnimation: presentation.renderer === value.presentation.renderer ? value.currentAnimation : null
   };
 }
 
@@ -132,6 +168,12 @@ export class SpriteStateRuntimeController {
     this.cleanupFns.push(
       this.bridge.onConfig((data) => {
         this.commit((current) => applySpriteConfig(current, data));
+      })
+    );
+
+    this.cleanupFns.push(
+      this.bridge.onPresentation((data) => {
+        this.commit((current) => applySpritePresentation(current, data));
       })
     );
 

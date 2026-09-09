@@ -17,7 +17,7 @@ import type { SpriteAnimationCondition } from './animation-condition';
 import { resolvePackRelativeAssetPath } from './character-pack-paths';
 import { DEFAULT_CONVERSATION_REWARDS, mergeActivityRewards } from './config/persona-rules';
 import type { MoodType } from './persona-state';
-import type { MessageCategory } from './types';
+import type { MessageCategory, SpriteRendererKind } from './types';
 
 // ━━ Type Definitions ━━
 
@@ -213,10 +213,22 @@ export interface CharacterPackAssets {
   animations?: string;
   gallery?: string;
   voices?: string;
+  model3d?: string;
   preview?: {
     avatar?: string;
     gif?: string;
     video?: string;
+  };
+}
+
+export interface CharacterPackPresentationDeclaration {
+  renderer?: SpriteRendererKind;
+  camera?: {
+    targetY?: number;
+    fov?: number;
+    scale?: number;
+    offsetX?: number;
+    offsetY?: number;
   };
 }
 
@@ -257,6 +269,7 @@ export interface CharacterPackDefinition {
   platform?: string[];
   assets?: CharacterPackAssets;
   capabilities?: CharacterPackCapabilities;
+  presentation?: CharacterPackPresentationDeclaration;
   provenance?: CharacterPackProvenance;
   signature?: CharacterPackSignature;
 }

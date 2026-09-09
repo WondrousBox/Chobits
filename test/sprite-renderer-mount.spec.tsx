@@ -1,11 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { SpriteConfig, SpriteInitialState, SpritePlayCommand, SpriteStateSnapshot, SpriteWalkState } from '../packages/sprite-core/types';
+import type { SpriteConfig, SpriteInitialState, SpritePlayCommand, SpritePresentationConfig, SpriteStateSnapshot, SpriteWalkState } from '../packages/sprite-core/types';
 import type { SpriteStateContextValue } from '../src/features/sprite-assistant/context/sprite-state-context';
 import { installMiniDom, isFakeVideoElement } from './utils/minidom';
 
 vi.mock('@/pages/ResourcePage/utils/resourceProtocol', () => ({
   makeResSrc: (absPath: string) => 'res://local/' + encodeURIComponent(absPath.replace(/\\/g, '/'))
+}));
+
+vi.mock('../src/features/sprite-assistant/renderers/vrm/VrmSprite', () => ({
+  default: ({ presentation }: { presentation: Extract<SpritePresentationConfig, { renderer: 'three' }> }) => <div data-vrm-model={presentation.model.localPath} />
 }));
 
 function getActiveVideo(root: any): any {
@@ -25,16 +29,19 @@ function createSpriteBridgeHarness(initialState: SpriteInitialState): {
     onPlay: ReturnType<typeof import('vitest').vi.fn>;
     onWalk: ReturnType<typeof import('vitest').vi.fn>;
     onConfig: ReturnType<typeof import('vitest').vi.fn>;
+    onPresentation: ReturnType<typeof import('vitest').vi.fn>;
   };
   emitState(data: SpriteStateSnapshot): void;
   emitPlay(data: SpritePlayCommand): void;
   emitWalk(data: SpriteWalkState): void;
   emitConfig(data: SpriteConfig): void;
+  emitPresentation(data: SpritePresentationConfig): void;
 } {
   let stateHandler: ((data: SpriteStateSnapshot) => void) | undefined;
   let playHandler: ((data: SpritePlayCommand) => void) | undefined;
   let walkHandler: ((data: SpriteWalkState) => void) | undefined;
   let configHandler: ((data: SpriteConfig) => void) | undefined;
+  let presentationHandler: ((data: SpritePresentationConfig) => void) | undefined;
 
   return {
     bridge: {
@@ -64,6 +71,12 @@ function createSpriteBridgeHarness(initialState: SpriteInitialState): {
         return () => {
           configHandler = undefined;
         };
+      }),
+      onPresentation: vi.fn((cb: (data: SpritePresentationConfig) => void) => {
+        presentationHandler = cb;
+        return () => {
+          presentationHandler = undefined;
+        };
       })
     },
     emitState(data: SpriteStateSnapshot) {
@@ -77,6 +90,9 @@ function createSpriteBridgeHarness(initialState: SpriteInitialState): {
     },
     emitConfig(data: SpriteConfig) {
       configHandler?.(data);
+    },
+    emitPresentation(data: SpritePresentationConfig) {
+      presentationHandler?.(data);
     }
   };
 }
@@ -107,7 +123,8 @@ describe('sprite renderer mount', () => {
       onState: vi.fn(() => () => undefined),
       onPlay: vi.fn(() => () => undefined),
       onWalk: vi.fn(() => () => undefined),
-      onConfig: vi.fn(() => () => undefined)
+      onConfig: vi.fn(() => () => undefined),
+      onPresentation: vi.fn(() => () => undefined)
     };
     const onChange = vi.fn();
     const onError = vi.fn();
@@ -144,6 +161,7 @@ describe('sprite renderer mount', () => {
       subState: null,
       personaState: null,
       currentAnimation: null,
+      presentation: { renderer: 'video' },
       walkDirection: null,
       isWalking: false,
       isDragging: false,
@@ -535,6 +553,79 @@ describe('sprite renderer mount', () => {
       root.unmount();
       await Promise.resolve();
     });
+    env.cleanup();
+  });
+
+  it('routes video, registered Live2D, and three presentations without mixing backends', async () => {
+    const { act, useEffect } = await import('react');
+    const { createRoot } = await import('react-dom/client');
+    const env = installMiniDom();
+    const harness = createSpriteBridgeHarness({
+      state: 'idle',
+      subState: null,
+      personaState: null,
+      animations: [],
+      currentAnimation: {
+        animationId: 'idle-video',
+        source: { localPath: './idle.webm', type: 'video/webm' }
+      },
+      config: {
+        width: 180,
+        height: 240,
+        padding: 100,
+        animationPlaylistMode: 'list-loop',
+        autoWalkEnabled: false,
+        showDebugOverlay: false
+      },
+      presentation: { renderer: 'video' }
+    });
+    (env.window as any).YUA = { sprite: harness.bridge };
+
+    const { SpriteStateProvider } = await import('../src/features/sprite-assistant/context/SpriteStateContext');
+    const { Renderer, registerLive2DRenderer } = await import('../src/features/sprite-assistant/renderers');
+    const live2dUnmounted = vi.fn();
+
+    function TestLive2D({ presentation }: { presentation: Extract<SpritePresentationConfig, { renderer: 'live2d' }> }): JSX.Element {
+      useEffect(() => () => live2dUnmounted(), []);
+      return <div data-live2d-model={presentation.model?.localPath ?? 'adapter-default'} />;
+    }
+
+    const unregister = registerLive2DRenderer(TestLive2D);
+    const root = createRoot(env.container as any);
+    await act(async () => {
+      root.render(
+        <SpriteStateProvider>
+          <Renderer width={180} height={240} />
+        </SpriteStateProvider>
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(getActiveVideo(env.container)).not.toBeNull();
+
+    await act(async () => {
+      harness.emitPresentation({ renderer: 'live2d', model: { localPath: './model3.json', type: 'model/live2d' } });
+      await Promise.resolve();
+    });
+    expect(env.container.querySelector('div[data-live2d-model="./model3.json"]')).not.toBeNull();
+    expect(env.container.querySelector('video')).toBeNull();
+
+    await act(async () => {
+      harness.emitPresentation({
+        renderer: 'three',
+        model: { localPath: './avatar.vrm', format: 'vrm', type: 'model/vrm' }
+      });
+      await Promise.resolve();
+    });
+    expect(live2dUnmounted).toHaveBeenCalledTimes(1);
+    expect(env.container.querySelector('div[data-vrm-model="./avatar.vrm"]')).not.toBeNull();
+    expect(env.container.querySelector('div[data-live2d-model="./model3.json"]')).toBeNull();
+
+    await act(async () => {
+      root.unmount();
+      await Promise.resolve();
+    });
+    unregister();
     env.cleanup();
   });
 

@@ -9,6 +9,8 @@
 export { AIAssistant } from './AIAssistant';
 export { useSpriteState } from './context/hooks';
 export { SpriteStateProvider } from './context/SpriteStateContext';
+export type { Live2DRendererComponent } from './renderers';
+export { registerLive2DRenderer } from './renderers';
 
 // ── Types (re-exported from @packages/sprite-core) ──────────
 export type {
@@ -42,9 +44,12 @@ export type {
   SpriteAnimationMeta,
   SpriteAnimationPlaylistMode,
   SpriteAnimationPlaylistModeMap,
+  SpriteAnimationSource,
   SpriteAnimationTrigger,
   SpriteAnimationTriggerMetadata,
   SpriteEventType,
+  SpritePresentationConfig,
+  SpriteRendererKind,
   SpriteTriggerOptions
 } from './types';
 export {
@@ -54,8 +59,10 @@ export {
   compileSpriteAnimationCondition,
   DEFAULT_CHARACTER_GALLERY_INDEX_PATH,
   DEFAULT_SPRITE_ANIMATION_PLAYLIST_MODE,
+  DEFAULT_SPRITE_PRESENTATION,
   getCharacterGalleryImageMimeFromPath,
   getPrimarySpriteAnimationTrigger,
+  getSpriteAnimationSourceKind,
   getSpriteAnimationTriggerAliases,
   getSpriteAnimationTriggers,
   hasSpriteAnimationTrigger,
@@ -77,8 +84,10 @@ export {
   normalizeSpriteAnimationMetaPatch,
   normalizeSpriteAnimationPlaylistMode,
   normalizeSpriteAnimationPlaylistModeMap,
+  normalizeSpritePresentationConfig,
   SPRITE_ANIMATION_PLAYLIST_MODES,
   SPRITE_EVENT_TYPES,
+  SPRITE_PRESENTATION_CHANGED_CHANNEL,
   SpriteEventGroups
 } from './types';
 

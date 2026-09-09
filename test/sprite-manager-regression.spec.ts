@@ -11,7 +11,7 @@ import { SpriteManager } from '../packages/sprite-core/manager/sprite-manager';
 import { mapStateToEventType } from '../packages/sprite-core/manager/state-mapping';
 import { removePersonaRulesLayer, resetPersonaRulesRuntime, setPersonaRulesProvider, upsertPersonaRulesLayer } from '../packages/sprite-core/persona-rules';
 import { DEFAULT_AI_PROVIDER_SPEAK_CONFIG } from '../packages/sprite-core/speak/types';
-import type { SpriteAnimation, SpriteMovementConfig } from '../packages/sprite-core/types';
+import { SPRITE_PRESENTATION_CHANGED_CHANNEL, type SpriteAnimation, type SpriteMovementConfig } from '../packages/sprite-core/types';
 
 function createTestWindow(): {
   win: {
@@ -172,6 +172,24 @@ describe('sprite manager regression coverage', () => {
       rmSync(dataDir, { recursive: true, force: true });
     }
     dataDirs.clear();
+  });
+
+  it('includes presentation in initial state and only broadcasts actual changes', () => {
+    const { mgr, sent, dataDir } = createManager();
+    dataDirs.add(dataDir);
+    const presentation = {
+      renderer: 'three' as const,
+      model: { localPath: 'models/avatar.vrm', format: 'vrm' as const, type: 'model/vrm' as const }
+    };
+
+    expect(mgr.getInitialState().presentation).toEqual({ renderer: 'video' });
+    mgr.setPresentation(presentation);
+    mgr.setPresentation(presentation);
+
+    expect(mgr.getInitialState().presentation).toEqual(presentation);
+    expect(sent.filter((entry) => entry.channel === SPRITE_PRESENTATION_CHANGED_CHANNEL)).toEqual([
+      { channel: SPRITE_PRESENTATION_CHANGED_CHANNEL, payload: presentation }
+    ]);
   });
 
   it('enables default AI provider speech without changing playback volume', () => {

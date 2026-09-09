@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { SpriteConfig, SpriteInitialState, SpritePlayCommand, SpriteStateSnapshot, SpriteWalkState } from '../packages/sprite-core/types';
+import type { SpriteConfig, SpriteInitialState, SpritePlayCommand, SpritePresentationConfig, SpriteStateSnapshot, SpriteWalkState } from '../packages/sprite-core/types';
 import {
   applyInitialSpriteState,
   applySpriteConfig,
   applySpritePlayCommand,
+  applySpritePresentation,
   applySpriteStateSnapshot,
   applySpriteWalkState,
   createDefaultSpriteStateContextValue,
@@ -19,16 +20,19 @@ function createBridgeHarness(options?: { initialState?: SpriteInitialState; init
     onPlay: ReturnType<typeof vi.fn>;
     onWalk: ReturnType<typeof vi.fn>;
     onConfig: ReturnType<typeof vi.fn>;
+    onPresentation: ReturnType<typeof vi.fn>;
   };
   emitState(data: SpriteStateSnapshot): void;
   emitPlay(data: SpritePlayCommand): void;
   emitWalk(data: SpriteWalkState): void;
   emitConfig(data: SpriteConfig): void;
+  emitPresentation(data: SpritePresentationConfig): void;
 } {
   let stateHandler: ((data: SpriteStateSnapshot) => void) | undefined;
   let playHandler: ((data: SpritePlayCommand) => void) | undefined;
   let walkHandler: ((data: SpriteWalkState) => void) | undefined;
   let configHandler: ((data: SpriteConfig) => void) | undefined;
+  let presentationHandler: ((data: SpritePresentationConfig) => void) | undefined;
 
   return {
     bridge: {
@@ -57,6 +61,12 @@ function createBridgeHarness(options?: { initialState?: SpriteInitialState; init
         return () => {
           configHandler = undefined;
         };
+      }),
+      onPresentation: vi.fn((cb: (data: SpritePresentationConfig) => void) => {
+        presentationHandler = cb;
+        return () => {
+          presentationHandler = undefined;
+        };
       })
     },
     emitState(data: SpriteStateSnapshot) {
@@ -70,6 +80,9 @@ function createBridgeHarness(options?: { initialState?: SpriteInitialState; init
     },
     emitConfig(data: SpriteConfig) {
       configHandler?.(data);
+    },
+    emitPresentation(data: SpritePresentationConfig) {
+      presentationHandler?.(data);
     }
   };
 }
@@ -81,6 +94,7 @@ describe('sprite state runtime helpers', () => {
       subState: null,
       personaState: null,
       currentAnimation: null,
+      presentation: { renderer: 'video' },
       walkDirection: null,
       isWalking: false,
       isDragging: false,
@@ -104,8 +118,12 @@ describe('sprite state runtime helpers', () => {
       personaState: { favor: 88 } as any,
       currentAnimation: {
         animationId: 'intro',
-        source: { localPath: './intro.webm', type: 'video/webm' },
+        source: { kind: 'three', localPath: './intro.vrma', type: 'model/vrm-animation' },
         playback: { width: 320, height: 200, padding: 24 }
+      },
+      presentation: {
+        renderer: 'three',
+        model: { localPath: './avatar.vrm', format: 'vrm', type: 'model/vrm' }
       },
       config: {
         width: 260,
@@ -124,7 +142,7 @@ describe('sprite state runtime helpers', () => {
     });
     const withPlay = applySpritePlayCommand(withState, {
       animationId: 'thinking',
-      source: { localPath: './thinking.webm', type: 'video/webm' },
+      source: { kind: 'three', localPath: './thinking.vrma', type: 'model/vrm-animation' },
       playback: { width: 300, padding: 60 }
     });
     const withWalk = applySpriteWalkState(withPlay, { active: true, direction: 'right' });
@@ -141,6 +159,7 @@ describe('sprite state runtime helpers', () => {
       spriteState: 'reacting',
       subState: 'click',
       currentAnimation: { animationId: 'thinking' },
+      presentation: { renderer: 'three' },
       walkDirection: 'right',
       isWalking: true,
       spriteConfig: {
@@ -153,6 +172,21 @@ describe('sprite state runtime helpers', () => {
       },
       ready: true
     });
+  });
+
+  it('normalizes presentation updates and drops a stale animation when the backend changes', () => {
+    const initial = {
+      ...createDefaultSpriteStateContextValue(),
+      currentAnimation: { animationId: 'idle-video', source: { localPath: './idle.webm' } }
+    };
+
+    const next = applySpritePresentation(initial, {
+      renderer: 'three',
+      model: { localPath: './avatar.vrm', format: 'vrm', type: 'model/vrm' }
+    });
+
+    expect(next.presentation).toMatchObject({ renderer: 'three', model: { localPath: './avatar.vrm' } });
+    expect(next.currentAnimation).toBeNull();
   });
 });
 
@@ -223,11 +257,13 @@ describe('SpriteStateRuntimeController', () => {
       autoWalkEnabled: true,
       showDebugOverlay: false
     });
+    harness.emitPresentation({ renderer: 'live2d' });
 
     expect(controller.getSnapshot()).toMatchObject({
       spriteState: 'walking',
       subState: 'custom',
-      currentAnimation: { animationId: 'wave' },
+      currentAnimation: null,
+      presentation: { renderer: 'live2d' },
       walkDirection: 'left',
       isWalking: true,
       spriteConfig: {
@@ -239,12 +275,13 @@ describe('SpriteStateRuntimeController', () => {
         showDebugOverlay: false
       }
     });
-    expect(commits.length).toBeGreaterThanOrEqual(5);
+    expect(commits.length).toBeGreaterThanOrEqual(6);
 
     controller.dispose();
   });
 
   it('marks ready and reports init errors without throwing', async () => {
+    vi.useFakeTimers();
     const error = new Error('init failed');
     const harness = createBridgeHarness({
       initialStatePromise: Promise.reject(error)
@@ -254,13 +291,13 @@ describe('SpriteStateRuntimeController', () => {
     const controller = new SpriteStateRuntimeController(harness.bridge as any, onChange, onError);
 
     controller.start();
-    await Promise.resolve();
-    await Promise.resolve();
+    await vi.runAllTimersAsync();
 
     expect(onError).toHaveBeenCalledWith(error);
     expect(controller.getSnapshot().ready).toBe(true);
-    expect(harness.bridge.ready).not.toHaveBeenCalled();
+    expect(harness.bridge.ready).toHaveBeenCalledTimes(1);
     controller.dispose();
+    vi.useRealTimers();
   });
 
   it('ignores late init results and bridge events after dispose', async () => {
@@ -296,6 +333,7 @@ describe('SpriteStateRuntimeController', () => {
 
     harness.emitState({ state: 'reacting' });
     harness.emitWalk({ active: true, direction: 'right' });
+    harness.emitPresentation({ renderer: 'live2d' });
 
     expect(onChange).not.toHaveBeenCalled();
     expect(harness.bridge.ready).not.toHaveBeenCalled();

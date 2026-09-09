@@ -5,18 +5,19 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { type ArchiveListEntry, listArchiveEntriesWith7Z, unzipFileWith7Z, zipDirectoryContentsWith7Z } from '../common/utils/file';
+import { DEFAULT_CHARACTER_GALLERY_INDEX_PATH } from './character-gallery';
 import { CHARACTER_PACK_ARCHIVE_EXTENSION } from './character-pack-archive';
 import { assessCharacterPackDigest, calculateCharacterPackPayloadDigest, type CharacterPackDigestVerification } from './character-pack-integrity';
 import { isPathContainedByRoot, isResolvedPathContainedByRoot, resolvePackRelativeAssetPath, resolvePackRelativeAssetPathWithDiagnostics } from './character-pack-paths';
 import { type CharacterPackSignatureVerification, type CharacterPackTrustRoot, loadCharacterPackTrustRoot, verifyCharacterPackSignature } from './character-pack-signature';
-import { DEFAULT_CHARACTER_GALLERY_INDEX_PATH } from './character-gallery';
 import type {
   CharacterDefinition,
-  CharacterMessageTemplateEntry,
   CharacterMessagesConfig,
+  CharacterMessageTemplateEntry,
   CharacterPackAssets,
   CharacterPackCapabilities,
   CharacterPackDefinition,
+  CharacterPackPresentationDeclaration,
   CharacterPackProvenance,
   CharacterPackSignature,
   CharacterProgressMessagesConfig,
@@ -28,23 +29,16 @@ import {
   CHARACTER_MESSAGE_SPECS,
   CHARACTER_PROGRESS_KIND_LABEL_SPECS,
   CHARACTER_PROGRESS_MESSAGE_SPECS,
-  createCharacterMessageEditorFields,
   type CharacterMessageSpec,
-  type CharacterPackEditorMessageFields
+  type CharacterPackEditorMessageFields,
+  createCharacterMessageEditorFields
 } from './messages/default-character';
+import type { SpritePresentationConfig } from './types';
 
 export type CharacterPackSource = 'builtin' | 'installed';
 export type CharacterPackTrustLevel = 'unsigned' | 'publisher-declared' | 'signature-declared';
 export type CharacterPackTrustVerificationStatus =
-  | 'none'
-  | 'declared-unverified'
-  | 'builtin-bundled'
-  | 'digest-verified'
-  | 'digest-mismatch'
-  | 'signature-verified'
-  | 'signature-mismatch'
-  | 'signature-revoked'
-  | 'signature-untrusted';
+  'none' | 'declared-unverified' | 'builtin-bundled' | 'digest-verified' | 'digest-mismatch' | 'signature-verified' | 'signature-mismatch' | 'signature-revoked' | 'signature-untrusted';
 export type CharacterPackTrustLinkLabel = 'homepage' | 'repository' | 'support' | 'canonical';
 
 export interface ResolvedCharacterPackAssets {
@@ -52,6 +46,7 @@ export interface ResolvedCharacterPackAssets {
   animations?: string;
   gallery?: string;
   voices?: string;
+  model3d?: string;
   preview?: {
     avatar?: string;
     gif?: string;
@@ -116,6 +111,7 @@ export interface CharacterPackImportWarning {
     | 'missing-animation-asset'
     | 'missing-gallery-asset'
     | 'missing-voice-asset'
+    | 'model3d-capability-not-declared'
     | 'asset-path-outside-pack'
     | 'signature-digest-unverified'
     | 'signature-untrusted-key'
@@ -126,7 +122,15 @@ export interface CharacterPackImportWarning {
 }
 
 export interface CharacterPackImportBlockingError {
-  code: 'unsupported-format-version' | 'min-app-version-not-satisfied' | 'core-asset-path-outside-pack' | 'signature-digest-mismatch' | 'signature-verification-failed' | 'signature-key-revoked';
+  code:
+    | 'unsupported-format-version'
+    | 'min-app-version-not-satisfied'
+    | 'core-asset-path-outside-pack'
+    | 'missing-model3d-asset'
+    | 'invalid-model3d-extension'
+    | 'signature-digest-mismatch'
+    | 'signature-verification-failed'
+    | 'signature-key-revoked';
   message: string;
 }
 
@@ -330,10 +334,28 @@ function normalizePackAssets(value: unknown): CharacterPackAssets | undefined {
     ...(typeof value.animations === 'string' ? { animations: value.animations } : {}),
     ...(typeof value.gallery === 'string' ? { gallery: value.gallery } : {}),
     ...(typeof value.voices === 'string' ? { voices: value.voices } : {}),
+    ...(typeof value.model3d === 'string' ? { model3d: value.model3d } : {}),
     ...(preview && Object.keys(preview).length > 0 ? { preview } : {})
   };
 
   return Object.keys(assets).length > 0 ? assets : undefined;
+}
+
+function normalizePackPresentation(value: unknown): CharacterPackPresentationDeclaration | undefined {
+  if (!isPlainObject(value)) return undefined;
+
+  const renderer = value.renderer === 'video' || value.renderer === 'live2d' || value.renderer === 'three' ? value.renderer : undefined;
+  const cameraValue = isPlainObject(value.camera) ? value.camera : undefined;
+  const camera = cameraValue
+    ? Object.fromEntries(
+        ['targetY', 'fov', 'scale', 'offsetX', 'offsetY'].filter((key) => typeof cameraValue[key] === 'number' && Number.isFinite(cameraValue[key])).map((key) => [key, cameraValue[key]])
+      )
+    : undefined;
+  const presentation: CharacterPackPresentationDeclaration = {
+    ...(renderer ? { renderer } : {}),
+    ...(camera && Object.keys(camera).length > 0 ? { camera } : {})
+  };
+  return Object.keys(presentation).length > 0 ? presentation : undefined;
 }
 
 function normalizePackCapabilities(value: unknown): CharacterPackCapabilities | undefined {
@@ -622,6 +644,7 @@ function normalizeCharacterPackDefinition(raw: unknown): CharacterPackDefinition
   const formatVersion = typeof raw.formatVersion === 'number' && Number.isFinite(raw.formatVersion) ? raw.formatVersion : 1;
   const assets = normalizePackAssets(raw.assets);
   const capabilities = normalizePackCapabilities(raw.capabilities);
+  const presentation = normalizePackPresentation(raw.presentation);
   const provenance = normalizePackProvenance(raw.provenance);
   const signature = normalizePackSignature(raw.signature);
   return {
@@ -637,6 +660,7 @@ function normalizeCharacterPackDefinition(raw: unknown): CharacterPackDefinition
     ...(Array.isArray(raw.platform) ? { platform: normalizeStringList(raw.platform) } : {}),
     ...(assets ? { assets } : {}),
     ...(capabilities ? { capabilities } : {}),
+    ...(presentation ? { presentation } : {}),
     ...(provenance ? { provenance } : {}),
     ...(signature ? { signature } : {})
   };
@@ -651,6 +675,7 @@ function resolveCharacterPackAssets(rootDir: string, assets?: CharacterPackAsset
   const animations = resolvePackRelativeAsset(rootDir, assets?.animations);
   const gallery = resolvePackRelativeAsset(rootDir, assets?.gallery);
   const voices = resolvePackRelativeAsset(rootDir, assets?.voices);
+  const model3d = resolvePackRelativeAsset(rootDir, assets?.model3d);
   const previewAvatar = resolvePackRelativeAsset(rootDir, assets?.preview?.avatar);
   const previewGif = resolvePackRelativeAsset(rootDir, assets?.preview?.gif);
   const previewVideo = resolvePackRelativeAsset(rootDir, assets?.preview?.video);
@@ -665,7 +690,38 @@ function resolveCharacterPackAssets(rootDir: string, assets?: CharacterPackAsset
     ...(animations ? { animations } : {}),
     ...(gallery ? { gallery } : {}),
     ...(voices ? { voices } : {}),
+    ...(model3d ? { model3d } : {}),
     ...(Object.keys(preview).length > 0 ? { preview } : {})
+  };
+}
+
+function isUsableVrmModel(pack: CharacterPackSummary): boolean {
+  const modelPath = pack.resolvedAssets.model3d;
+  if (!modelPath || path.extname(modelPath).toLowerCase() !== '.vrm') return false;
+  try {
+    return fs.statSync(modelPath).isFile();
+  } catch {
+    return false;
+  }
+}
+
+export function resolveCharacterPackPresentation(pack?: CharacterPackSummary | null): SpritePresentationConfig {
+  if (!pack) return { renderer: 'video' };
+
+  if (pack.presentation?.renderer === 'video') return { renderer: 'video' };
+  if (pack.presentation?.renderer === 'live2d') return { renderer: 'live2d' };
+
+  const shouldUseThree = pack.presentation?.renderer === 'three' || pack.capabilities?.has3DModel === true;
+  if (!shouldUseThree || !isUsableVrmModel(pack)) return { renderer: 'video' };
+
+  return {
+    renderer: 'three',
+    model: {
+      localPath: pack.resolvedAssets.model3d!,
+      format: 'vrm',
+      type: 'model/vrm'
+    },
+    ...(pack.presentation?.camera ? { camera: pack.presentation.camera } : {})
   };
 }
 
@@ -851,6 +907,7 @@ function collectOutsidePackAssetPaths(pack: CharacterPackSummary): CharacterPack
   check('animations', pack.assets?.animations, true);
   check('gallery', pack.assets?.gallery, false);
   check('voices', pack.assets?.voices, false);
+  check('model3d', pack.assets?.model3d, true);
   check('preview.avatar', pack.assets?.preview?.avatar, false);
   check('preview.gif', pack.assets?.preview?.gif, false);
   check('preview.video', pack.assets?.preview?.video, false);
@@ -936,6 +993,13 @@ function collectCharacterPackImportWarnings(
     });
   }
 
+  if (pack.assets?.model3d && pack.capabilities?.has3DModel !== true && pack.presentation?.renderer !== 'three') {
+    warnings.push({
+      code: 'model3d-capability-not-declared',
+      message: `pack.json 声明了 model3d，但未启用 capabilities.has3DModel：${pack.assets.model3d}`
+    });
+  }
+
   if (Array.isArray(pack.platform) && pack.platform.length > 0 && !pack.platform.includes(process.platform)) {
     warnings.push({
       code: 'platform-mismatch',
@@ -1007,6 +1071,23 @@ function assessCharacterPackImport(
       code: 'core-asset-path-outside-pack',
       message: `pack.json 核心资源路径越过角色包目录：${outsideCoreAssetPaths.map((entry) => `${entry.field}=${entry.declaredPath}`).join('，')}。请改为角色包目录内的相对路径。`
     });
+  }
+
+  const requiresModel3d = pack.presentation?.renderer === 'three' || pack.capabilities?.has3DModel === true;
+  const model3dOutsidePack = outsideAssetPaths.some((entry) => entry.field === 'model3d');
+  if (requiresModel3d && !model3dOutsidePack) {
+    const modelPath = pack.resolvedAssets.model3d;
+    if (!pack.assets?.model3d?.trim() || !modelPath || !fs.existsSync(modelPath) || !fs.statSync(modelPath).isFile()) {
+      blockingErrors.push({
+        code: 'missing-model3d-asset',
+        message: `three 模式需要角色包内存在有效的 model3d 文件：${pack.assets?.model3d ?? '(未声明)'}`
+      });
+    } else if (path.extname(modelPath).toLowerCase() !== '.vrm') {
+      blockingErrors.push({
+        code: 'invalid-model3d-extension',
+        message: `three 模式的 model3d 仅支持 .vrm 文件：${pack.assets.model3d}`
+      });
+    }
   }
 
   if (pack.trust.digest?.status === 'mismatch') {
@@ -1352,11 +1433,7 @@ function collectDefinedMessageEntries(source: Record<string, CharacterMessageTem
   return result;
 }
 
-function mergeEditorMessages(
-  baseMessages: CharacterMessagesConfig | undefined,
-  draftMessages: CharacterPackEditorMessagesFields,
-  fallbackMessages: CharacterMessagesConfig
-): CharacterMessagesConfig {
+function mergeEditorMessages(baseMessages: CharacterMessagesConfig | undefined, draftMessages: CharacterPackEditorMessagesFields, fallbackMessages: CharacterMessagesConfig): CharacterMessagesConfig {
   const progress: CharacterProgressMessagesConfig | undefined = baseMessages?.progress ?? fallbackMessages.progress;
   const categories: Record<string, CharacterMessageTemplateEntry> = {
     ...collectDefinedMessageEntries(fallbackMessages.categories),
@@ -1439,7 +1516,11 @@ function sanitizeEditorDraft(draft: CharacterPackEditorDraft): CharacterPackEdit
 }
 
 function createFallbackCharacterDefinition(draft: CharacterPackEditorDraft): CharacterDefinition {
-  const messages = mergeEditorMessages(undefined, draft.messages ?? sanitizeEditorMessages(undefined, buildDefaultCharacterMessageEditorFields(draft.character)), buildDefaultCharacterMessages(draft.character));
+  const messages = mergeEditorMessages(
+    undefined,
+    draft.messages ?? sanitizeEditorMessages(undefined, buildDefaultCharacterMessageEditorFields(draft.character)),
+    buildDefaultCharacterMessages(draft.character)
+  );
 
   return {
     version: 1,
@@ -1554,6 +1635,10 @@ function buildEditorPackDefinition(basePack: CharacterPackSummary | null, draft:
   const language = draft.character.language.trim();
   const supportedLanguages = Array.from(new Set([...(basePack?.capabilities?.supportedLanguages ?? []), ...(language ? [language] : [])]));
   const baseAssets = options.resetAnimations ? undefined : basePack?.assets;
+  const baseCapabilities = { ...(basePack?.capabilities ?? {}) };
+  if (options.resetAnimations) {
+    delete baseCapabilities.has3DModel;
+  }
   const assets: CharacterPackAssets = {
     ...(baseAssets ?? {}),
     character: 'character.json',
@@ -1573,12 +1658,13 @@ function buildEditorPackDefinition(basePack: CharacterPackSummary | null, draft:
     ...(draft.pack.minAppVersion ? { minAppVersion: draft.pack.minAppVersion } : {}),
     platform: draft.pack.platform.length > 0 ? draft.pack.platform : [process.platform],
     assets,
+    ...(!options.resetAnimations && basePack?.presentation ? { presentation: basePack.presentation } : {}),
     provenance: {
       channel: 'local',
       publisher: draft.pack.author
     },
     capabilities: {
-      ...(basePack?.capabilities ?? {}),
+      ...baseCapabilities,
       hasCustomAnimations: basePack?.capabilities?.hasCustomAnimations ?? true,
       ...(supportedLanguages.length > 0 ? { supportedLanguages } : {})
     }

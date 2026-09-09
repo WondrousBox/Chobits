@@ -1,4 +1,4 @@
-import type { PersonaSnapshot, SpriteConfig, SpritePlayCommand } from '@packages/sprite-core/types';
+import type { PersonaSnapshot, SpriteConfig, SpritePlayCommand, SpritePresentationConfig } from '@packages/sprite-core/types';
 import { createContext } from 'react';
 
 export interface SpriteStateContextValue {
@@ -10,6 +10,8 @@ export interface SpriteStateContextValue {
   personaState: PersonaSnapshot | null;
   /** 当前播放动画信息 */
   currentAnimation: SpritePlayCommand | null;
+  /** 当前角色包选择的展示后端。 */
+  presentation: SpritePresentationConfig;
   /** 行走方向 */
   walkDirection: 'left' | 'right' | null;
   /** 是否正在行走 */

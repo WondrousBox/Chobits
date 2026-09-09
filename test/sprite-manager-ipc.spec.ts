@@ -68,6 +68,21 @@ const characterPackManagerState: {
   activePack: null
 };
 
+const resolveCharacterPackPresentationMock = vi.fn((pack: any) => {
+  if (pack?.presentation?.renderer === 'live2d') return { renderer: 'live2d' as const };
+  if ((pack?.presentation?.renderer === 'three' || pack?.capabilities?.has3DModel === true) && pack?.resolvedAssets?.model3d) {
+    return {
+      renderer: 'three' as const,
+      model: {
+        localPath: pack.resolvedAssets.model3d,
+        format: 'vrm' as const,
+        type: 'model/vrm' as const
+      }
+    };
+  }
+  return { renderer: 'video' as const };
+});
+
 vi.mock('../packages/sprite-core/character-service', () => ({
   initCharacterService: vi.fn(),
   getCharacterPackDefinition: vi.fn(() => null),
@@ -111,6 +126,7 @@ vi.mock('../packages/sprite-core/character-pack-manager', () => ({
   initCharacterPackManager: vi.fn(() => undefined),
   resetCharacterPackManager: vi.fn(() => undefined),
   getCharacterPackImportPreviewCacheRootDir: vi.fn(() => '/tmp/character-pack-import-previews'),
+  resolveCharacterPackPresentation: resolveCharacterPackPresentationMock,
   listCharacterPacks: vi.fn(async () =>
     characterPackManagerState.packs.map((pack) => ({
       ...pack,
@@ -644,7 +660,7 @@ describe('sprite manager IPC integration', () => {
 
     expect(setAvoidRegions).toBeTypeOf('function');
     expect(setAvoidRegions?.({} as never, { regions: [{ x: 0, y: 0, width: 400, height: 900 }] })).toEqual({ ok: true });
-    expect(windowStub.win.setPosition).toHaveBeenCalledWith(300, 0);
+    expect(windowStub.win.setPosition).toHaveBeenCalledWith(400, 0);
   });
 
   it('allows movement preview through the shared movement capability at level 1', async () => {
@@ -1289,7 +1305,7 @@ describe('sprite manager IPC integration', () => {
       }
     });
 
-    expect(vi.mocked(characterService.initCharacterService)).toHaveBeenLastCalledWith('/tmp/pack-beta');
+    expect(vi.mocked(characterService.initCharacterService)).toHaveBeenLastCalledWith('/tmp/pack-beta', { source: 'installed' });
     await expect(getActivePack?.()).resolves.toMatchObject({
       id: 'pack-beta',
       source: 'installed',
@@ -1401,7 +1417,7 @@ describe('sprite manager IPC integration', () => {
       }
     });
 
-    expect(vi.mocked(characterService.initCharacterService)).toHaveBeenLastCalledWith('/tmp/pack-delta');
+    expect(vi.mocked(characterService.initCharacterService)).toHaveBeenLastCalledWith('/tmp/pack-delta', { source: 'installed' });
     expect(windowStub.sent).toContainEqual({
       channel: 'sprite:play',
       payload: expect.objectContaining({
@@ -1493,7 +1509,7 @@ describe('sprite manager IPC integration', () => {
       }
     });
 
-    expect(vi.mocked(characterService.initCharacterService)).toHaveBeenLastCalledWith('/tmp/pack-alpha');
+    expect(vi.mocked(characterService.initCharacterService)).toHaveBeenLastCalledWith('/tmp/pack-alpha', { source: 'builtin' });
     expect(windowStub.sent).toContainEqual({
       channel: 'persona:character-switched',
       payload: expect.objectContaining({

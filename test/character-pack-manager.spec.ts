@@ -79,6 +79,7 @@ import {
   listCharacterPacks,
   removeCharacterPack,
   resetCharacterPackManager,
+  resolveCharacterPackPresentation,
   saveCharacterPackEditorDraft
 } from '../packages/sprite-core/character-pack-manager';
 import { createCharacterPackSignaturePayload } from '../packages/sprite-core/character-pack-signature';
@@ -325,6 +326,71 @@ describe('character pack manager', () => {
     expect(state.firstUsedAtByPack).toEqual({
       'builtin:pack-alpha': packs[0].companionSince
     });
+  });
+
+  it('normalizes a contained VRM asset and resolves the active pack to three presentation', async () => {
+    tempRoot = mkdtempSync(path.join(os.tmpdir(), 'character-pack-manager-'));
+    const builtinRoot = path.join(tempRoot, 'builtin-pack');
+    const userDataDir = path.join(tempRoot, 'user-data');
+    writePack(builtinRoot, 'pack-vrm', 'Pack VRM', {
+      assets: { model3d: 'models/avatar.vrm' },
+      capabilities: { has3DModel: true },
+      presentation: { renderer: 'three', camera: { fov: 38, scale: 1.1 } }
+    });
+    mkdirSync(path.join(builtinRoot, 'models'), { recursive: true });
+    writeFileSync(path.join(builtinRoot, 'models', 'avatar.vrm'), 'vrm', 'utf-8');
+
+    initCharacterPackManager({ userDataDir, builtinPackRootDir: builtinRoot, appVersion: '1.0.0' });
+    const activePack = await getActiveCharacterPack();
+
+    expect(activePack?.assets?.model3d).toBe('models/avatar.vrm');
+    expect(activePack?.resolvedAssets.model3d).toBe(path.join(builtinRoot, 'models', 'avatar.vrm'));
+    expect(resolveCharacterPackPresentation(activePack)).toEqual({
+      renderer: 'three',
+      model: {
+        localPath: path.join(builtinRoot, 'models', 'avatar.vrm'),
+        format: 'vrm',
+        type: 'model/vrm'
+      },
+      camera: { fov: 38, scale: 1.1 }
+    });
+  });
+
+  it('blocks missing, incompatible, and outside-root model3d assets during import', async () => {
+    tempRoot = mkdtempSync(path.join(os.tmpdir(), 'character-pack-manager-'));
+    const builtinRoot = path.join(tempRoot, 'builtin-pack');
+    const userDataDir = path.join(tempRoot, 'user-data');
+    writePack(builtinRoot, 'pack-alpha', 'Pack Alpha');
+    initCharacterPackManager({ userDataDir, builtinPackRootDir: builtinRoot, appVersion: '1.0.0' });
+
+    async function inspectModelPack(id: string, modelPath: string, createModel: boolean): Promise<Awaited<ReturnType<typeof inspectCharacterPackFromArchive>>> {
+      const sourceParent = path.join(tempRoot!, `source-${id}`);
+      const sourceRoot = path.join(sourceParent, 'nested-pack');
+      const archivePath = path.join(tempRoot!, 'imports', `${id}.cbpk`);
+      writePack(sourceRoot, id, id, {
+        assets: { model3d: modelPath },
+        capabilities: { has3DModel: true },
+        presentation: { renderer: 'three' }
+      });
+      if (createModel) {
+        const absoluteModelPath = path.resolve(sourceRoot, modelPath);
+        mkdirSync(path.dirname(absoluteModelPath), { recursive: true });
+        writeFileSync(absoluteModelPath, 'model', 'utf-8');
+      }
+      createTestArchive(archivePath, sourceParent);
+      return inspectCharacterPackFromArchive(archivePath);
+    }
+
+    const missing = await inspectModelPack('missing-vrm', 'models/missing.vrm', false);
+    const invalid = await inspectModelPack('invalid-vrm', 'models/avatar.glb', true);
+    const outside = await inspectModelPack('outside-vrm', '../outside/avatar.vrm', true);
+
+    expect(missing.blockingErrors.map((error) => error.code)).toContain('missing-model3d-asset');
+    expect(invalid.blockingErrors.map((error) => error.code)).toContain('invalid-model3d-extension');
+    expect(outside.blockingErrors.map((error) => error.code)).toContain('core-asset-path-outside-pack');
+    expect(missing.installable).toBe(false);
+    expect(invalid.installable).toBe(false);
+    expect(outside.installable).toBe(false);
   });
 
   it('tracks companion start timestamps per pack and keeps them on reactivation', async () => {

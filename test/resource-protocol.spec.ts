@@ -73,4 +73,22 @@ describe('resource protocol bundled assets', () => {
     expect(response.headers.get('Content-Type')).toBe('image/svg+xml');
     expect(await response.text()).toBe(svg);
   });
+
+  it.each(['.vrm', '.vrma', '.glb'])('serves %s assets with glTF binary MIME and unchanged bytes', async (extension) => {
+    electronState.appPath = tempDir;
+    electronState.isPackaged = false;
+    const relativePath = `models/avatar${extension}`;
+    const modelPath = path.join(tempDir, 'resources', relativePath);
+    const bytes = Buffer.from([0x67, 0x6c, 0x54, 0x46, 0x01, 0x02, 0x03]);
+    fs.mkdirSync(path.dirname(modelPath), { recursive: true });
+    fs.writeFileSync(modelPath, bytes);
+
+    const { setupResourceProtocol } = await import('../electron/main/resource-protocol');
+    await setupResourceProtocol();
+    const response = await electronState.handler!(new Request(`res://local/${encodeURIComponent(relativePath)}`));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('Content-Type')).toBe('model/gltf-binary');
+    expect(Buffer.from(await response.arrayBuffer())).toEqual(bytes);
+  });
 });

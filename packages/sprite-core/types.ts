@@ -459,6 +459,112 @@ export interface SpriteMovementPreviewConfig {
 // 精灵动画定义
 // ============================================================================
 
+/** 产品级 renderer mode；VRM 是 three mode 使用的模型格式。 */
+export type SpriteRendererKind = 'video' | 'live2d' | 'three';
+
+export type SpriteAnimationSource =
+  | {
+      kind?: 'video';
+      src?: string;
+      localPath?: string;
+      type?: string;
+    }
+  | {
+      kind: 'live2d';
+      src?: string;
+      localPath?: string;
+      type?: string;
+    }
+  | {
+      kind: 'three';
+      /** three mode uses local VRMA files; retained as an absent field for legacy readers. */
+      src?: never;
+      localPath?: string;
+      type?: 'model/vrm-animation';
+    };
+
+export type SpritePresentationConfig =
+  | { renderer: 'video' }
+  | {
+      renderer: 'live2d';
+      model?: {
+        localPath: string;
+        type: string;
+      };
+    }
+  | {
+      renderer: 'three';
+      model: {
+        localPath: string;
+        format: 'vrm';
+        type: 'model/vrm';
+      };
+      camera?: {
+        targetY?: number;
+        fov?: number;
+        scale?: number;
+        offsetX?: number;
+        offsetY?: number;
+      };
+    };
+
+export const DEFAULT_SPRITE_PRESENTATION: SpritePresentationConfig = { renderer: 'video' };
+export const SPRITE_PRESENTATION_CHANGED_CHANNEL = 'sprite:presentation-changed';
+
+export function getSpriteAnimationSourceKind(source?: SpriteAnimationSource | null): SpriteRendererKind {
+  return source?.kind === 'live2d' || source?.kind === 'three' ? source.kind : 'video';
+}
+
+export function normalizeSpritePresentationConfig(value: unknown): SpritePresentationConfig {
+  if (!value || typeof value !== 'object') return DEFAULT_SPRITE_PRESENTATION;
+
+  const candidate = value as Record<string, unknown>;
+  if (candidate.renderer === 'live2d') {
+    const model = candidate.model;
+    if (model && typeof model === 'object') {
+      const modelCandidate = model as Record<string, unknown>;
+      if (typeof modelCandidate.localPath === 'string' && modelCandidate.localPath.trim()) {
+        return {
+          renderer: 'live2d',
+          model: {
+            localPath: modelCandidate.localPath,
+            type: typeof modelCandidate.type === 'string' && modelCandidate.type ? modelCandidate.type : 'model/live2d'
+          }
+        };
+      }
+    }
+    return { renderer: 'live2d' };
+  }
+
+  if (candidate.renderer === 'three') {
+    const model = candidate.model;
+    if (model && typeof model === 'object') {
+      const modelCandidate = model as Record<string, unknown>;
+      if (typeof modelCandidate.localPath === 'string' && modelCandidate.localPath.trim()) {
+        const cameraCandidate = candidate.camera && typeof candidate.camera === 'object' ? (candidate.camera as Record<string, unknown>) : null;
+        const camera = cameraCandidate
+          ? Object.fromEntries(
+              ['targetY', 'fov', 'scale', 'offsetX', 'offsetY']
+                .filter((key) => typeof cameraCandidate[key] === 'number' && Number.isFinite(cameraCandidate[key]))
+                .map((key) => [key, cameraCandidate[key]])
+            )
+          : undefined;
+        return {
+          renderer: 'three',
+          model: {
+            localPath: modelCandidate.localPath,
+            format: 'vrm',
+            type: 'model/vrm'
+          },
+          ...(camera && Object.keys(camera).length > 0 ? { camera } : {})
+        };
+      }
+    }
+  }
+
+  return DEFAULT_SPRITE_PRESENTATION;
+}
+
 export interface SpriteAnimation {
   width?: number;
   height?: number;
@@ -475,11 +581,7 @@ export interface SpriteAnimation {
   /** 动画播放时的窗口移动配置 */
   movement?: SpriteMovementConfig;
   meta: SpriteAnimationMeta;
-  source: {
-    src?: string;
-    localPath?: string;
-    type?: string;
-  };
+  source: SpriteAnimationSource;
 }
 
 export interface SpriteAnimationMeta {
@@ -880,7 +982,7 @@ export interface SpritePlayCommand {
   animationId: string;
   trigger?: SpriteAnimationTrigger;
   sessionMode?: 'state-bound' | 'trigger';
-  source?: { src?: string; localPath?: string; type?: string };
+  source?: SpriteAnimationSource;
   playbackSession?: {
     mode: 'timed';
     startedAtMs: number;
@@ -909,6 +1011,8 @@ export interface SpriteInitialState {
   animations: SpriteAnimation[];
   currentAnimation: SpritePlayCommand | null;
   config: SpriteConfig;
+  /** 旧 renderer 可能不提供该字段，缺失时按 video 处理。 */
+  presentation?: SpritePresentationConfig;
 }
 
 /** 获取人格状态响应 */

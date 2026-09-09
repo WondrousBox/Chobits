@@ -52,18 +52,23 @@ export type {
   SpriteAnimationMeta,
   SpriteAnimationPlaylistMode,
   SpriteAnimationPlaylistModeMap,
+  SpriteAnimationSource,
   SpriteAnimationTrigger,
   SpriteAnimationTriggerMetadata,
   SpriteEventType,
   SpriteFeedbackKind,
   SpriteFeedbackRequest,
   SpriteFeedbackResult,
+  SpritePresentationConfig,
+  SpriteRendererKind,
   SpriteTriggerOptions
 } from '@packages/sprite-core/types';
 export {
   compileSpriteAnimationCondition,
   DEFAULT_SPRITE_ANIMATION_PLAYLIST_MODE,
+  DEFAULT_SPRITE_PRESENTATION,
   getPrimarySpriteAnimationTrigger,
+  getSpriteAnimationSourceKind,
   getSpriteAnimationTriggerAliases,
   getSpriteAnimationTriggers,
   hasSpriteAnimationTrigger,
@@ -75,7 +80,9 @@ export {
   normalizeSpriteAnimationMetaPatch,
   normalizeSpriteAnimationPlaylistMode,
   normalizeSpriteAnimationPlaylistModeMap,
+  normalizeSpritePresentationConfig,
   SPRITE_ANIMATION_PLAYLIST_MODES,
   SPRITE_EVENT_TYPES,
+  SPRITE_PRESENTATION_CHANGED_CHANNEL,
   SpriteEventGroups
 } from '@packages/sprite-core/types';

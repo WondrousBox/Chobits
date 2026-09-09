@@ -60,6 +60,7 @@ export type {
   SpriteAnimationMeta,
   SpriteAnimationPlaylistMode,
   SpriteAnimationPlaylistModeMap,
+  SpriteAnimationSource,
   SpriteAnimationTrigger,
   SpriteAnimationTriggerMetadata,
   SpriteBuiltinAnimationTrigger,
@@ -89,6 +90,8 @@ export type {
   SpriteMovementTrigger,
   SpritePersonaStateResult,
   SpritePlayCommand,
+  SpritePresentationConfig,
+  SpriteRendererKind,
   SpriteStateSnapshot,
   SpriteTriggerOptions,
   SpriteTriggerRequest,
@@ -112,7 +115,9 @@ export {
   compileSpriteAnimationCondition,
   DEFAULT_DURATION,
   DEFAULT_SPRITE_ANIMATION_PLAYLIST_MODE,
+  DEFAULT_SPRITE_PRESENTATION,
   getPrimarySpriteAnimationTrigger,
+  getSpriteAnimationSourceKind,
   getSpriteAnimationTriggerAliases,
   getSpriteAnimationTriggers,
   hasSpriteAnimationTrigger,
@@ -126,10 +131,12 @@ export {
   normalizeSpriteAnimationMetaPatch,
   normalizeSpriteAnimationPlaylistMode,
   normalizeSpriteAnimationPlaylistModeMap,
+  normalizeSpritePresentationConfig,
   SPRITE_ANIMATION_PLAYLIST_MODES,
   SPRITE_EFFECT_IPC_CHANNELS,
   SPRITE_EVENT_TYPES,
   SPRITE_MOTION_EFFECT_IPC_CHANNELS,
+  SPRITE_PRESENTATION_CHANGED_CHANNEL,
   SpriteEventGroups
 } from './types';
 
@@ -243,6 +250,7 @@ export {
   listCharacterPacks,
   removeCharacterPack,
   resetCharacterPackManager,
+  resolveCharacterPackPresentation,
   saveCharacterPackEditorDraft
 } from './character-pack-manager';
 export type {
@@ -268,6 +276,7 @@ export type {
   CharacterPackAssets,
   CharacterPackCapabilities,
   CharacterPackDefinition,
+  CharacterPackPresentationDeclaration,
   CharacterPackProvenance,
   CharacterPackSignature,
   CharacterPersonaRulesConfig,
@@ -339,7 +348,6 @@ export type {
   SpritePurposeHistoryReader,
   SpritePurposeHistoryWriter,
   SpritePurposeInterruptPolicy,
-  SpritePurposePresentationMode,
   SpritePurposePlannerExecutor,
   SpritePurposePlannerInput,
   SpritePurposePlannerLastResult,
@@ -352,6 +360,7 @@ export type {
   SpritePurposePlannerValidationOptions,
   SpritePurposePlannerValidationResult,
   SpritePurposePlannerValidationSummary,
+  SpritePurposePresentationMode,
   SpritePurposeRetrospectiveItem,
   SpritePurposeRetrospectiveQuery,
   SpritePurposeRoutinePlanner,

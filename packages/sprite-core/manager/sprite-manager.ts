@@ -74,6 +74,7 @@ import { SpriteStateMachine } from '../state-machine';
 import {
   compileSpriteAnimationCondition,
   DEFAULT_SPRITE_ANIMATION_PLAYLIST_MODE,
+  DEFAULT_SPRITE_PRESENTATION,
   getSpriteAnimationTriggers,
   isBubbleWindowMode,
   MESSAGE_IPC_CHANNELS,
@@ -85,6 +86,7 @@ import {
   normalizeSpriteAnimationPlaylistMode,
   normalizeSpriteAnimationPlaylistModeMap,
   normalizeSpriteBubbleMode,
+  SPRITE_PRESENTATION_CHANGED_CHANNEL,
   type SpriteAnimation,
   type SpriteAnimationPlaylistMode,
   type SpriteAnimationTrigger,
@@ -96,6 +98,7 @@ import {
   type SpriteMovementConfig,
   type SpriteMovementPreviewConfig,
   type SpritePlayCommand,
+  type SpritePresentationConfig,
   type SpriteStateSnapshot,
   type SpriteTriggerOptions
 } from '../types';
@@ -242,6 +245,7 @@ export class SpriteManager {
 
   // 当前动画和配置
   private currentAnimation: SpritePlayCommand | null = null;
+  private presentation: SpritePresentationConfig = DEFAULT_SPRITE_PRESENTATION;
   private activeAnimationPlaylist: ActiveAnimationPlaylist | null = null;
   private currentAnimationPresentationOwner: SpritePresentationOwnerContext | null = null;
   private animationPlayCounter = 0;
@@ -774,17 +778,17 @@ export class SpriteManager {
       playbackSession: this.buildPlaybackSession(anim.playback, resolvedDurationMs, options.sessionMode),
       playback: anim.playback
         ? {
-          width: playbackMetrics!.width,
-          height: playbackMetrics!.height,
-          padding: playbackMetrics!.padding,
-          loop: playbackLoop,
-          loopCount: playbackLoopCount,
-          loopStartMs: anim.playback.loopStartMs,
-          loopEndMs: anim.playback.loopEndMs,
-          durationMs: resolvedDurationMs,
-          autoIdle: anim.playback.autoIdle ?? true,
-          movement: anim.playback.movement
-        }
+            width: playbackMetrics!.width,
+            height: playbackMetrics!.height,
+            padding: playbackMetrics!.padding,
+            loop: playbackLoop,
+            loopCount: playbackLoopCount,
+            loopStartMs: anim.playback.loopStartMs,
+            loopEndMs: anim.playback.loopEndMs,
+            durationMs: resolvedDurationMs,
+            autoIdle: anim.playback.autoIdle ?? true,
+            movement: anim.playback.movement
+          }
         : { durationMs: options.durationMs ?? 2000, loop: playbackLoop, loopCount: playbackLoopCount, autoIdle: true }
     };
     this.currentAnimationPresentationOwner = options.presentationOwner ? { ...options.presentationOwner } : null;
@@ -1183,7 +1187,7 @@ export class SpriteManager {
           ownerPurposeId: options?.ownerPurposeId,
           priority: options?.priority,
           ignorePresentationLock: options?.ignorePresentationLock
-        }).catch(() => { });
+        }).catch(() => {});
       }
     }
   }
@@ -1229,7 +1233,7 @@ export class SpriteManager {
         ownerPurposeId: options?.ownerPurposeId,
         priority: options?.priority,
         ignorePresentationLock: options?.ignorePresentationLock
-      }).catch(() => { });
+      }).catch(() => {});
     }
     return true;
   }
@@ -2078,8 +2082,19 @@ export class SpriteManager {
       personaState: this.personaState.getState(),
       animations: this.animationRegistry.getAll() as any,
       currentAnimation: this.currentAnimation,
-      config: this.getSpriteConfig()
+      config: this.getSpriteConfig(),
+      presentation: this.presentation
     };
+  }
+
+  getPresentation(): SpritePresentationConfig {
+    return this.presentation;
+  }
+
+  setPresentation(presentation: SpritePresentationConfig): void {
+    if (JSON.stringify(this.presentation) === JSON.stringify(presentation)) return;
+    this.presentation = presentation;
+    this.sendToRenderer(SPRITE_PRESENTATION_CHANGED_CHANNEL, presentation);
   }
 
   // ============================================================================
@@ -2229,6 +2244,7 @@ export class SpriteManager {
       subState: initial.subState,
       personaSnapshot: initial.personaState
     });
+    this.sendToRenderer(SPRITE_PRESENTATION_CHANGED_CHANNEL, initial.presentation);
 
     if (initial.currentAnimation) {
       this.sendToRenderer('sprite:play', initial.currentAnimation);
@@ -2331,10 +2347,10 @@ export class SpriteManager {
       },
       ...(definition.id === 'auto-walk'
         ? {
-          admission: {
-            customGate: SPRITE_AUTO_MOVE_SCHEDULER_GATE
+            admission: {
+              customGate: SPRITE_AUTO_MOVE_SCHEDULER_GATE
+            }
           }
-        }
         : {})
     });
   }
@@ -2798,10 +2814,10 @@ export class SpriteManager {
     const currentPurpose = this.purposeManager.getSnapshot().current;
     const resultPayload: Record<string, unknown> | undefined = result
       ? {
-        elapsedMs: result.elapsedMs,
-        value: result.value,
-        stepType: step.type
-      }
+          elapsedMs: result.elapsedMs,
+          value: result.value,
+          stepType: step.type
+        }
       : { stepType: step.type };
 
     await this.purposeHistory.append({

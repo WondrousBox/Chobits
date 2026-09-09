@@ -1,7 +1,7 @@
 # three-vrm 桌面精灵集成实施计划
 
 > 日期：2026-09-08
-> 状态：待实施
+> 状态：Phase 0-2 代码已完成；待授权 VRM 样本的 Electron 实机视觉验收
 > 目标版本：`@pixiv/three-vrm 3.5.x`
 
 上游基线（2026-09-08 核验）：
@@ -17,39 +17,60 @@
 
 本次方案的前提不是把现有 renderer 改成单一 VRM renderer，而是让三种展示模式在同一个版本中并存：
 
-| 产品模式 | 实现后端                                     | 本次处理                               |
-| -------- | -------------------------------------------- | -------------------------------------- |
-| `video`  | `VideoSprite` / HTML5 video                  | 保持现有行为和资源协议                 |
-| `live2d` | 现有 Live2D renderer                         | 保持现有入口、模型、动作和交互语义     |
-| `three`  | `ThreeSprite` 兼容入口，内部改为 `three-vrm` | 替换当前占位 Three.js 场景，不删除模式 |
+| 产品模式 | 实现后端                                     | 本次处理                             |
+| -------- | -------------------------------------------- | ------------------------------------ |
+| `video`  | `VideoSprite` / HTML5 video                  | 保持现有行为和资源协议               |
+| `live2d` | `registerLive2DRenderer()` 注入实际 renderer | 保留独立入口，不回退为 video         |
+| `three`  | `ThreeSprite` 兼容入口，内部改为 `three-vrm` | 替换原占位 Three.js 场景，不删除模式 |
 
 这里的 `three` 是产品级 renderer mode，VRM 是它的模型格式，不把 `vrm` 单独做成第四种模式。
 
 实施进度：
 
-- [ ] Phase 0：依赖与类型版本对齐
-- [ ] Phase 1：角色包 3D 资源协议
-- [ ] Phase 2：动态渲染器路由与 VRM 静态展示
+- [x] Phase 0：依赖与类型版本对齐
+- [x] Phase 1：角色包 3D 资源协议
+- [x] Phase 2：动态渲染器路由与 VRM 静态展示
 - [ ] Phase 3：VRMA 动作播放和完成事件
 - [ ] Phase 4：表情、眨眼、注视和基础口型
 - [ ] Phase 5：角色包编辑、预览和导入校验
 - [ ] Phase 6：性能、自动化测试和跨平台验收
 
+### 0.1 Phase 0-2 实施结果
+
+截至 2026-09-09，首个交付批次已完成以下代码落地：
+
+- 已安装 `@pixiv/three-vrm 3.5.5`，并将 `three` 与 `@types/three` 对齐到 `0.170.x`。
+- 已建立 `model3d + presentation + source.kind` 共享契约，以及初始状态、角色切换事件和 preload bridge 的同步链路。
+- 已将编译期 renderer 开关替换为运行时 `video | live2d | three` 路由。`VideoSprite` 保留原有双 buffer 播放逻辑，`ThreeSprite` 保留公开入口并改由静态 VRM 实现。
+- 已加入 VRM 路径限制、文件存在性与扩展名校验，并为 `.vrm`、`.vrma`、`.glb` 注册二进制 glTF MIME。
+- 已实现透明 WebGL、MToon 所需颜色空间与灯光、自动取景、30 FPS 上限、隐藏页暂停、ResizeObserver、异步切换隔离、首帧 fail-open 和 GPU 资源释放。
+- 当前 checkout 中没有 Live2D renderer 运行时。已提供 `registerLive2DRenderer()` 稳定注册适配器和独立的未注册占位状态；不会把 `live2d` 降级为 video，也不宣称已完成 Live2D 实机视觉验收。
+- 本批次没有安装 `@pixiv/three-vrm-animation`，three 模式暂时展示 rest pose；VRMA 播放、动作完成事件和表达控制按计划留到 Phase 3-4。
+- 仓库未加入来源或再分发许可不明的 VRM 模型。当前自动化测试使用接口 fixture、loader mock 和二进制协议样本，真实模型显示效果仍需使用已获授权样本做 Electron 验收。
+
+### 0.2 当前验证记录
+
+- `pnpm exec tsc --noEmit` 通过。
+- `pnpm exec vite build --mode=test` 通过。
+- presentation、renderer、bridge、角色包、资源协议、SpriteManager 和 IPC 聚焦回归共 154/154 通过。
+- 完整 `sprite-*` 测试集合为 264/277；13 个失败均位于本次未改动的默认资源 digest、onboarding routine 和 event listener 既有断言。其中 `resources/sprites/pack.json` 声明的 digest 为 `863e12c72e0b3167817580828c46e4b03e60c588c734df926282db4e5020d5aa`，当前资源实际计算值为 `fd060f23d257ee618bcd57fff67cab2616a8886c04d4e5ec4bc0fe436e619a61`，本批次不在未确认资源来源的情况下改写签名。
+- `git diff --check`、变更文件 Lint error 检查和敏感路径扫描通过；没有数据库或 schema 变更。
+
 ## 1. 背景
 
-当前桌面精灵使用 WebM 视频作为主要展示资源。主进程 `SpriteManager` 负责状态、trigger、动画候选选择、播放会话和完成后的回 idle；渲染进程 `VideoSprite` 只负责展示和播放控制。
+实施前，桌面精灵使用 WebM 视频作为主要展示资源。主进程 `SpriteManager` 负责状态、trigger、动画候选选择、播放会话和完成后的回 idle；渲染进程 `VideoSprite` 只负责展示和播放控制。
 
-仓库已经具备以下 3D 基础：
+集成开始时，仓库已经具备以下 3D 基础：
 
 - `package.json` 已包含 `three`。
-- `src/features/sprite-assistant/renderers/ThreeSprite.tsx` 已创建透明 Three.js 场景，但目前只渲染旋转方块；它是本次要替换的实现入口。
+- `src/features/sprite-assistant/renderers/ThreeSprite.tsx` 已创建透明 Three.js 场景，但只渲染旋转方块；它是本次替换的实现入口。
 - `src/features/sprite-assistant/renderers/index.ts` 已有 `video | three` 渲染模式概念，但通过编译期常量固定选择。
 - `CharacterPackCapabilities` 已声明 `has3DModel`，角色包管理页也会展示 3D 标记。
 - 角色包已支持安装、激活、签名校验、资源目录约束和运行时热切换。
 
-当前 checkout 中没有检索到名为 `Live2D`/`live2d` 的精灵 renderer 文件。实施前必须确认 Live2D 是通过其他 package、分支或未命名组件接入的；如果它在完整产品代码中存在，必须先记录其入口、manifest 字段、IPC 事件和资源协议，再接入统一路由。不能因为当前搜索不到就删除、重命名或用 video 替代它。
+Phase 0 核验未在当前 checkout 中找到名为 `Live2D`/`live2d` 的精灵 renderer 文件，也没有可确认的 manifest、motion 或销毁协议。为避免猜测完整产品的 Live2D 实现，本轮新增稳定注册适配器：实际 Live2D package 可以通过 `registerLive2DRenderer()` 注入组件，并继续从 presentation 与共享 sprite context 读取模型、动作和交互状态。适配器缺失时保持 `live2d` 路由和独立占位，不删除、重命名或用 video 替代该模式。
 
-当前缺少的不是 Three.js 场景本身，而是从角色包到渲染器的完整契约：
+实施前缺少的不是 Three.js 场景本身，而是从角色包到渲染器的完整契约：
 
 - 角色包没有声明 VRM 模型文件的位置。
 - 动画资源模型默认按视频设计，不能明确表达 VRMA 动作。

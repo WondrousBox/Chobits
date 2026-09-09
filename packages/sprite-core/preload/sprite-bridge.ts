@@ -43,9 +43,10 @@ import type {
   SpriteMotionEffectCancelPayload,
   SpriteMotionEffectRun,
   SpriteMovementPreviewConfig,
+  SpritePresentationConfig,
   SpriteTriggerOptions
 } from '../types';
-import { ASSISTANT_ENTRANCE_IPC_CHANNELS, MESSAGE_IPC_CHANNELS, SPRITE_EFFECT_IPC_CHANNELS, SPRITE_MOTION_EFFECT_IPC_CHANNELS } from '../types';
+import { ASSISTANT_ENTRANCE_IPC_CHANNELS, MESSAGE_IPC_CHANNELS, SPRITE_EFFECT_IPC_CHANNELS, SPRITE_MOTION_EFFECT_IPC_CHANNELS, SPRITE_PRESENTATION_CHANGED_CHANNEL } from '../types';
 import type { WindowControllerAvoidRegion } from '../window-controller-model';
 
 function onMessageBridge(cb: (payload: MessageBridgePayload) => void): () => void {
@@ -208,6 +209,7 @@ export type SpriteBridgeType = {
   onMotionEffectCancel(cb: (data: SpriteMotionEffectCancelPayload) => void): () => void;
   onWalk(cb: (data: any) => void): () => void;
   onConfig(cb: (data: any) => void): () => void;
+  onPresentation(cb: (data: SpritePresentationConfig) => void): () => void;
   onPurposeState(cb: (data: SpritePurposeSnapshot) => void): () => void;
   onBusyUpdate(cb: (data: any) => void): () => void;
   onBusyClear(cb: () => void): () => void;
@@ -408,6 +410,13 @@ export const spriteBridge: SpriteBridgeType = {
     ipcRenderer.on('sprite:config', handler);
     return () => {
       ipcRenderer.off('sprite:config', handler);
+    };
+  },
+  onPresentation: (cb) => {
+    const handler = (_: any, data: SpritePresentationConfig): void => cb(data);
+    ipcRenderer.on(SPRITE_PRESENTATION_CHANGED_CHANNEL, handler);
+    return () => {
+      ipcRenderer.off(SPRITE_PRESENTATION_CHANGED_CHANNEL, handler);
     };
   },
   onPurposeState: (cb) => {

@@ -13,7 +13,7 @@
  */
 
 import type { PersonaState } from './persona-state';
-import type { SpriteAnimationTrigger, SpriteMovementConfig } from './types';
+import type { SpriteAnimationSource, SpriteAnimationTrigger, SpriteMovementConfig } from './types';
 
 // ============ 类型定义 ============
 
@@ -33,11 +33,7 @@ export interface AnimationEntry {
   condition?: (personaState: PersonaState) => boolean;
 
   /** 动画源信息（供渲染器使用） */
-  source: {
-    src?: string;
-    localPath?: string;
-    type?: string;
-  };
+  source: SpriteAnimationSource;
 
   /** 播放参数 */
   playback: {

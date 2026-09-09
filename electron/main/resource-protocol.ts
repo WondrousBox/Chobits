@@ -29,7 +29,10 @@ const MIME_MAP: Record<string, string> = {
   '.webp': 'image/webp',
   '.svg': 'image/svg+xml',
   '.bmp': 'image/bmp',
-  '.ico': 'image/x-icon'
+  '.ico': 'image/x-icon',
+  '.vrm': 'model/gltf-binary',
+  '.vrma': 'model/gltf-binary',
+  '.glb': 'model/gltf-binary'
 };
 
 const allowedRoots: string[] = [];
