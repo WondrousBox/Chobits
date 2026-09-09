@@ -1,7 +1,7 @@
 # three-vrm 桌面精灵集成实施计划
 
 > 日期：2026-09-08
-> 状态：Phase 0-2 代码已完成；待授权 VRM 样本的 Electron 实机视觉验收
+> 状态：Phase 0-2、Live2D 角色包迁移和内置三模式样本已完成；macOS Electron 实机验证通过，待 VRMA 与跨平台发布验收
 > 目标版本：`@pixiv/three-vrm 3.5.x`
 
 上游基线（2026-09-08 核验）：
@@ -20,7 +20,7 @@
 | 产品模式 | 实现后端                                     | 本次处理                             |
 | -------- | -------------------------------------------- | ------------------------------------ |
 | `video`  | `VideoSprite` / HTML5 video                  | 保持现有行为和资源协议               |
-| `live2d` | `registerLive2DRenderer()` 注入实际 renderer | 保留独立入口，不回退为 video         |
+| `live2d` | Cubism Web SDK + `Live2DSprite`             | 从 `main` 迁入并适配角色包契约       |
 | `three`  | `ThreeSprite` 兼容入口，内部改为 `three-vrm` | 替换原占位 Three.js 场景，不删除模式 |
 
 这里的 `three` 是产品级 renderer mode，VRM 是它的模型格式，不把 `vrm` 单独做成第四种模式。
@@ -30,6 +30,7 @@
 - [x] Phase 0：依赖与类型版本对齐
 - [x] Phase 1：角色包 3D 资源协议
 - [x] Phase 2：动态渲染器路由与 VRM 静态展示
+- [x] 将 `main` 的 Live2D 实现迁入当前角色包和 presentation 架构
 - [ ] Phase 3：VRMA 动作播放和完成事件
 - [ ] Phase 4：表情、眨眼、注视和基础口型
 - [ ] Phase 5：角色包编辑、预览和导入校验
@@ -44,23 +45,29 @@
 - 已将编译期 renderer 开关替换为运行时 `video | live2d | three` 路由。`VideoSprite` 保留原有双 buffer 播放逻辑，`ThreeSprite` 保留公开入口并改由静态 VRM 实现。
 - 已加入 VRM 路径限制、文件存在性与扩展名校验，并为 `.vrm`、`.vrma`、`.glb` 注册二进制 glTF MIME。
 - 已实现透明 WebGL、MToon 所需颜色空间与灯光、自动取景、30 FPS 上限、隐藏页暂停、ResizeObserver、异步切换隔离、首帧 fail-open 和 GPU 资源释放。
-- 当前 checkout 中没有 Live2D renderer 运行时。已提供 `registerLive2DRenderer()` 稳定注册适配器和独立的未注册占位状态；不会把 `live2d` 降级为 video，也不宣称已完成 Live2D 实机视觉验收。
+- 已从 `main` 迁入 Cubism Core、Framework 和 `Live2DSprite`，并移除 renderer 对全局资源目录及角色包查询 API 的依赖。入口仍通过 `registerLive2DRenderer()` 注册，router 只消费主进程下发的 presentation。
+- 已将 Mao(PRO) 封装为 `resources/character-packs/mao-pro/` 自包含 Live2D 包；模型、配置、motion、角色定义和许可说明均在包内，`source.kind` 明确为 `live2d`。
 - 本批次没有安装 `@pixiv/three-vrm-animation`，three 模式暂时展示 rest pose；VRMA 播放、动作完成事件和表达控制按计划留到 Phase 3-4。
-- 仓库未加入来源或再分发许可不明的 VRM 模型。当前自动化测试使用接口 fixture、loader mock 和二进制协议样本，真实模型显示效果仍需使用已获授权样本做 Electron 验收。
+- 已加入项目自有 `resources/character-packs/three-buddy/`：其二进制模型由 `scripts/generate-three-buddy-vrm.mjs` 可复现生成，包含 VRM 1.0 meta 和全部必需 humanoid bones；测试会用 `VRMLoaderPlugin` 实际解析该文件。
+- `resources/sprites/` 继续作为默认 video 包。`resources/character-packs/` 的直接子目录作为附加只读内置包发现；首次启动明确优先默认 video 包，不依赖本地化名称排序。
+- 设置页不提供全局 renderer 开关。用户通过“设置 -> 精灵管理 -> 已发现角色包 -> 切换”激活角色包，展示模式由该包的 `presentation.renderer` 决定，列表会显示“视频 / Live2D / VRM 3D”标识。
 
 ### 0.2 当前验证记录
 
 - `pnpm exec tsc --noEmit` 通过。
 - `pnpm exec vite build --mode=test` 通过。
-- presentation、renderer、bridge、角色包、资源协议、SpriteManager 和 IPC 聚焦回归共 154/154 通过。
-- 完整 `sprite-*` 测试集合为 264/277；13 个失败均位于本次未改动的默认资源 digest、onboarding routine 和 event listener 既有断言。其中 `resources/sprites/pack.json` 声明的 digest 为 `863e12c72e0b3167817580828c46e4b03e60c588c734df926282db4e5020d5aa`，当前资源实际计算值为 `fd060f23d257ee618bcd57fff67cab2616a8886c04d4e5ec4bc0fe436e619a61`，本批次不在未确认资源来源的情况下改写签名。
-- `git diff --check`、变更文件 Lint error 检查和敏感路径扫描通过；没有数据库或 schema 变更。
+- presentation、renderer、bridge、角色包、资源协议、SpriteManager 和 IPC 聚焦回归共 164/164 通过。
+- 完整 `sprite-*` 测试集合为 308/321；13 个失败均位于本次未改动的默认资源 digest、onboarding routine 和 event listener 既有断言。其中 `resources/sprites/pack.json` 声明的 digest 为 `863e12c72e0b3167817580828c46e4b03e60c588c734df926282db4e5020d5aa`，当前资源实际计算值为 `fd060f23d257ee618bcd57fff67cab2616a8886c04d4e5ec4bc0fe436e619a61`，本批次不在未确认资源来源的情况下改写签名。
+- Playwright 在隔离用户目录中启动 macOS Electron 构建，按 `three-buddy -> mao-pro -> yua-default` 连续切换。VRM canvas 的 CSS/backing 尺寸为 280x400/560x800，截图检测到 71,579 个非透明像素；Live2D 为 300x400/600x800，检测到 62,419 个非透明像素；切回 video 后 renderer canvas 数量为 0，页面无 error。
+- 本次新增及核心业务变更文件 Lint error 检查通过。`SpritePackManager.tsx:386` 仍有任务开始前已存在的 `react-hooks/set-state-in-effect` 报错，本批次没有借机改写其数据刷新生命周期。
+- `src/live2d-sdk/**` 是按 Live2D 授权条款 vendored 的 Cubism Core/Framework，上游源码和压缩产物不套用项目 ESLint 规则；Chobits 自有 adapter/runtime 仍正常参与 lint。
+- `git diff --check` 和敏感路径扫描通过；没有数据库或 schema 变更。
 
 ## 1. 背景
 
 实施前，桌面精灵使用 WebM 视频作为主要展示资源。主进程 `SpriteManager` 负责状态、trigger、动画候选选择、播放会话和完成后的回 idle；渲染进程 `VideoSprite` 只负责展示和播放控制。
 
-集成开始时，仓库已经具备以下 3D 基础：
+集成开始时，`develop` 已经具备以下 3D 基础：
 
 - `package.json` 已包含 `three`。
 - `src/features/sprite-assistant/renderers/ThreeSprite.tsx` 已创建透明 Three.js 场景，但只渲染旋转方块；它是本次替换的实现入口。
@@ -68,7 +75,7 @@
 - `CharacterPackCapabilities` 已声明 `has3DModel`，角色包管理页也会展示 3D 标记。
 - 角色包已支持安装、激活、签名校验、资源目录约束和运行时热切换。
 
-Phase 0 核验未在当前 checkout 中找到名为 `Live2D`/`live2d` 的精灵 renderer 文件，也没有可确认的 manifest、motion 或销毁协议。为避免猜测完整产品的 Live2D 实现，本轮新增稳定注册适配器：实际 Live2D package 可以通过 `registerLive2DRenderer()` 注入组件，并继续从 presentation 与共享 sprite context 读取模型、动作和交互状态。适配器缺失时保持 `live2d` 路由和独立占位，不删除、重命名或用 video 替代该模式。
+`main` 与 `develop` 没有共同历史，Live2D 不能直接 merge。`main` 中的实现还会在 renderer 内查询 active pack，并依赖固定 `resources/characters/live2d/` 根目录；这与当前“主进程解析角色包，renderer 只消费 presentation”的边界冲突。因此本轮选择性迁入 Cubism SDK、动作、交互和口型能力，同时把资源定位改为显式角色包字段。未注册 adapter 时仍保留独立的 `live2d` 占位状态，不会降级成 video。
 
 实施前缺少的不是 Three.js 场景本身，而是从角色包到渲染器的完整契约：
 
@@ -251,6 +258,11 @@ export interface CharacterPackAssets {
   animations?: string;
   gallery?: string;
   voices?: string;
+  /** Live2D Cubism .model3.json entry, relative to the pack root. */
+  live2dModel?: string;
+  /** Optional Chobits trigger/canvas mapping, relative to the pack root. */
+  live2dConfig?: string;
+  /** Self-contained VRM model, relative to the pack root. */
   model3d?: string;
   preview?: {
     avatar?: string;
@@ -260,7 +272,7 @@ export interface CharacterPackAssets {
 }
 ```
 
-`model3d` 路径相对角色包根目录解析。第一版只接受 `.vrm`。
+三个 renderer 的核心资源路径都相对角色包根目录解析。`live2dModel` 只接受 `.model3.json`，`live2dConfig` 在声明时必须是存在的 `.json` 文件，`model3d` 第一版只接受 `.vrm`。
 
 `capabilities.has3DModel` 继续保留，但含义调整为声明 capability。运行时 renderer 选择必须同时满足：
 
@@ -280,14 +292,14 @@ export interface CharacterPackPresentationDeclaration {
 }
 ```
 
-旧角色包没有这个字段时，不改变既有模式。主进程按以下优先级归一化：
+主进程按以下优先级归一化：
 
-1. 明确的 `presentation.renderer`，但必须通过该模式的资源校验。
-2. 既有 Live2D manifest/资源声明，由 Live2D adapter 识别。
-3. `capabilities.has3DModel === true` 且 `assets.model3d` 有效，选择 `three`。
-4. 其他情况选择 `video`。
+1. 明确的 `presentation.renderer: 'video'` 选择 video。
+2. 明确的 `presentation.renderer: 'live2d'` 选择 Live2D，并从 `live2dModel/live2dConfig` 构建 presentation。
+3. 明确的 `presentation.renderer: 'three'`，或 `capabilities.has3DModel === true`，选择 three 并从 `model3d` 构建 presentation。
+4. 其他旧角色包保持 video。
 
-如果显式声明的模式缺少资源或资源不兼容，返回导入错误或运行时降级到该角色包声明的 fallback；不能静默把 Live2D 角色变成 video，也不能把 VRM 动作交给 Live2D。
+导入时，显式 Live2D/three 缺少资源、扩展名错误或路径越界都是 blocking error。运行时若内置资源被破坏，presentation 仍保持所声明的 renderer 并省略 model，让对应组件显示缺模状态；不能静默换成其他角色的 video，也不能把 VRM 动作交给 Live2D。
 
 ### 6.3 Presentation 快照
 
@@ -300,14 +312,18 @@ export type SpritePresentationConfig =
     }
   | {
       renderer: 'live2d';
-      model: {
+      model?: {
         localPath: string;
         type: 'model/live2d' | string;
+      };
+      config?: {
+        localPath: string;
+        type: 'application/json';
       };
     }
   | {
       renderer: 'three';
-      model: {
+      model?: {
         localPath: string;
         format: 'vrm';
         type: 'model/vrm';
@@ -333,7 +349,30 @@ export const SPRITE_PRESENTATION_CHANGED_CHANNEL = 'sprite:presentation-changed'
 
 主进程负责从当前 active pack 构建该 DTO；renderer 不自行拼接角色包目录。`renderer: 'three'` 的 `model.format` 是 VRM，不能改成 `renderer: 'vrm'`，这样可以保证三种产品模式的路由稳定。
 
-### 6.4 角色包示例
+### 6.4 当前内置包布局与切换入口
+
+```text
+resources/
+  sprites/                         # 主内置 video 包，首次启动默认激活
+  character-packs/
+    mao-pro/                       # Live2D 自包含包
+      pack.json
+      character.json
+      index.json
+      live2d/live2d.json
+      live2d/runtime/*.model3.json
+    three-buddy/                   # three-vrm 自包含包
+      pack.json
+      character.json
+      index.json
+      models/three-buddy.vrm
+```
+
+`resources/character-packs/` 的每个直接子目录是一个附加只读内置角色包。根 video 包与附加内置包 ID 去重后再和 installed 包合并。没有持久化选择时必须按根路径选择 `resources/sprites/`，不能根据包名排序猜默认项。
+
+运行时切换入口是“设置 -> 精灵管理 -> 已发现角色包 -> 切换”。点击后沿用现有 `activateCharacterPack` IPC，依次更新 active pack、CharacterService、animation registry 和 presentation；renderer router 根据新的 `presentation.renderer` 卸载旧组件并挂载新组件。
+
+### 6.5 角色包示例
 
 `pack.json`：
 
@@ -417,12 +456,11 @@ export const SPRITE_PRESENTATION_CHANGED_CHANNEL = 'sprite:presentation-changed'
 
 修改 `packages/sprite-core/character-pack-manager.ts`：
 
-- 保留现有 Live2D 资源字段、normalize、trust 和导入行为；先由 Live2D adapter 输出标准化 presentation。
-- `normalizePackAssets()` 接受 `assets.model3d`。
-- `resolveCharacterPackAssets()` 解析 `resolvedAssets.model3d`。
-- `collectOutsidePackAssetPaths()` 检查 `model3d` 是否越过包目录。
-- 新增 `resolvePackPresentation()`，统一把 legacy Live2D、显式 presentation、3D capability 和旧 video pack 映射为 `video | live2d | three`。
-- 导入预检增加 `missing-model3d-asset` warning 或 blocking error。
+- `normalizePackAssets()` 接受 `live2dModel`、`live2dConfig` 和 `model3d`。
+- `resolveCharacterPackAssets()` 解析三个模型/配置字段的绝对 runtime 路径。
+- `collectOutsidePackAssetPaths()` 将三个字段都作为核心资源检查，阻止越过包目录。
+- `resolveCharacterPackPresentation()` 把显式 Live2D、显式/兼容 3D capability 和旧 video pack 映射为 `video | live2d | three`。
+- 导入预检对 Live2D 与 VRM 分别检查必需资源、扩展名和文件存在性。
 - active pack 构建 presentation 前再次验证文件存在。
 
 建议校验规则：
@@ -435,6 +473,8 @@ export const SPRITE_PRESENTATION_CHANGED_CHANNEL = 'sprite:presentation-changed'
 | `model3d` 越过角色包目录                  | blocking error                 |
 | `model3d` 不存在或不是文件                | blocking error                 |
 | 模型扩展名不是 `.vrm`                     | blocking error                 |
+| `live2dModel` 不存在或不是 `.model3.json`  | blocking error                 |
+| 已声明的 `live2dConfig` 不存在或不是 JSON | blocking error                 |
 | VRM animation 指向包外路径                | 丢弃该动画并报告 warning       |
 | 显式 `live2d` 但缺少现有 Live2D 资源      | blocking error                 |
 | `live2d` source 出现在 `three` pack       | 丢弃该动画并报告 warning       |
@@ -899,8 +939,8 @@ type VrmLoadErrorCode = 'resource-forbidden' | 'resource-not-found' | 'unsupport
 
 任务：
 
-- 找到当前产品实际使用的 Live2D renderer；记录其组件入口、manifest 字段、model/motion 资源协议、首帧回调、销毁方法和 IPC 事件。
-- 为 `video`、`live2d`、`three` 建立三套最小 fixture/回归用例；如果 Live2D 代码不在当前 checkout，先补接口 fixture，不伪造已实现状态。
+- 核对 `main` 实际使用的 Live2D renderer；记录其组件入口、manifest 字段、model/motion 资源协议、首帧回调、销毁方法和 IPC 事件。
+- 为 `video`、`live2d`、`three` 建立三套最小 fixture/回归用例。
 - 对齐 `three` 和 `@types/three` 的 minor 版本。
 - 安装 `@pixiv/three-vrm`。
 - 建立最小 import 编译测试。
@@ -919,7 +959,7 @@ type VrmLoadErrorCode = 'resource-forbidden' | 'resource-not-found' | 'unsupport
 - `packages/sprite-core/character-service.ts`
 - `packages/sprite-core/character-pack-manager.ts`
 - `packages/sprite-core/character-pack-integrity.ts`（如 digest payload 有字段白名单）
-- Live2D adapter 所在文件（Phase 0 定位后，只增加 normalize 适配，不重写其实现）
+- `src/features/sprite-assistant/renderers/Live2DSprite.tsx` 及其 config/model-target/runtime 适配层
 - `packages/sprite-core/types.ts`
 - `packages/sprite-core/animation-registry.ts`
 - `packages/sprite-core/handler/sprite-assets.ts`
@@ -932,7 +972,7 @@ type VrmLoadErrorCode = 'resource-forbidden' | 'resource-not-found' | 'unsupport
 - 增加 `assets.model3d` 和 resolved asset。
 - 增加 `SpriteRendererKind = 'video' | 'live2d' | 'three'`、`SpriteAnimationSource`、`SpritePresentationConfig`。
 - 扩展路径 normalize、序列化、越界校验和导入提示。
-- 在初始状态和角色切换时下发 presentation；旧 pack 没有 presentation 时保留原 video/Live2D 归一化结果。
+- 在初始状态和角色切换时下发 presentation；旧 pack 没有 presentation 时保持 video。
 - 给 VRM/VRMA 增加资源 MIME 和 active pack root 注册。
 - 添加一个只用于自动化测试的最小 VRM fixture；不要把无明确再分发授权的模型提交到仓库。
 
@@ -1122,7 +1162,7 @@ Three.js/WebGL API 在 jsdom 中使用边界 mock；模型实际解析交给 bro
 | 角色热切换                 | 通过  | 通过   | 通过      |
 | unmount / reload 资源释放  | 通过  | 通过   | 通过      |
 
-Live2D 没有出现在当前 checkout 时，Phase 0 至少要以真实产品入口或稳定 adapter fixture 完成这一列，不能把空实现标记为通过。
+当前 checkout 已包含从 `main` 迁入并适配角色包契约的真实 Live2D runtime。该列必须用自包含 Live2D 包和实际 Electron canvas 验证，不能只用空 adapter 标记为通过。
 
 ### 14.4 Electron 集成测试
 
@@ -1169,23 +1209,26 @@ Live2D 没有出现在当前 checkout 时，Phase 0 至少要以真实产品入�
 
 ### 15.1 必须满足
 
-- [ ] 现有默认 WebM 角色包无需修改即可运行。
-- [ ] 现有 Live2D 角色包无需迁移即可运行；其 renderer、动作和交互语义无回归。
-- [ ] VRM 角色包能通过 manifest 声明模型和 VRMA 动作，并归一化为 `three` mode。
-- [ ] 角色激活后无需重启即可在 video/live2d/three 之间切换。
-- [ ] 当前 `ThreeSprite` 调用方无需改 import；其内部由 VRM 实现接管。
-- [ ] VRM 模型在透明 Electron 窗口中稳定显示。
-- [ ] `vrm.update(delta)`、mixer 和表达控制器按正确顺序更新。
+- [x] 现有默认 WebM 角色包无需修改即可运行。
+- [x] 从 `main` 迁入的 Mao(PRO) 已封装为自包含 Live2D 角色包；renderer、动作、交互和口型入口保留。
+- [x] VRM 角色包能通过 manifest 声明模型并归一化为 `three` mode。
+- [ ] VRM 角色包能声明并播放 VRMA 动作。
+- [x] 角色激活后无需重启即可在 video/live2d/three 之间切换。
+- [x] 当前 `ThreeSprite` 调用方无需改 import；其内部由 VRM 实现接管。
+- [x] VRM 模型已在 macOS 透明 Electron 窗口中稳定显示；Windows 验收留在 Phase 6。
+- [x] 静态展示帧循环会调用 `vrm.update(delta)`。
+- [ ] mixer 和 VRM 表达控制器按正确顺序更新。
 - [ ] `idle`、`walk` 和一个非循环 trigger 动作可正确播放。
 - [ ] 非循环动作完成后通过既有 IPC 回 idle。
-- [ ] `onFirstFrame` 只在有效模型帧后报告，失败路径会 fail-open。
-- [ ] 模型、动作和角色包切换不存在可复现的异步覆盖竞态。
+- [x] `onFirstFrame` 只在有效模型帧后报告，失败路径会 fail-open。
+- [x] 模型和角色包切换通过 generation/key 隔离旧异步结果；动作竞态待 Phase 3 验证。
 - [ ] 组件卸载和角色切换后 GPU 资源得到释放。
-- [ ] video、Live2D 和 three 的失败处理互相隔离，一个模式失败不会全局切换 renderer。
-- [ ] 包外路径、外部资源引用和不支持的模型格式被拒绝。
-- [ ] 角色包内没有本机绝对路径或个人敏感信息。
+- [x] video、Live2D 和 three 的失败处理互相隔离，一个模式失败不会全局切换 renderer。
+- [x] 包外模型路径和不支持的模型扩展名被拒绝。
+- [ ] VRM/VRMA 内部外部资源引用和复杂度上限校验完成。
+- [x] 角色包内没有本机绝对路径或个人敏感信息。
 
-### 15.2 Phase 4 后满足
+### 15.2 VRM Phase 4 后满足
 
 - [ ] mood expression 平滑切换。
 - [ ] 自动眨眼与 VRMA 表情不冲突。

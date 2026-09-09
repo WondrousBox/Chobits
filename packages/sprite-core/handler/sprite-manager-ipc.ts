@@ -102,7 +102,7 @@ import { isBubbleWindowMode, MESSAGE_IPC_CHANNELS, SPRITE_EFFECT_IPC_CHANNELS, S
 import { WindowController } from '../window-controller';
 import type { WindowControllerAvoidRegion } from '../window-controller-model';
 import { notifySpriteCapabilityChanged } from './capability-events';
-import { getDefaultSpritesDir, listSprites, setSpriteAssetsChangeHandler } from './sprite-assets';
+import { getDefaultCharacterPacksDir, getDefaultSpritesDir, listSprites, setSpriteAssetsChangeHandler } from './sprite-assets';
 import { initSpriteEventListener, type SpriteEventListenerOptions } from './sprite-event-listener';
 
 export interface SpriteManagerDeps {
@@ -800,7 +800,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     return { ok: true, state: mgr.getPersonaState() };
   });
 
-  function grantPersonaReward(payload: SpritePersonaRewardGrantRequest = {}): { ok: boolean;[key: string]: unknown } {
+  function grantPersonaReward(payload: SpritePersonaRewardGrantRequest = {}): { ok: boolean; [key: string]: unknown } {
     const source = typeof payload.source === 'string' && payload.source.trim() ? payload.source.trim() : 'persona:reward';
     const xp = typeof payload.xp === 'number' && Number.isFinite(payload.xp) ? payload.xp : 0;
     const favor = typeof payload.favor === 'number' && Number.isFinite(payload.favor) ? payload.favor : 0;
@@ -965,10 +965,10 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
   type InstalledPackChangeResponse = {
     ok: true;
   } & Awaited<ReturnType<typeof installCharacterPackFromArchive>> & {
-    character?: ReturnType<typeof getCharacterInfo>;
-    runtime?: CharacterPersonaRuntimeSyncResult;
-    personaSlot?: { slotId: string; restored: boolean; switched: boolean };
-  };
+      character?: ReturnType<typeof getCharacterInfo>;
+      runtime?: CharacterPersonaRuntimeSyncResult;
+      personaSlot?: { slotId: string; restored: boolean; switched: boolean };
+    };
 
   async function finalizeInstalledPackChange(
     result: Awaited<ReturnType<typeof installCharacterPackFromArchive>>,
@@ -1596,6 +1596,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
   initCharacterPackManager({
     userDataDir: app.getPath('userData'),
     builtinPackRootDir: spritesDir,
+    extraBuiltinPacksRootDir: await getDefaultCharacterPacksDir(),
     appVersion: app.getVersion()
   });
   deps.addAllowedResourceRoot(getCharacterPackImportPreviewCacheRootDir());

@@ -42,10 +42,12 @@ vi.mock('electron', () => ({
 
 const listSpritesMock = vi.fn();
 const getDefaultSpritesDirMock = vi.fn(async () => '/tmp/test-sprites');
+const getDefaultCharacterPacksDirMock = vi.fn(async () => undefined);
 const setSpriteAssetsChangeHandlerMock = vi.fn();
 vi.mock('../packages/sprite-core/handler/sprite-assets', () => ({
   listSprites: listSpritesMock,
   getDefaultSpritesDir: getDefaultSpritesDirMock,
+  getDefaultCharacterPacksDir: getDefaultCharacterPacksDirMock,
   setSpriteAssetsChangeHandler: setSpriteAssetsChangeHandlerMock
 }));
 
@@ -394,6 +396,8 @@ describe('sprite manager IPC integration', () => {
     ipcMainHandle.mockClear();
     ipcMainRemoveHandler.mockClear();
     listSpritesMock.mockReset();
+    getDefaultCharacterPacksDirMock.mockReset();
+    getDefaultCharacterPacksDirMock.mockResolvedValue(undefined);
     setSpriteAssetsChangeHandlerMock.mockReset();
     initSpriteEventListenerMock.mockClear();
     electronState.handlers.clear();
@@ -655,8 +659,7 @@ describe('sprite manager IPC integration', () => {
     await initSpriteManagerIPC(windowStub.win as any, { addAllowedResourceRoot: vi.fn() });
 
     const setAvoidRegions = electronState.handlers.get('sprite:movement:setAvoidRegions') as
-      | ((_: unknown, payload: { regions: Array<{ x: number; y: number; width: number; height: number }> }) => unknown)
-      | undefined;
+      ((_: unknown, payload: { regions: Array<{ x: number; y: number; width: number; height: number }> }) => unknown) | undefined;
 
     expect(setAvoidRegions).toBeTypeOf('function');
     expect(setAvoidRegions?.({} as never, { regions: [{ x: 0, y: 0, width: 400, height: 900 }] })).toEqual({ ok: true });
@@ -670,8 +673,7 @@ describe('sprite manager IPC integration', () => {
     await initSpriteManagerIPC(windowStub.win as any, { addAllowedResourceRoot: vi.fn() });
 
     const previewMovement = electronState.handlers.get('sprite:previewMovement') as
-      | ((_: unknown, payload: { width: number; height: number; padding: number; movement?: { enabled?: boolean; mode?: string; direction?: string; speed?: number } }) => void)
-      | undefined;
+      ((_: unknown, payload: { width: number; height: number; padding: number; movement?: { enabled?: boolean; mode?: string; direction?: string; speed?: number } }) => void) | undefined;
 
     expect(previewMovement).toBeTypeOf('function');
     expect(() =>
@@ -708,11 +710,11 @@ describe('sprite manager IPC integration', () => {
 
     const { SpriteManager } = await import('../packages/sprite-core/manager');
     const manager = SpriteManager.getInstance();
-    await (manager as any).runPurposeWarpStep(
-      { id: 'warp-center', type: 'warpTo', target: 'center', timeoutMs: 10 },
-      new AbortController().signal,
-      { id: 'routine-warp', purposeId: 'purpose-warp', priority: 50 }
-    );
+    await (manager as any).runPurposeWarpStep({ id: 'warp-center', type: 'warpTo', target: 'center', timeoutMs: 10 }, new AbortController().signal, {
+      id: 'routine-warp',
+      purposeId: 'purpose-warp',
+      priority: 50
+    });
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(cancel).not.toHaveBeenCalled();
 
@@ -727,8 +729,7 @@ describe('sprite manager IPC integration', () => {
     await initSpriteManagerIPC(windowStub.win as any, { addAllowedResourceRoot: vi.fn() });
 
     const handleTrigger = electronState.handlers.get('sprite:trigger') as
-      | ((_: unknown, payload: { trigger?: string; eventType?: string; message?: string; durationMs?: number; silent?: boolean }) => void)
-      | undefined;
+      ((_: unknown, payload: { trigger?: string; eventType?: string; message?: string; durationMs?: number; silent?: boolean }) => void) | undefined;
     const { SpriteManager } = await import('../packages/sprite-core/manager');
     const mgr = SpriteManager.getInstance();
     const triggerSpy = vi.spyOn(mgr, 'trigger').mockImplementation(() => undefined);
@@ -1396,8 +1397,7 @@ describe('sprite manager IPC integration', () => {
     await initSpriteManagerIPC(windowStub.win as any, { addAllowedResourceRoot: vi.fn() });
 
     const installPackArchive = electronState.handlers.get('sprite:character:installPackFromArchive') as
-      | ((_: unknown, payload: { archivePath: string; activate?: boolean; replaceExisting?: boolean }) => Promise<any>)
-      | undefined;
+      ((_: unknown, payload: { archivePath: string; activate?: boolean; replaceExisting?: boolean }) => Promise<any>) | undefined;
     expect(installPackArchive).toBeTypeOf('function');
 
     await expect(installPackArchive?.({} as never, { archivePath: '/tmp/pack-delta.cbpk', activate: true })).resolves.toMatchObject({
@@ -1745,8 +1745,7 @@ describe('sprite manager IPC integration', () => {
     await initSpriteManagerIPC(windowStub.win as any, { addAllowedResourceRoot: vi.fn() });
 
     const grantReward = electronState.handlers.get('sprite:persona:grantReward') as
-      | ((_: unknown, payload: { xp?: number; favor?: number; source?: string; achievementId?: string }) => any)
-      | undefined;
+      ((_: unknown, payload: { xp?: number; favor?: number; source?: string; achievementId?: string }) => any) | undefined;
     const addXP = electronState.handlers.get('sprite:persona:addXP') as ((_: unknown, payload: { amount: number; source?: string }) => any) | undefined;
     const changeFavor = electronState.handlers.get('sprite:persona:changeFavor') as ((_: unknown, payload: { delta: number; reason?: string }) => any) | undefined;
     const unlockAchievement = electronState.handlers.get('sprite:persona:unlockAchievement') as ((_: unknown, payload: { id: string }) => any) | undefined;

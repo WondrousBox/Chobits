@@ -15,7 +15,18 @@ describe('sprite presentation contracts', () => {
   it('normalizes renderer snapshots without inventing a VRM model path', () => {
     expect(normalizeSpritePresentationConfig(undefined)).toEqual({ renderer: 'video' });
     expect(normalizeSpritePresentationConfig({ renderer: 'live2d' })).toEqual({ renderer: 'live2d' });
-    expect(normalizeSpritePresentationConfig({ renderer: 'three' })).toEqual({ renderer: 'video' });
+    expect(
+      normalizeSpritePresentationConfig({
+        renderer: 'live2d',
+        model: { localPath: './runtime/avatar.model3.json' },
+        config: { localPath: './live2d.json', type: 'text/plain' }
+      })
+    ).toEqual({
+      renderer: 'live2d',
+      model: { localPath: './runtime/avatar.model3.json', type: 'model/live2d' },
+      config: { localPath: './live2d.json', type: 'application/json' }
+    });
+    expect(normalizeSpritePresentationConfig({ renderer: 'three' })).toEqual({ renderer: 'three' });
     expect(
       normalizeSpritePresentationConfig({
         renderer: 'three',

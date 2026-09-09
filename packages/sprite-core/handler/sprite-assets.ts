@@ -54,9 +54,7 @@ export interface SpriteAssetsChangeEvent {
   id?: string;
 }
 
-type SpriteAnimationConfigPatch = Partial<
-  Pick<SpriteAnimation, 'width' | 'height' | 'padding' | 'loop' | 'loopCount' | 'autoIdle' | 'durationMs' | 'loopStartMs' | 'loopEndMs' | 'movement'>
-> & {
+type SpriteAnimationConfigPatch = Partial<Pick<SpriteAnimation, 'width' | 'height' | 'padding' | 'loop' | 'loopCount' | 'autoIdle' | 'durationMs' | 'loopStartMs' | 'loopEndMs' | 'movement'>> & {
   meta?: Partial<SpriteAnimation['meta']>;
 };
 
@@ -110,6 +108,14 @@ export async function getDefaultSpritesDir(): Promise<string> {
   const spritesDir = deps().getResourcePath('sprites');
   deps().addAllowedResourceRoot(spritesDir! as string);
   return spritesDir!;
+}
+
+/** Additional bundled packs; each direct child directory is one read-only pack. */
+export async function getDefaultCharacterPacksDir(): Promise<string | undefined> {
+  const characterPacksDir = deps().getResourcePath('character-packs');
+  if (!characterPacksDir || !fscb.existsSync(characterPacksDir)) return undefined;
+  deps().addAllowedResourceRoot(characterPacksDir);
+  return characterPacksDir;
 }
 
 function normalizeSpriteIndexPath(candidate: string): string {

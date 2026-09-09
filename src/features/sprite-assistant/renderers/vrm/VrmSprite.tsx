@@ -9,7 +9,9 @@ import { frameVrmCamera } from './vrm-camera';
 import { disposeVrm, disposeVrmRenderer } from './vrm-dispose';
 import { loadVrmModel } from './vrm-model-loader';
 
-type ThreePresentation = Extract<SpritePresentationConfig, { renderer: 'three' }>;
+type ThreePresentation = Extract<SpritePresentationConfig, { renderer: 'three' }> & {
+  model: NonNullable<Extract<SpritePresentationConfig, { renderer: 'three' }>['model']>;
+};
 
 export interface VrmSpriteProps extends SpriteRendererProps {
   presentation: ThreePresentation;
@@ -160,6 +162,8 @@ export default function VrmSprite({ width = 180, height = 240, onFirstFrame, pre
       renderer.outputColorSpace = SRGBColorSpace;
       renderer.setClearColor(0x000000, 0);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO));
+      renderer.domElement.style.width = '100%';
+      renderer.domElement.style.height = '100%';
       renderer.domElement.style.background = 'transparent';
       renderer.domElement.style.display = 'block';
       renderer.domElement.addEventListener('webglcontextlost', handleContextLost);

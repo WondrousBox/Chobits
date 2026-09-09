@@ -13,11 +13,11 @@ export interface ThreeSpriteProps extends SpriteRendererProps {
 /** Stable three-mode entry point. Its implementation is now backed by three-vrm. */
 export default function ThreeSprite({ presentation, onFirstFrame, ...props }: ThreeSpriteProps): JSX.Element {
   useEffect(() => {
-    if (!presentation) onFirstFrame?.();
+    if (!presentation?.model) onFirstFrame?.();
   }, [onFirstFrame, presentation]);
 
-  if (!presentation) {
-    return <div data-sprite-renderer="three" data-renderer-status="missing-presentation" style={{ width: props.width ?? 180, height: props.height ?? 240, background: 'transparent' }} />;
+  if (!presentation?.model) {
+    return <div data-sprite-renderer="three" data-renderer-status="missing-model" style={{ width: props.width ?? 180, height: props.height ?? 240, background: 'transparent' }} />;
   }
-  return <VrmSprite {...props} presentation={presentation} onFirstFrame={onFirstFrame} />;
+  return <VrmSprite {...props} presentation={{ ...presentation, model: presentation.model }} onFirstFrame={onFirstFrame} />;
 }

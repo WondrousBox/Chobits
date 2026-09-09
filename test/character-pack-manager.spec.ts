@@ -328,6 +328,110 @@ describe('character pack manager', () => {
     });
   });
 
+  it('keeps the primary video pack as the default while discovering and deduplicating extra builtin packs', async () => {
+    tempRoot = mkdtempSync(path.join(os.tmpdir(), 'character-pack-manager-'));
+    const builtinRoot = path.join(tempRoot, 'builtin-video');
+    const extraBuiltinRoot = path.join(tempRoot, 'extra-builtin');
+    const userDataDir = path.join(tempRoot, 'user-data');
+
+    writePack(builtinRoot, 'video-default', 'Zulu Video');
+    writePack(path.join(extraBuiltinRoot, 'duplicate-primary'), 'video-default', 'Duplicate Video');
+    writePack(path.join(extraBuiltinRoot, 'live2d'), 'live2d-mao', 'Alpha Live2D');
+    writePack(path.join(extraBuiltinRoot, 'live2d-copy'), 'live2d-mao', 'Duplicate Live2D');
+    writePack(path.join(extraBuiltinRoot, 'three'), 'three-buddy', 'Beta Three');
+    writePack(path.join(userDataDir, 'data', 'character-packs', 'duplicate'), 'live2d-mao', 'Installed Duplicate');
+    writePack(path.join(userDataDir, 'data', 'character-packs', 'custom'), 'custom-pack', 'Custom Pack');
+
+    initCharacterPackManager({
+      userDataDir,
+      builtinPackRootDir: builtinRoot,
+      extraBuiltinPacksRootDir: extraBuiltinRoot,
+      appVersion: '1.0.0'
+    });
+
+    const packs = await listCharacterPacks();
+    expect(packs.map((pack) => [pack.id, pack.source, pack.isActive])).toEqual([
+      ['video-default', 'builtin', true],
+      ['live2d-mao', 'builtin', false],
+      ['three-buddy', 'builtin', false],
+      ['custom-pack', 'installed', false]
+    ]);
+    expect((await getActiveCharacterPack())?.rootDir).toBe(builtinRoot);
+  });
+
+  it('resolves a contained Live2D model and optional adapter config', async () => {
+    tempRoot = mkdtempSync(path.join(os.tmpdir(), 'character-pack-manager-'));
+    const builtinRoot = path.join(tempRoot, 'builtin-live2d');
+    const userDataDir = path.join(tempRoot, 'user-data');
+    writePack(builtinRoot, 'pack-live2d', 'Pack Live2D', {
+      assets: {
+        live2dModel: 'runtime/avatar.model3.json',
+        live2dConfig: 'live2d.json'
+      },
+      presentation: { renderer: 'live2d' }
+    });
+    writeJsonFile(path.join(builtinRoot, 'runtime', 'avatar.model3.json'), { Version: 3, FileReferences: {} });
+    writeJsonFile(path.join(builtinRoot, 'live2d.json'), { triggers: {} });
+
+    initCharacterPackManager({ userDataDir, builtinPackRootDir: builtinRoot, appVersion: '1.0.0' });
+    const activePack = await getActiveCharacterPack();
+
+    expect(resolveCharacterPackPresentation(activePack)).toEqual({
+      renderer: 'live2d',
+      model: {
+        localPath: path.join(builtinRoot, 'runtime', 'avatar.model3.json'),
+        type: 'model/live2d'
+      },
+      config: {
+        localPath: path.join(builtinRoot, 'live2d.json'),
+        type: 'application/json'
+      }
+    });
+  });
+
+  it('blocks missing, incompatible, and outside-root Live2D assets during import', async () => {
+    tempRoot = mkdtempSync(path.join(os.tmpdir(), 'character-pack-manager-'));
+    const builtinRoot = path.join(tempRoot, 'builtin-pack');
+    const userDataDir = path.join(tempRoot, 'user-data');
+    writePack(builtinRoot, 'pack-alpha', 'Pack Alpha');
+    initCharacterPackManager({ userDataDir, builtinPackRootDir: builtinRoot, appVersion: '1.0.0' });
+
+    async function inspectLive2DPack(id: string, assets: { live2dModel?: string; live2dConfig?: string }, files: string[] = []): Promise<Awaited<ReturnType<typeof inspectCharacterPackFromArchive>>> {
+      const sourceParent = path.join(tempRoot!, `source-${id}`);
+      const sourceRoot = path.join(sourceParent, 'nested-pack');
+      const archivePath = path.join(tempRoot!, 'imports', `${id}.cbpk`);
+      writePack(sourceRoot, id, id, { assets, presentation: { renderer: 'live2d' } });
+      for (const file of files) {
+        writeJsonFile(path.resolve(sourceRoot, file), {});
+      }
+      createTestArchive(archivePath, sourceParent);
+      return inspectCharacterPackFromArchive(archivePath);
+    }
+
+    const missingModel = await inspectLive2DPack('missing-model', { live2dModel: 'runtime/missing.model3.json' });
+    const invalidModel = await inspectLive2DPack('invalid-model', { live2dModel: 'runtime/avatar.json' }, ['runtime/avatar.json']);
+    const missingConfig = await inspectLive2DPack(
+      'missing-config',
+      {
+        live2dModel: 'runtime/avatar.model3.json',
+        live2dConfig: 'missing.json'
+      },
+      ['runtime/avatar.model3.json']
+    );
+    const invalidConfig = await inspectLive2DPack('invalid-config', { live2dModel: 'runtime/avatar.model3.json', live2dConfig: 'live2d.txt' }, ['runtime/avatar.model3.json', 'live2d.txt']);
+    const outside = await inspectLive2DPack('outside-live2d', { live2dModel: '../outside/avatar.model3.json', live2dConfig: '../outside/live2d.json' }, [
+      '../outside/avatar.model3.json',
+      '../outside/live2d.json'
+    ]);
+
+    expect(missingModel.blockingErrors.map((error) => error.code)).toContain('missing-live2d-model-asset');
+    expect(invalidModel.blockingErrors.map((error) => error.code)).toContain('invalid-live2d-model-extension');
+    expect(missingConfig.blockingErrors.map((error) => error.code)).toContain('missing-live2d-config-asset');
+    expect(invalidConfig.blockingErrors.map((error) => error.code)).toContain('invalid-live2d-config-extension');
+    expect(outside.blockingErrors.map((error) => error.code)).toContain('core-asset-path-outside-pack');
+    expect([missingModel, invalidModel, missingConfig, invalidConfig, outside].every((inspection) => !inspection.installable)).toBe(true);
+  });
+
   it('normalizes a contained VRM asset and resolves the active pack to three presentation', async () => {
     tempRoot = mkdtempSync(path.join(os.tmpdir(), 'character-pack-manager-'));
     const builtinRoot = path.join(tempRoot, 'builtin-pack');

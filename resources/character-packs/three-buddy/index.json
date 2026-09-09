@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "items": [
+    {
+      "meta": {
+        "id": "three-buddy-idle",
+        "title": "Three Buddy idle",
+        "primaryTrigger": "idle",
+        "deletable": false
+      },
+      "source": {
+        "kind": "three",
+        "type": "model/vrm-animation"
+      },
+      "width": 280,
+      "height": 400,
+      "padding": 40,
+      "autoplay": true,
+      "muted": true,
+      "playsInline": true,
+      "loop": true,
+      "autoIdle": false
+    }
+  ]
+}

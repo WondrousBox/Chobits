@@ -341,8 +341,16 @@ function buildCharacterPackExportFilename(pack: Pick<CharacterPackSummary, 'id' 
   return `${sanitizeExportFilenameSegment(pack.id)}-${sanitizeExportFilenameSegment(pack.version)}${CHARACTER_PACK_ARCHIVE_EXTENSION}`;
 }
 
-function getPackMetadataBadges(pack: Pick<CharacterPackSummary, 'formatVersion' | 'minAppVersion' | 'platform' | 'capabilities'>): string[] {
+function formatRendererMode(renderer: 'video' | 'live2d' | 'three'): string {
+  if (renderer === 'live2d') return 'Live2D';
+  if (renderer === 'three') return 'VRM 3D';
+  return '视频';
+}
+
+function getPackMetadataBadges(pack: Pick<CharacterPackSummary, 'formatVersion' | 'minAppVersion' | 'platform' | 'capabilities' | 'presentation'>): string[] {
+  const renderer = pack.presentation?.renderer ?? (pack.capabilities?.has3DModel ? 'three' : 'video');
   return [
+    `展示: ${formatRendererMode(renderer)}`,
     `format v${pack.formatVersion}`,
     pack.minAppVersion ? `App >= ${pack.minAppVersion}` : null,
     pack.platform && pack.platform.length > 0 ? `平台: ${pack.platform.join(', ')}` : null,

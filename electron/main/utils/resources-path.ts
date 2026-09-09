@@ -5,7 +5,7 @@ import { app } from 'electron';
 import { getRealPath } from '.';
 
 export function getResourcePath(
-  binName: 'ffmpeg' | 'recorder' | 'sherpa' | 'ffprobe' | 'yt-dlp' | 'sprites' | 'resources' | 'plugins' | 'providers' | 'logs' | 'workflows' | 'bun' | 'windows'
+  binName: 'ffmpeg' | 'recorder' | 'sherpa' | 'ffprobe' | 'yt-dlp' | 'sprites' | 'character-packs' | 'resources' | 'plugins' | 'providers' | 'logs' | 'workflows' | 'bun' | 'windows'
 ): string | undefined {
   switch (binName) {
     case 'ffmpeg':
@@ -38,6 +38,8 @@ export function getResourcePath(
       return getRealPath(`../providers`, `./resources/providers`);
     case 'sprites':
       return getRealPath(`../sprites`, `./resources/sprites`);
+    case 'character-packs':
+      return getRealPath(`../character-packs`, `./resources/character-packs`);
     case 'workflows':
       return getRealPath(`../workflows/preset.json`, `./resources/workflows/preset.json`);
     case 'logs':

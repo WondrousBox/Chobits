@@ -47,6 +47,10 @@
       "to": "./sprites"
     },
     {
+      "from": "resources/character-packs",
+      "to": "./character-packs"
+    },
+    {
       "from": "resources/sherpa",
       "to": "./sherpa"
     },

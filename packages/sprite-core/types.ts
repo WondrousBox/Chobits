@@ -328,13 +328,13 @@ export type SpriteWindowAnimationSizeMode = 'absolute' | 'scale-with-area';
 export type SpriteWindowAnimationMargin =
   | number
   | {
-    x?: number;
-    y?: number;
-    top?: number;
-    right?: number;
-    bottom?: number;
-    left?: number;
-  };
+      x?: number;
+      y?: number;
+      top?: number;
+      right?: number;
+      bottom?: number;
+      left?: number;
+    };
 
 export interface SpriteWindowAnimationPoint {
   x: number;
@@ -491,10 +491,14 @@ export type SpritePresentationConfig =
         localPath: string;
         type: string;
       };
+      config?: {
+        localPath: string;
+        type: 'application/json';
+      };
     }
   | {
       renderer: 'three';
-      model: {
+      model?: {
         localPath: string;
         format: 'vrm';
         type: 'model/vrm';
@@ -524,12 +528,21 @@ export function normalizeSpritePresentationConfig(value: unknown): SpritePresent
     if (model && typeof model === 'object') {
       const modelCandidate = model as Record<string, unknown>;
       if (typeof modelCandidate.localPath === 'string' && modelCandidate.localPath.trim()) {
+        const configCandidate = candidate.config && typeof candidate.config === 'object' ? (candidate.config as Record<string, unknown>) : null;
+        const config =
+          configCandidate && typeof configCandidate.localPath === 'string' && configCandidate.localPath.trim()
+            ? {
+                localPath: configCandidate.localPath,
+                type: 'application/json' as const
+              }
+            : undefined;
         return {
           renderer: 'live2d',
           model: {
             localPath: modelCandidate.localPath,
             type: typeof modelCandidate.type === 'string' && modelCandidate.type ? modelCandidate.type : 'model/live2d'
-          }
+          },
+          ...(config ? { config } : {})
         };
       }
     }
@@ -560,6 +573,7 @@ export function normalizeSpritePresentationConfig(value: unknown): SpritePresent
         };
       }
     }
+    return { renderer: 'three' };
   }
 
   return DEFAULT_SPRITE_PRESENTATION;
@@ -661,8 +675,8 @@ export function normalizeSpriteAnimationMetaPatch<T extends SpriteAnimationMetaI
     primaryTrigger,
     ...(Object.prototype.hasOwnProperty.call(rest, 'triggerAliases') || triggerAliases.length > 0
       ? {
-        triggerAliases: triggerAliases.length > 0 ? triggerAliases : undefined
-      }
+          triggerAliases: triggerAliases.length > 0 ? triggerAliases : undefined
+        }
       : {})
   } as Omit<T, 'eventType'> & Partial<SpriteAnimationMeta>;
 }
@@ -777,17 +791,17 @@ export interface MessageBridgeClearPayload {
 
 export type MessageBridgePayload =
   | {
-    kind: 'show';
-    payload: MessageIPCPayload;
-    source: MessageBridgeSource;
-    target?: MessageBridgeTarget;
-  }
+      kind: 'show';
+      payload: MessageIPCPayload;
+      source: MessageBridgeSource;
+      target?: MessageBridgeTarget;
+    }
   | {
-    kind: 'clear';
-    payload: MessageBridgeClearPayload;
-    source: MessageBridgeSource;
-    target?: MessageBridgeTarget;
-  };
+      kind: 'clear';
+      payload: MessageBridgeClearPayload;
+      source: MessageBridgeSource;
+      target?: MessageBridgeTarget;
+    };
 
 export const MESSAGE_IPC_CHANNELS = {
   BRIDGE: 'app:message:bridge',
@@ -829,15 +843,15 @@ export type SpriteEffectBridgeSource = 'app' | 'sprite';
 
 export type SpriteEffectBridgePayload =
   | {
-    kind: 'show';
-    payload: SpriteEffectPayload;
-    source: SpriteEffectBridgeSource;
-  }
+      kind: 'show';
+      payload: SpriteEffectPayload;
+      source: SpriteEffectBridgeSource;
+    }
   | {
-    kind: 'clear';
-    payload: SpriteEffectClearPayload;
-    source: SpriteEffectBridgeSource;
-  };
+      kind: 'clear';
+      payload: SpriteEffectClearPayload;
+      source: SpriteEffectBridgeSource;
+    };
 
 export const SPRITE_EFFECT_IPC_CHANNELS = {
   BRIDGE: 'sprite:effect:bridge',

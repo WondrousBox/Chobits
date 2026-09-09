@@ -14,6 +14,7 @@
 
 import { useCallback, useEffect, useRef } from 'react';
 
+import { attachMediaElement, detachLipSyncSource } from '@/lib/audio/lip-sync-source';
 import { makeResSrc } from '@/pages/ResourcePage/utils/resourceProtocol';
 
 /**
@@ -26,6 +27,7 @@ export function useSpriteSpeak(): { stop: () => void } {
 
   /** 停止当前正在播放的音频 */
   const stop = useCallback(() => {
+    detachLipSyncSource();
     if (audioRef.current) {
       const audio = audioRef.current;
       audioRef.current = null; // 先清空 ref，防止回调中的操作
@@ -56,7 +58,9 @@ export function useSpriteSpeak(): { stop: () => void } {
       try {
         // 将绝对路径转为 res:// 协议 URL
         const src = makeResSrc(audioPath);
-        const audio = new Audio(src);
+        const audio = new Audio();
+        audio.crossOrigin = 'anonymous';
+        audio.src = src;
         audio.volume = Math.max(0, Math.min(1, volume));
         audio.preload = 'auto';
 
@@ -65,6 +69,7 @@ export function useSpriteSpeak(): { stop: () => void } {
           // 只有当前音频没有被替换时才清理
           if (playIdRef.current === currentPlayId) {
             audioRef.current = null;
+            detachLipSyncSource();
           }
         };
 
@@ -72,17 +77,20 @@ export function useSpriteSpeak(): { stop: () => void } {
           console.error('[useSpriteSpeak] Audio playback error:', e);
           if (playIdRef.current === currentPlayId) {
             audioRef.current = null;
+            detachLipSyncSource();
           }
         };
 
         // 设置当前音频（必须在 play() 之前设置）
         audioRef.current = audio;
+        attachMediaElement(audio);
 
         audio.play().catch((err) => {
           console.error('[useSpriteSpeak] Failed to play audio:', err);
           // 只有当前音频没有被替换时才清理
           if (playIdRef.current === currentPlayId) {
             audioRef.current = null;
+            detachLipSyncSource();
           }
         });
       } catch (err) {

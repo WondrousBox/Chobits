@@ -46,6 +46,8 @@ export interface ResolvedCharacterPackAssets {
   animations?: string;
   gallery?: string;
   voices?: string;
+  live2dModel?: string;
+  live2dConfig?: string;
   model3d?: string;
   preview?: {
     avatar?: string;
@@ -126,6 +128,10 @@ export interface CharacterPackImportBlockingError {
     | 'unsupported-format-version'
     | 'min-app-version-not-satisfied'
     | 'core-asset-path-outside-pack'
+    | 'missing-live2d-model-asset'
+    | 'invalid-live2d-model-extension'
+    | 'missing-live2d-config-asset'
+    | 'invalid-live2d-config-extension'
     | 'missing-model3d-asset'
     | 'invalid-model3d-extension'
     | 'signature-digest-mismatch'
@@ -224,6 +230,8 @@ export interface CharacterPackEditorSaveResult extends CharacterPackInstallResul
 export interface CharacterPackManagerOptions {
   userDataDir: string;
   builtinPackRootDir: string;
+  /** Optional directory whose direct children are additional bundled packs. */
+  extraBuiltinPacksRootDir?: string;
   appVersion?: string;
 }
 
@@ -334,6 +342,8 @@ function normalizePackAssets(value: unknown): CharacterPackAssets | undefined {
     ...(typeof value.animations === 'string' ? { animations: value.animations } : {}),
     ...(typeof value.gallery === 'string' ? { gallery: value.gallery } : {}),
     ...(typeof value.voices === 'string' ? { voices: value.voices } : {}),
+    ...(typeof value.live2dModel === 'string' ? { live2dModel: value.live2dModel } : {}),
+    ...(typeof value.live2dConfig === 'string' ? { live2dConfig: value.live2dConfig } : {}),
     ...(typeof value.model3d === 'string' ? { model3d: value.model3d } : {}),
     ...(preview && Object.keys(preview).length > 0 ? { preview } : {})
   };
@@ -675,6 +685,8 @@ function resolveCharacterPackAssets(rootDir: string, assets?: CharacterPackAsset
   const animations = resolvePackRelativeAsset(rootDir, assets?.animations);
   const gallery = resolvePackRelativeAsset(rootDir, assets?.gallery);
   const voices = resolvePackRelativeAsset(rootDir, assets?.voices);
+  const live2dModel = resolvePackRelativeAsset(rootDir, assets?.live2dModel);
+  const live2dConfig = resolvePackRelativeAsset(rootDir, assets?.live2dConfig);
   const model3d = resolvePackRelativeAsset(rootDir, assets?.model3d);
   const previewAvatar = resolvePackRelativeAsset(rootDir, assets?.preview?.avatar);
   const previewGif = resolvePackRelativeAsset(rootDir, assets?.preview?.gif);
@@ -690,6 +702,8 @@ function resolveCharacterPackAssets(rootDir: string, assets?: CharacterPackAsset
     ...(animations ? { animations } : {}),
     ...(gallery ? { gallery } : {}),
     ...(voices ? { voices } : {}),
+    ...(live2dModel ? { live2dModel } : {}),
+    ...(live2dConfig ? { live2dConfig } : {}),
     ...(model3d ? { model3d } : {}),
     ...(Object.keys(preview).length > 0 ? { preview } : {})
   };
@@ -705,14 +719,44 @@ function isUsableVrmModel(pack: CharacterPackSummary): boolean {
   }
 }
 
+function isUsableLive2DAsset(assetPath: string | undefined, extension: string): assetPath is string {
+  if (!assetPath || !assetPath.toLowerCase().endsWith(extension)) return false;
+  try {
+    return fs.statSync(assetPath).isFile();
+  } catch {
+    return false;
+  }
+}
+
 export function resolveCharacterPackPresentation(pack?: CharacterPackSummary | null): SpritePresentationConfig {
   if (!pack) return { renderer: 'video' };
 
   if (pack.presentation?.renderer === 'video') return { renderer: 'video' };
-  if (pack.presentation?.renderer === 'live2d') return { renderer: 'live2d' };
+  if (pack.presentation?.renderer === 'live2d') {
+    if (!isUsableLive2DAsset(pack.resolvedAssets.live2dModel, '.model3.json')) {
+      return { renderer: 'live2d' };
+    }
+    const configPath = isUsableLive2DAsset(pack.resolvedAssets.live2dConfig, '.json') ? pack.resolvedAssets.live2dConfig : undefined;
+    return {
+      renderer: 'live2d',
+      model: {
+        localPath: pack.resolvedAssets.live2dModel,
+        type: 'model/live2d'
+      },
+      ...(configPath
+        ? {
+            config: {
+              localPath: configPath,
+              type: 'application/json' as const
+            }
+          }
+        : {})
+    };
+  }
 
   const shouldUseThree = pack.presentation?.renderer === 'three' || pack.capabilities?.has3DModel === true;
-  if (!shouldUseThree || !isUsableVrmModel(pack)) return { renderer: 'video' };
+  if (!shouldUseThree) return { renderer: 'video' };
+  if (!isUsableVrmModel(pack)) return { renderer: 'three' };
 
   return {
     renderer: 'three',
@@ -907,6 +951,8 @@ function collectOutsidePackAssetPaths(pack: CharacterPackSummary): CharacterPack
   check('animations', pack.assets?.animations, true);
   check('gallery', pack.assets?.gallery, false);
   check('voices', pack.assets?.voices, false);
+  check('live2dModel', pack.assets?.live2dModel, true);
+  check('live2dConfig', pack.assets?.live2dConfig, true);
   check('model3d', pack.assets?.model3d, true);
   check('preview.avatar', pack.assets?.preview?.avatar, false);
   check('preview.gif', pack.assets?.preview?.gif, false);
@@ -1087,6 +1133,41 @@ function assessCharacterPackImport(
         code: 'invalid-model3d-extension',
         message: `three 模式的 model3d 仅支持 .vrm 文件：${pack.assets.model3d}`
       });
+    }
+  }
+
+  if (pack.presentation?.renderer === 'live2d') {
+    const live2dModelOutsidePack = outsideAssetPaths.some((entry) => entry.field === 'live2dModel');
+    if (!live2dModelOutsidePack) {
+      const modelPath = pack.resolvedAssets.live2dModel;
+      if (!pack.assets?.live2dModel?.trim() || !modelPath || !fs.existsSync(modelPath) || !fs.statSync(modelPath).isFile()) {
+        blockingErrors.push({
+          code: 'missing-live2d-model-asset',
+          message: `live2d 模式需要角色包内存在有效的 live2dModel 文件：${pack.assets?.live2dModel ?? '(未声明)'}`
+        });
+      } else if (!modelPath.toLowerCase().endsWith('.model3.json')) {
+        blockingErrors.push({
+          code: 'invalid-live2d-model-extension',
+          message: `live2dModel 仅支持 .model3.json 文件：${pack.assets.live2dModel}`
+        });
+      }
+    }
+
+    const declaredConfig = pack.assets?.live2dConfig?.trim();
+    const live2dConfigOutsidePack = outsideAssetPaths.some((entry) => entry.field === 'live2dConfig');
+    if (declaredConfig && !live2dConfigOutsidePack) {
+      const configPath = pack.resolvedAssets.live2dConfig;
+      if (!configPath || !fs.existsSync(configPath) || !fs.statSync(configPath).isFile()) {
+        blockingErrors.push({
+          code: 'missing-live2d-config-asset',
+          message: `pack.json 声明的 live2dConfig 不存在：${declaredConfig}`
+        });
+      } else if (path.extname(configPath).toLowerCase() !== '.json') {
+        blockingErrors.push({
+          code: 'invalid-live2d-config-extension',
+          message: `live2dConfig 仅支持 .json 文件：${declaredConfig}`
+        });
+      }
     }
   }
 
@@ -1770,6 +1851,7 @@ async function ensureGalleryIndexExists(rootDir: string, declaredPath: string): 
 
 export class CharacterPackManager {
   private readonly builtinPackRootDir: string;
+  private readonly extraBuiltinPacksRootDir?: string;
   private readonly installedPacksDir: string;
   private readonly activePackStateFile: string;
   private readonly importPreviewCacheDir: string;
@@ -1780,6 +1862,7 @@ export class CharacterPackManager {
   constructor(options: CharacterPackManagerOptions) {
     const userDataDir = path.resolve(options.userDataDir);
     this.builtinPackRootDir = path.resolve(options.builtinPackRootDir);
+    this.extraBuiltinPacksRootDir = options.extraBuiltinPacksRootDir?.trim() ? path.resolve(options.extraBuiltinPacksRootDir) : undefined;
     this.installedPacksDir = path.join(userDataDir, 'data', 'character-packs');
     this.activePackStateFile = path.join(userDataDir, 'data', 'active-character-pack.json');
     this.importPreviewCacheDir = path.join(userDataDir, 'data', 'character-pack-import-previews');
@@ -1789,16 +1872,30 @@ export class CharacterPackManager {
 
   async listPacks(): Promise<CharacterPackSummary[]> {
     const [trustRoot, activeState] = await Promise.all([this.getTrustRoot(), this.readActiveState()]);
-    const [builtinPack, installedPacks] = await Promise.all([readCharacterPackAtRoot(this.builtinPackRootDir, 'builtin', { trustRoot }), this.listInstalledPacks(trustRoot)]);
+    const [builtinPack, extraBuiltinPacks, installedPacks] = await Promise.all([
+      readCharacterPackAtRoot(this.builtinPackRootDir, 'builtin', { trustRoot }),
+      this.listExtraBuiltinPacks(trustRoot),
+      this.listInstalledPacks(trustRoot)
+    ]);
 
-    const packs = [builtinPack, ...installedPacks]
-      .filter((pack): pack is CharacterPackSummary => !!pack)
-      .sort((left, right) => {
-        if (left.source !== right.source) {
-          return left.source === 'builtin' ? -1 : 1;
-        }
-        return left.name.localeCompare(right.name, 'zh-CN');
-      });
+    const builtinIds = new Set<string>();
+    const builtinPacks = [builtinPack, ...extraBuiltinPacks].filter((pack): pack is CharacterPackSummary => {
+      if (!pack || builtinIds.has(pack.id)) return false;
+      builtinIds.add(pack.id);
+      return true;
+    });
+    const dedupedInstalledPacks = installedPacks.filter((pack) => !builtinIds.has(pack.id));
+    const packs = [...builtinPacks, ...dedupedInstalledPacks].sort((left, right) => {
+      const leftIsPrimaryBuiltin = left.source === 'builtin' && left.rootDir === this.builtinPackRootDir;
+      const rightIsPrimaryBuiltin = right.source === 'builtin' && right.rootDir === this.builtinPackRootDir;
+      if (leftIsPrimaryBuiltin !== rightIsPrimaryBuiltin) {
+        return leftIsPrimaryBuiltin ? -1 : 1;
+      }
+      if (left.source !== right.source) {
+        return left.source === 'builtin' ? -1 : 1;
+      }
+      return left.name.localeCompare(right.name, 'zh-CN');
+    });
 
     let resolvedActive = this.resolveActiveState(packs, activeState);
     if (resolvedActive) {
@@ -2170,6 +2267,27 @@ export class CharacterPackManager {
     return this.importPreviewCacheDir;
   }
 
+  private async listExtraBuiltinPacks(trustRoot: CharacterPackTrustRoot | null): Promise<CharacterPackSummary[]> {
+    if (!this.extraBuiltinPacksRootDir) return [];
+
+    try {
+      const entries = await fsp.readdir(this.extraBuiltinPacksRootDir, { withFileTypes: true });
+      const packs = await Promise.all(
+        entries
+          .filter((entry) => entry.isDirectory())
+          .sort((left, right) => left.name.localeCompare(right.name, 'en'))
+          .map((entry) =>
+            readCharacterPackAtRoot(path.join(this.extraBuiltinPacksRootDir!, entry.name), 'builtin', {
+              trustRoot
+            })
+          )
+      );
+      return packs.filter((pack): pack is CharacterPackSummary => !!pack);
+    } catch {
+      return [];
+    }
+  }
+
   private async listInstalledPacks(trustRoot: CharacterPackTrustRoot | null): Promise<CharacterPackSummary[]> {
     try {
       const entries = await fsp.readdir(this.installedPacksDir, { withFileTypes: true });
@@ -2364,7 +2482,7 @@ export class CharacterPackManager {
       return persistedState;
     }
 
-    const builtinPack = packs.find((pack) => pack.source === 'builtin');
+    const builtinPack = packs.find((pack) => pack.source === 'builtin' && pack.rootDir === this.builtinPackRootDir) ?? packs.find((pack) => pack.source === 'builtin');
     if (builtinPack) {
       return buildActivePackState(builtinPack, persistedState);
     }

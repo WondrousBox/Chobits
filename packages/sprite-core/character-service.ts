@@ -213,6 +213,10 @@ export interface CharacterPackAssets {
   animations?: string;
   gallery?: string;
   voices?: string;
+  /** Live2D Cubism model entry (.model3.json), relative to the pack root. */
+  live2dModel?: string;
+  /** Optional trigger/canvas mapping consumed by the Live2D adapter. */
+  live2dConfig?: string;
   model3d?: string;
   preview?: {
     avatar?: string;

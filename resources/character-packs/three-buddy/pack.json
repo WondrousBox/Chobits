@@ -1,0 +1,32 @@
+{
+  "formatVersion": 1,
+  "id": "three-buddy",
+  "name": "Three Buddy",
+  "version": "1.0.0",
+  "author": "Chobits contributors",
+  "description": "项目自有的轻量 VRM 1.0 示例角色，用于验证 three-vrm 角色包链路。",
+  "license": "MIT",
+  "tags": ["three", "vrm", "sample"],
+  "minAppVersion": "1.0.0",
+  "platform": ["darwin", "win32", "linux"],
+  "assets": {
+    "character": "character.json",
+    "animations": "index.json",
+    "model3d": "models/three-buddy.vrm"
+  },
+  "presentation": {
+    "renderer": "three",
+    "camera": {
+      "fov": 32,
+      "scale": 1.08,
+      "offsetY": 0.02
+    }
+  },
+  "capabilities": {
+    "hasVoice": false,
+    "hasCustomAnimations": false,
+    "has3DModel": true,
+    "supportedLanguages": ["zh-CN"],
+    "dimensionExtensions": []
+  }
+}
