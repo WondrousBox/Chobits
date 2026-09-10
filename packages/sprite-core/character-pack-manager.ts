@@ -134,6 +134,11 @@ export interface CharacterPackImportBlockingError {
     | 'invalid-live2d-config-extension'
     | 'missing-model3d-asset'
     | 'invalid-model3d-extension'
+    | 'invalid-three-animation-index'
+    | 'incompatible-three-animation-source'
+    | 'missing-vrma-asset'
+    | 'invalid-vrma-extension'
+    | 'vrma-asset-path-outside-pack'
     | 'signature-digest-mismatch'
     | 'signature-verification-failed'
     | 'signature-key-revoked';
@@ -961,6 +966,56 @@ function collectOutsidePackAssetPaths(pack: CharacterPackSummary): CharacterPack
   return outsidePaths;
 }
 
+function collectThreeAnimationBlockingErrors(pack: CharacterPackSummary): CharacterPackImportBlockingError[] {
+  const usesThree = pack.presentation?.renderer === 'three' || pack.capabilities?.has3DModel === true;
+  const indexPath = pack.resolvedAssets.animations;
+  if (!usesThree || !indexPath || !fs.existsSync(indexPath) || !fs.statSync(indexPath).isFile()) return [];
+
+  let items: unknown;
+  try {
+    const parsed = JSON.parse(fs.readFileSync(indexPath, 'utf-8')) as { items?: unknown };
+    items = parsed.items;
+  } catch {
+    return [{ code: 'invalid-three-animation-index', message: `three 模式的动画索引不是有效 JSON：${pack.assets?.animations ?? indexPath}` }];
+  }
+  if (!Array.isArray(items)) {
+    return [{ code: 'invalid-three-animation-index', message: `three 模式的动画索引缺少 items 数组：${pack.assets?.animations ?? indexPath}` }];
+  }
+
+  const errors: CharacterPackImportBlockingError[] = [];
+  for (const item of items) {
+    if (!isPlainObject(item)) continue;
+    const source = isPlainObject(item.source) ? item.source : null;
+    const animationId = isPlainObject(item.meta) ? normalizeString(item.meta.id).trim() || '(unknown)' : '(unknown)';
+    if (!source || source.kind !== 'three') {
+      errors.push({
+        code: 'incompatible-three-animation-source',
+        message: `three 模式动画必须声明 source.kind=three：${animationId}`
+      });
+      continue;
+    }
+
+    const declaredPath = normalizeString(source.localPath).trim();
+    if (!declaredPath) {
+      errors.push({ code: 'missing-vrma-asset', message: `three 模式动画缺少 VRMA 文件路径：${animationId}` });
+      continue;
+    }
+    const resolvedPath = resolvePackRelativeAssetPath(pack.rootDir, declaredPath);
+    if (!resolvedPath) {
+      errors.push({ code: 'vrma-asset-path-outside-pack', message: `VRMA 路径越过角色包目录：${animationId}=${declaredPath}` });
+      continue;
+    }
+    if (path.extname(resolvedPath).toLowerCase() !== '.vrma') {
+      errors.push({ code: 'invalid-vrma-extension', message: `three 模式动画仅支持 .vrma 文件：${animationId}=${declaredPath}` });
+      continue;
+    }
+    if (!fs.existsSync(resolvedPath) || !fs.statSync(resolvedPath).isFile()) {
+      errors.push({ code: 'missing-vrma-asset', message: `角色包内不存在 VRMA 文件：${animationId}=${declaredPath}` });
+    }
+  }
+  return errors;
+}
+
 function collectCharacterPackImportWarnings(
   pack: CharacterPackSummary,
   compatibility: CharacterPackImportCompatibility,
@@ -1135,6 +1190,7 @@ function assessCharacterPackImport(
       });
     }
   }
+  blockingErrors.push(...collectThreeAnimationBlockingErrors(pack));
 
   if (pack.presentation?.renderer === 'live2d') {
     const live2dModelOutsidePack = outsideAssetPaths.some((entry) => entry.field === 'live2dModel');

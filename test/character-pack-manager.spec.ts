@@ -497,6 +497,44 @@ describe('character pack manager', () => {
     expect(outside.installable).toBe(false);
   });
 
+  it('blocks incompatible, missing, invalid, and outside-pack VRMA entries', async () => {
+    tempRoot = mkdtempSync(path.join(os.tmpdir(), 'character-pack-manager-'));
+    const builtinRoot = path.join(tempRoot, 'builtin-pack');
+    const userDataDir = path.join(tempRoot, 'user-data');
+    writePack(builtinRoot, 'pack-alpha', 'Pack Alpha');
+    initCharacterPackManager({ userDataDir: userDataDir, builtinPackRootDir: builtinRoot, appVersion: '1.0.0' });
+
+    const sourceParent = path.join(tempRoot, 'vrma-source');
+    const sourceRoot = path.join(sourceParent, 'nested-pack');
+    const archivePath = path.join(tempRoot, 'imports', 'invalid-vrma.cbpk');
+    writePack(sourceRoot, 'invalid-vrma', 'Invalid VRMA', {
+      assets: { model3d: 'models/avatar.vrm', animations: 'animations/index.json' },
+      capabilities: { has3DModel: true, hasCustomAnimations: true },
+      presentation: { renderer: 'three' }
+    });
+    mkdirSync(path.join(sourceRoot, 'models'), { recursive: true });
+    writeFileSync(path.join(sourceRoot, 'models', 'avatar.vrm'), 'vrm', 'utf-8');
+    writeJsonFile(path.join(sourceRoot, 'animations', 'index.json'), {
+      version: 1,
+      items: [
+        { meta: { id: 'wrong-kind' }, source: { kind: 'video', localPath: 'wrong.webm' } },
+        { meta: { id: 'missing' }, source: { kind: 'three', localPath: 'missing.vrma' } },
+        { meta: { id: 'invalid-extension' }, source: { kind: 'three', localPath: 'invalid.webm' } },
+        { meta: { id: 'outside' }, source: { kind: 'three', localPath: '../outside.vrma' } }
+      ]
+    });
+    writeFileSync(path.join(sourceRoot, 'animations', 'invalid.webm'), 'not-vrma', 'utf-8');
+    writeFileSync(path.join(sourceParent, 'outside.vrma'), 'outside', 'utf-8');
+    createTestArchive(archivePath, sourceParent);
+    const inspection = await inspectCharacterPackFromArchive(archivePath);
+    const codes = inspection.blockingErrors.map((error) => error.code);
+    expect(codes).toContain('incompatible-three-animation-source');
+    expect(codes).toContain('missing-vrma-asset');
+    expect(codes).toContain('invalid-vrma-extension');
+    expect(codes).toContain('vrma-asset-path-outside-pack');
+    expect(inspection.installable).toBe(false);
+  });
+
   it('tracks companion start timestamps per pack and keeps them on reactivation', async () => {
     tempRoot = mkdtempSync(path.join(os.tmpdir(), 'character-pack-manager-'));
     const builtinRoot = path.join(tempRoot, 'builtin-pack');

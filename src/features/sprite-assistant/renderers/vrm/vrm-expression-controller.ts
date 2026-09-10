@@ -1,15 +1,9 @@
-import { VRMExpressionPresetName, type VRM } from '@pixiv/three-vrm';
+import { type VRM, VRMExpressionPresetName } from '@pixiv/three-vrm';
 import { MathUtils, Object3D, type PerspectiveCamera, Vector3 } from 'three';
 
 import { EMPTY_VRM_MOTION_CONTROL_MASK, type VrmMotionControlMask } from './vrm-motion-controller';
 
-const MOOD_EXPRESSIONS = [
-  VRMExpressionPresetName.Happy,
-  VRMExpressionPresetName.Angry,
-  VRMExpressionPresetName.Sad,
-  VRMExpressionPresetName.Relaxed,
-  VRMExpressionPresetName.Surprised
-] as const;
+const MOOD_EXPRESSIONS = [VRMExpressionPresetName.Happy, VRMExpressionPresetName.Angry, VRMExpressionPresetName.Sad, VRMExpressionPresetName.Relaxed, VRMExpressionPresetName.Surprised] as const;
 const BLINK_EXPRESSIONS = [VRMExpressionPresetName.Blink, VRMExpressionPresetName.BlinkLeft, VRMExpressionPresetName.BlinkRight] as const;
 const MOUTH_EXPRESSIONS = [VRMExpressionPresetName.Aa, VRMExpressionPresetName.Ih, VRMExpressionPresetName.Ou, VRMExpressionPresetName.Ee, VRMExpressionPresetName.Oh] as const;
 
@@ -221,11 +215,7 @@ export class VrmExpressionController {
     const viewportHalfWidth = viewportHalfHeight * camera.aspect;
     const maxHorizontal = Math.tan(MathUtils.degToRad(20)) * distance;
     const maxVertical = Math.tan(MathUtils.degToRad(12)) * distance;
-    this.desiredLookAt.set(
-      camera.position.x + pointerX * Math.min(viewportHalfWidth, maxHorizontal),
-      this.lookAtOrigin.y + pointerY * Math.min(viewportHalfHeight, maxVertical),
-      camera.position.z
-    );
+    this.desiredLookAt.set(camera.position.x + pointerX * Math.min(viewportHalfWidth, maxHorizontal), this.lookAtOrigin.y + pointerY * Math.min(viewportHalfHeight, maxVertical), camera.position.z);
 
     if (!this.lookAtInitialized) {
       this.lookAtTarget.position.copy(this.desiredLookAt);

@@ -34,7 +34,10 @@ export default function VrmSprite({ width = 180, height = 240, walkDirection, is
   const runtimeRef = useRef<{ motion: VrmMotionController; expressions: VrmExpressionController } | null>(null);
   const { currentAnimation, personaState, spriteState } = useSpriteState();
   const visualStateRef = useRef({ currentAnimation, personaState, spriteState, walkDirection, isDragging });
-  visualStateRef.current = { currentAnimation, personaState, spriteState, walkDirection, isDragging };
+
+  useEffect(() => {
+    visualStateRef.current = { currentAnimation, personaState, spriteState, walkDirection, isDragging };
+  }, [currentAnimation, isDragging, personaState, spriteState, walkDirection]);
 
   useEffect(() => {
     firstFrameCallbackRef.current = onFirstFrame;

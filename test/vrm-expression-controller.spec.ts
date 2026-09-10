@@ -2,11 +2,7 @@ import { type VRM, VRMExpression, VRMExpressionManager } from '@pixiv/three-vrm'
 import { PerspectiveCamera, Vector3 } from 'three';
 import { describe, expect, it, vi } from 'vitest';
 
-import {
-  resolveVrmMoodExpression,
-  VrmBlinkController,
-  VrmExpressionController
-} from '../src/features/sprite-assistant/renderers/vrm/vrm-expression-controller';
+import { resolveVrmMoodExpression, VrmBlinkController, VrmExpressionController } from '../src/features/sprite-assistant/renderers/vrm/vrm-expression-controller';
 
 function createExpressionVrm(names: string[]): { vrm: VRM; manager: VRMExpressionManager } {
   const manager = new VRMExpressionManager();

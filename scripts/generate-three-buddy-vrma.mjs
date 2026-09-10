@@ -190,7 +190,18 @@ const motions = [
     name: 'Three Buddy Idle',
     tracks: (bones) => [
       { node: bones.hips, path: 'translation', times: [0, 1, 2], values: [0, 0.98, 0, 0, 1, 0, 0, 0.98, 0], type: 'VEC3', itemSize: 3 },
-      { node: bones.chest, path: 'rotation', times: [0, 1, 2], values: q([[0, 0, -1.5], [0, 0, 1.5], [0, 0, -1.5]]), type: 'VEC4', itemSize: 4 }
+      {
+        node: bones.chest,
+        path: 'rotation',
+        times: [0, 1, 2],
+        values: q([
+          [0, 0, -1.5],
+          [0, 0, 1.5],
+          [0, 0, -1.5]
+        ]),
+        type: 'VEC4',
+        itemSize: 4
+      }
     ]
   },
   {
@@ -198,19 +209,100 @@ const motions = [
     name: 'Three Buddy Walk',
     tracks: (bones) => [
       { node: bones.hips, path: 'translation', times: [0, 0.25, 0.5, 0.75, 1], values: [0, 0.98, 0, 0, 1.02, 0, 0, 0.98, 0, 0, 1.02, 0, 0, 0.98, 0], type: 'VEC3', itemSize: 3 },
-      { node: bones.leftUpperLeg, path: 'rotation', times: [0, 0.5, 1], values: q([[25, 0, 0], [-25, 0, 0], [25, 0, 0]]), type: 'VEC4', itemSize: 4 },
-      { node: bones.rightUpperLeg, path: 'rotation', times: [0, 0.5, 1], values: q([[-25, 0, 0], [25, 0, 0], [-25, 0, 0]]), type: 'VEC4', itemSize: 4 },
-      { node: bones.leftUpperArm, path: 'rotation', times: [0, 0.5, 1], values: q([[-20, 0, 0], [20, 0, 0], [-20, 0, 0]]), type: 'VEC4', itemSize: 4 },
-      { node: bones.rightUpperArm, path: 'rotation', times: [0, 0.5, 1], values: q([[20, 0, 0], [-20, 0, 0], [20, 0, 0]]), type: 'VEC4', itemSize: 4 }
+      {
+        node: bones.leftUpperLeg,
+        path: 'rotation',
+        times: [0, 0.5, 1],
+        values: q([
+          [25, 0, 0],
+          [-25, 0, 0],
+          [25, 0, 0]
+        ]),
+        type: 'VEC4',
+        itemSize: 4
+      },
+      {
+        node: bones.rightUpperLeg,
+        path: 'rotation',
+        times: [0, 0.5, 1],
+        values: q([
+          [-25, 0, 0],
+          [25, 0, 0],
+          [-25, 0, 0]
+        ]),
+        type: 'VEC4',
+        itemSize: 4
+      },
+      {
+        node: bones.leftUpperArm,
+        path: 'rotation',
+        times: [0, 0.5, 1],
+        values: q([
+          [-20, 0, 0],
+          [20, 0, 0],
+          [-20, 0, 0]
+        ]),
+        type: 'VEC4',
+        itemSize: 4
+      },
+      {
+        node: bones.rightUpperArm,
+        path: 'rotation',
+        times: [0, 0.5, 1],
+        values: q([
+          [20, 0, 0],
+          [-20, 0, 0],
+          [20, 0, 0]
+        ]),
+        type: 'VEC4',
+        itemSize: 4
+      }
     ]
   },
   {
     id: 'welcome',
     name: 'Three Buddy Welcome',
     tracks: (bones) => [
-      { node: bones.rightUpperArm, path: 'rotation', times: [0, 0.35, 0.7, 1.05, 1.4], values: q([[0, 0, 0], [0, 0, 65], [0, 0, 42], [0, 0, 65], [0, 0, 0]]), type: 'VEC4', itemSize: 4 },
-      { node: bones.rightLowerArm, path: 'rotation', times: [0, 0.35, 0.7, 1.05, 1.4], values: q([[0, 0, 0], [0, 0, 70], [0, 0, 45], [0, 0, 70], [0, 0, 0]]), type: 'VEC4', itemSize: 4 },
-      { node: bones.head, path: 'rotation', times: [0, 0.7, 1.4], values: q([[0, 0, 0], [0, -8, 3], [0, 0, 0]]), type: 'VEC4', itemSize: 4 }
+      {
+        node: bones.rightUpperArm,
+        path: 'rotation',
+        times: [0, 0.35, 0.7, 1.05, 1.4],
+        values: q([
+          [0, 0, 0],
+          [0, 0, 65],
+          [0, 0, 42],
+          [0, 0, 65],
+          [0, 0, 0]
+        ]),
+        type: 'VEC4',
+        itemSize: 4
+      },
+      {
+        node: bones.rightLowerArm,
+        path: 'rotation',
+        times: [0, 0.35, 0.7, 1.05, 1.4],
+        values: q([
+          [0, 0, 0],
+          [0, 0, 70],
+          [0, 0, 45],
+          [0, 0, 70],
+          [0, 0, 0]
+        ]),
+        type: 'VEC4',
+        itemSize: 4
+      },
+      {
+        node: bones.head,
+        path: 'rotation',
+        times: [0, 0.7, 1.4],
+        values: q([
+          [0, 0, 0],
+          [0, -8, 3],
+          [0, 0, 0]
+        ]),
+        type: 'VEC4',
+        itemSize: 4
+      }
     ],
     expressions: [{ name: 'happy', times: [0, 0.3, 1.1, 1.4], weights: [0, 1, 0.7, 0] }],
     lookAt: { times: [0, 0.7, 1.4], rotations: [quaternion(), quaternion(-3, -10, 0), quaternion()] }
@@ -219,9 +311,45 @@ const motions = [
     id: 'thinking',
     name: 'Three Buddy Thinking',
     tracks: (bones) => [
-      { node: bones.head, path: 'rotation', times: [0, 0.5, 1.5, 2], values: q([[0, 0, 0], [0, 10, -5], [0, 10, -5], [0, 0, 0]]), type: 'VEC4', itemSize: 4 },
-      { node: bones.rightUpperArm, path: 'rotation', times: [0, 0.5, 1.5, 2], values: q([[0, 0, 0], [0, 0, 42], [0, 0, 42], [0, 0, 0]]), type: 'VEC4', itemSize: 4 },
-      { node: bones.rightLowerArm, path: 'rotation', times: [0, 0.5, 1.5, 2], values: q([[0, 0, 0], [0, 0, 78], [0, 0, 78], [0, 0, 0]]), type: 'VEC4', itemSize: 4 }
+      {
+        node: bones.head,
+        path: 'rotation',
+        times: [0, 0.5, 1.5, 2],
+        values: q([
+          [0, 0, 0],
+          [0, 10, -5],
+          [0, 10, -5],
+          [0, 0, 0]
+        ]),
+        type: 'VEC4',
+        itemSize: 4
+      },
+      {
+        node: bones.rightUpperArm,
+        path: 'rotation',
+        times: [0, 0.5, 1.5, 2],
+        values: q([
+          [0, 0, 0],
+          [0, 0, 42],
+          [0, 0, 42],
+          [0, 0, 0]
+        ]),
+        type: 'VEC4',
+        itemSize: 4
+      },
+      {
+        node: bones.rightLowerArm,
+        path: 'rotation',
+        times: [0, 0.5, 1.5, 2],
+        values: q([
+          [0, 0, 0],
+          [0, 0, 78],
+          [0, 0, 78],
+          [0, 0, 0]
+        ]),
+        type: 'VEC4',
+        itemSize: 4
+      }
     ],
     expressions: [{ name: 'relaxed', times: [0, 0.5, 1.5, 2], weights: [0, 0.65, 0.65, 0] }]
   }

@@ -1,14 +1,10 @@
-import type { SpritePlayCommand } from '../packages/sprite-core/types';
 import { type VRM } from '@pixiv/three-vrm';
 import { VRMAnimation } from '@pixiv/three-vrm-animation';
 import { AnimationClip, Group, LoopOnce, LoopRepeat, NumberKeyframeTrack, QuaternionKeyframeTrack } from 'three';
 import { describe, expect, it, vi } from 'vitest';
 
-import {
-  getVrmAnimationControlMask,
-  resolveVrmActionLoop,
-  VrmMotionController
-} from '../src/features/sprite-assistant/renderers/vrm/vrm-motion-controller';
+import type { SpritePlayCommand } from '../packages/sprite-core/types';
+import { getVrmAnimationControlMask, resolveVrmActionLoop, VrmMotionController } from '../src/features/sprite-assistant/renderers/vrm/vrm-motion-controller';
 
 function createVrm(): VRM {
   return { scene: new Group() } as VRM;

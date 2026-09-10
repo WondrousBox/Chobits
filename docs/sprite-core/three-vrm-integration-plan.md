@@ -1,7 +1,7 @@
 # three-vrm 桌面精灵集成实施计划
 
-> 日期：2026-09-08
-> 状态：Phase 0-2、Live2D 角色包迁移和内置三模式样本已完成；macOS Electron 实机验证通过，待 VRMA 与跨平台发布验收
+> 日期：2026-09-10
+> 状态：Phase 0-4、Live2D 角色包迁移和内置三模式样本已完成；Phase 3-4 自动化验证通过，待 Electron 动态表现、Phase 5 和跨平台发布验收
 > 目标版本：`@pixiv/three-vrm 3.5.x`
 
 上游基线（2026-09-08 核验）：
@@ -31,14 +31,14 @@
 - [x] Phase 1：角色包 3D 资源协议
 - [x] Phase 2：动态渲染器路由与 VRM 静态展示
 - [x] 将 `main` 的 Live2D 实现迁入当前角色包和 presentation 架构
-- [ ] Phase 3：VRMA 动作播放和完成事件
-- [ ] Phase 4：表情、眨眼、注视和基础口型
+- [x] Phase 3：VRMA 动作播放和完成事件
+- [x] Phase 4：表情、眨眼、注视和基础口型
 - [ ] Phase 5：角色包编辑、预览和导入校验
 - [ ] Phase 6：性能、自动化测试和跨平台验收
 
-### 0.1 Phase 0-2 实施结果
+### 0.1 Phase 0-4 实施结果
 
-截至 2026-09-09，首个交付批次已完成以下代码落地：
+截至 2026-09-10，已完成以下代码落地：
 
 - 已安装 `@pixiv/three-vrm 3.5.5`，并将 `three` 与 `@types/three` 对齐到 `0.170.x`。
 - 已建立 `model3d + presentation + source.kind` 共享契约，以及初始状态、角色切换事件和 preload bridge 的同步链路。
@@ -47,8 +47,12 @@
 - 已实现透明 WebGL、MToon 所需颜色空间与灯光、自动取景、30 FPS 上限、隐藏页暂停、ResizeObserver、异步切换隔离、首帧 fail-open 和 GPU 资源释放。
 - 已从 `main` 迁入 Cubism Core、Framework 和 `Live2DSprite`，并移除 renderer 对全局资源目录及角色包查询 API 的依赖。入口仍通过 `registerLive2DRenderer()` 注册，router 只消费主进程下发的 presentation。
 - 已将 Mao(PRO) 封装为 `resources/character-packs/mao-pro/` 自包含 Live2D 包；模型、配置、motion、角色定义和许可说明均在包内，`source.kind` 明确为 `live2d`。
-- 本批次没有安装 `@pixiv/three-vrm-animation`，three 模式暂时展示 rest pose；VRMA 播放、动作完成事件和表达控制按计划留到 Phase 3-4。
+- 已安装 `@pixiv/three-vrm-animation 3.5.5`，新增 `VrmMotionController`；支持 VRMA 解析和 retarget、8 项小型 LRU cache、150ms 交叉淡化、loop/loopCount/LoopOnce、timed session 截止、动作完成事件及异步动作切换隔离。
+- 已新增 `VrmExpressionController`；支持 mood/trigger 标准表情映射、2.5-6 秒随机自动眨眼、pointer LookAt、拖拽暂停、离开回中，以及基于共享 RMS 的 `aa` 口型。
+- VRMA expression、blink、mouth 和 LookAt track 会生成控制掩码；动作拥有的通道优先，程序化控制只更新未被动作占用的通道。
 - 已加入项目自有 `resources/character-packs/three-buddy/`：其二进制模型由 `scripts/generate-three-buddy-vrm.mjs` 可复现生成，包含 VRM 1.0 meta 和全部必需 humanoid bones；测试会用 `VRMLoaderPlugin` 实际解析该文件。
+- Three Buddy 已加入由 `scripts/generate-three-buddy-vrma.mjs` 可复现生成的 `idle`、`walk`、`welcome`、`thinking` 四个 VRMA；其中 welcome/thinking 用于验证 expression 和 LookAt 动画通道仲裁。
+- three 角色包导入预检会拒绝错误 source kind、缺失或非 `.vrma` 动作、越过角色包根目录的动作路径，以及无效动画索引。
 - `resources/sprites/` 继续作为默认 video 包。`resources/character-packs/` 的直接子目录作为附加只读内置包发现；首次启动明确优先默认 video 包，不依赖本地化名称排序。
 - 设置页不提供全局 renderer 开关。用户通过“设置 -> 精灵管理 -> 已发现角色包 -> 切换”激活角色包，展示模式由该包的 `presentation.renderer` 决定，列表会显示“视频 / Live2D / VRM 3D”标识。
 
@@ -56,9 +60,11 @@
 
 - `pnpm exec tsc --noEmit` 通过。
 - `pnpm exec vite build --mode=test` 通过。
-- presentation、renderer、bridge、角色包、资源协议、SpriteManager 和 IPC 聚焦回归共 164/164 通过。
-- 完整 `sprite-*` 测试集合为 308/321；13 个失败均位于本次未改动的默认资源 digest、onboarding routine 和 event listener 既有断言。其中 `resources/sprites/pack.json` 声明的 digest 为 `863e12c72e0b3167817580828c46e4b03e60c588c734df926282db4e5020d5aa`，当前资源实际计算值为 `fd060f23d257ee618bcd57fff67cab2616a8886c04d4e5ec4bc0fe436e619a61`，本批次不在未确认资源来源的情况下改写签名。
+- presentation、renderer、bridge、角色包、资源协议、SpriteManager、video/Live2D/VRM 聚焦回归共 168/168 通过。
+- Phase 3-4 的角色包、VRMA asset、motion controller 和 expression controller 测试共 42/42 通过。
+- 本次全量 Vitest 为 1039/1059；20 个失败集中在当前分支已有的 onboarding、selected-text、scheduler、speech、默认资源 digest、event listener 和缺少 Electron mock 的断言，与 VRM/三模式聚焦改动无直接关系。聚焦回归仍保持 168/168 通过。其中 `resources/sprites/pack.json` 声明的 digest 为 `863e12c72e0b3167817580828c46e4b03e60c588c734df926282db4e5020d5aa`，当前资源实际计算值为 `fd060f23d257ee618bcd57fff67cab2616a8886c04d4e5ec4bc0fe436e619a61`，本批次不在未确认资源来源的情况下改写签名。
 - Playwright 在隔离用户目录中启动 macOS Electron 构建，按 `three-buddy -> mao-pro -> yua-default` 连续切换。VRM canvas 的 CSS/backing 尺寸为 280x400/560x800，截图检测到 71,579 个非透明像素；Live2D 为 300x400/600x800，检测到 62,419 个非透明像素；切回 video 后 renderer canvas 数量为 0，页面无 error。
+- 上述 Electron 记录验证的是 Phase 0-2 静态 VRM 和三模式切换；VRMA 动作观感、自动眨眼、pointer LookAt、语音口型和连续切换后的 GPU 资源计数仍需单独实机验收。
 - 本次新增及核心业务变更文件 Lint error 检查通过。`SpritePackManager.tsx:386` 仍有任务开始前已存在的 `react-hooks/set-state-in-effect` 报错，本批次没有借机改写其数据刷新生命周期。
 - `src/live2d-sdk/**` 是按 Live2D 授权条款 vendored 的 Cubism Core/Framework，上游源码和压缩产物不套用项目 ESLint 规则；Chobits 自有 adapter/runtime 仍正常参与 lint。
 - `git diff --check` 和敏感路径扫描通过；没有数据库或 schema 变更。
@@ -852,18 +858,17 @@ waiting -> closing -> opening -> waiting
 
 ### 10.4 基础口型
 
-现有 `useSpriteSpeak()` 独立创建并播放 `HTMLAudioElement`，`VrmSprite` 无法读取实时振幅。口型接入需要把音频播放状态抽成共享的 renderer speech controller，而不是让两个组件分别播放音频。
+`useSpriteSpeak()` 仍是唯一的语音播放入口。它在创建 `HTMLAudioElement` 后通过 `src/lib/audio/lip-sync-source.ts` 连接共享的 Web Audio `AnalyserNode`；`VrmSprite` 和 `Live2DSprite` 每帧调用 `getCurrentRMS()` 读取同一份平滑振幅，不重复创建或播放音频。
 
-推荐改造：
+当前数据流：
 
 ```text
 sprite:speak
-    -> SpriteAudioController
+    -> useSpriteSpeak
        ├─ HTMLAudioElement
-       ├─ Web Audio AnalyserNode
-       ├─ playback state context
-       └─ amplitude samples
-                  -> VrmExpressionController
+       └─ lip-sync-source / Web Audio AnalyserNode
+                         ├─ Live2DSprite
+                         └─ VrmExpressionController
 ```
 
 第一版口型只根据平滑后的音量驱动 `aa`：
@@ -1021,6 +1026,8 @@ type VrmLoadErrorCode = 'resource-forbidden' | 'resource-not-found' | 'unsupport
 
 ### Phase 3：VRMA 动作
 
+状态：已完成。自动化覆盖动作解析、retarget、循环语义、完成事件、timed session、缓存和异步竞态；Electron 动作观感验收留在 Phase 6。
+
 修改/新增：
 
 - `package.json`
@@ -1046,11 +1053,13 @@ type VrmLoadErrorCode = 'resource-forbidden' | 'resource-not-found' | 'unsupport
 
 ### Phase 4：表现力
 
+状态：已完成。自动化覆盖表情映射、眨眼状态机、LookAt 范围与阻尼、口型权重和 VRMA 通道优先级；Electron 交互观感验收留在 Phase 6。
+
 修改/新增：
 
 - `src/features/sprite-assistant/renderers/vrm/vrm-expression-controller.ts`
 - `src/features/sprite-assistant/speak/useSpriteSpeak.ts`
-- 新的 renderer speech context/controller
+- `src/lib/audio/lip-sync-source.ts`
 
 任务：
 
@@ -1212,16 +1221,16 @@ Three.js/WebGL API 在 jsdom 中使用边界 mock；模型实际解析交给 bro
 - [x] 现有默认 WebM 角色包无需修改即可运行。
 - [x] 从 `main` 迁入的 Mao(PRO) 已封装为自包含 Live2D 角色包；renderer、动作、交互和口型入口保留。
 - [x] VRM 角色包能通过 manifest 声明模型并归一化为 `three` mode。
-- [ ] VRM 角色包能声明并播放 VRMA 动作。
+- [x] VRM 角色包能声明并播放 VRMA 动作。
 - [x] 角色激活后无需重启即可在 video/live2d/three 之间切换。
 - [x] 当前 `ThreeSprite` 调用方无需改 import；其内部由 VRM 实现接管。
 - [x] VRM 模型已在 macOS 透明 Electron 窗口中稳定显示；Windows 验收留在 Phase 6。
 - [x] 静态展示帧循环会调用 `vrm.update(delta)`。
-- [ ] mixer 和 VRM 表达控制器按正确顺序更新。
-- [ ] `idle`、`walk` 和一个非循环 trigger 动作可正确播放。
-- [ ] 非循环动作完成后通过既有 IPC 回 idle。
+- [x] mixer 和 VRM 表达控制器按正确顺序更新。
+- [x] `idle`、`walk` 和非循环 `welcome` / `thinking` trigger 动作可正确加载和播放。
+- [x] 非循环动作完成后通过既有 IPC 交由 SpriteManager 回 idle。
 - [x] `onFirstFrame` 只在有效模型帧后报告，失败路径会 fail-open。
-- [x] 模型和角色包切换通过 generation/key 隔离旧异步结果；动作竞态待 Phase 3 验证。
+- [x] 模型、角色包和动作切换通过 generation/key 隔离旧异步结果。
 - [ ] 组件卸载和角色切换后 GPU 资源得到释放。
 - [x] video、Live2D 和 three 的失败处理互相隔离，一个模式失败不会全局切换 renderer。
 - [x] 包外模型路径和不支持的模型扩展名被拒绝。
@@ -1230,10 +1239,10 @@ Three.js/WebGL API 在 jsdom 中使用边界 mock；模型实际解析交给 bro
 
 ### 15.2 VRM Phase 4 后满足
 
-- [ ] mood expression 平滑切换。
-- [ ] 自动眨眼与 VRMA 表情不冲突。
-- [ ] lookAt 有范围限制和阻尼。
-- [ ] 语音播放时有基础口型，结束后正确复位。
+- [x] mood expression 平滑切换。
+- [x] 自动眨眼与 VRMA 表情不冲突。
+- [x] lookAt 有范围限制和阻尼。
+- [x] 语音播放时有基础口型，结束后正确复位。
 
 ## 16. 回滚策略
 
@@ -1260,17 +1269,17 @@ Three.js/WebGL API 在 jsdom 中使用边界 mock；模型实际解析交给 bro
 - 第一版仅接受自包含 VRM/VRMA。
 - video、Live2D 和 three/VRM 共享 trigger、playlist、movement 和完成事件语义。
 
-实施前需要准备的外部输入：
+Phase 5-6 验收仍需要准备的外部输入：
 
 - 一个明确允许开发测试和重新分发的 VRM 模型。
 - 至少 `idle`、`walk`、`welcome` 三个兼容该模型的 VRMA 动作。
 - 目标 VRM 模型的桌面展示尺寸和期望取景参考。
 
-这些输入只影响视觉验收和 fixture 授权，不阻塞 Phase 0-2 的代码骨架开发。
+仓库内 Three Buddy 已满足自动化 fixture 和基础视觉验收。发布前仍应使用至少一个具有正式授权、材质和表情完整的目标模型复核表现与性能。
 
-## 18. 推荐首个交付批次
+## 18. 交付批次
 
-首个 PR 只完成 Phase 0-2：
+首个交付批次完成 Phase 0-2：
 
 1. 对齐依赖。
 2. 建立 `model3d + presentation + source.kind` 契约。
@@ -1279,4 +1288,4 @@ Three.js/WebGL API 在 jsdom 中使用边界 mock；模型实际解析交给 bro
 5. 加载并展示静态 VRM，完成自动取景、首帧和释放。
 6. 保持全部动作暂时为 rest pose。
 
-这样可以先验证最危险的 Electron 透明窗口、资源协议、角色切换和 GPU 生命周期，再在第二个 PR 中引入 VRMA 播放状态机。避免模型加载问题和动作完成语义同时进入一个难以定位的大改动。
+第二个交付批次已完成 Phase 3-4：引入 VRMA 播放状态机、表达控制、Three Buddy 动作样本和 VRMA 导入预检。后续批次聚焦 Phase 5 编辑/预览，以及 Phase 6 Electron 动态表现、GPU 生命周期和跨平台发布验收。

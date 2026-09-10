@@ -1,8 +1,8 @@
 import type { SpritePlayCommand } from '@packages/sprite-core/types';
-import { createVRMAnimationClip, type VRMAnimation, VRMAnimationLoaderPlugin, VRMLookAtQuaternionProxy } from '@pixiv/three-vrm-animation';
 import { type VRM, VRMUtils } from '@pixiv/three-vrm';
-import { AnimationClip, AnimationMixer, LoopOnce, LoopRepeat } from 'three';
+import { createVRMAnimationClip, type VRMAnimation, VRMAnimationLoaderPlugin, VRMLookAtQuaternionProxy } from '@pixiv/three-vrm-animation';
 import type { AnimationAction, AnimationMixerEventMap } from 'three';
+import { AnimationClip, AnimationMixer, LoopOnce, LoopRepeat } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 const CROSS_FADE_SECONDS = 0.15;
